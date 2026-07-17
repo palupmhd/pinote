@@ -7,11 +7,13 @@ import {
   type Board,
   type BoardElement,
   type Camera,
+  type TaskListElement,
 } from "./types";
 
 const STORAGE_KEY = "milnote:workspace:v1";
 const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
+const TASK_LIST_WIDTH = 260;
 
 interface Persisted {
   boards: Record<string, Board>;
@@ -30,7 +32,13 @@ interface CanvasState extends Persisted {
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
+  addTaskList: (worldX: number, worldY: number) => string;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
+  setTaskListTitle: (id: string, title: string) => void;
+  addTaskItem: (id: string, afterItemId?: string) => string | null;
+  setTaskText: (id: string, itemId: string, text: string) => void;
+  toggleTask: (id: string, itemId: string) => void;
+  removeTaskItem: (id: string, itemId: string) => void;
   openBoard: (boardId: string) => void;
   renameBoard: (boardId: string, title: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
@@ -42,6 +50,27 @@ interface CanvasState extends Persisted {
 }
 
 const rootBoard: Board = { id: ROOT_BOARD_ID, title: "Home", parentBoardId: null };
+
+type SetState = (fn: (s: CanvasState) => Partial<CanvasState>) => void;
+
+/** Pembungkus umum untuk mengubah isi TASK_LIST — menjaga guard tipe &
+ *  updatedAt tetap konsisten di semua aksi. */
+function updateTaskList(
+  set: SetState,
+  id: string,
+  fn: (content: TaskListElement["content"]) => TaskListElement["content"]
+) {
+  set((s) => {
+    const el = s.elements[id];
+    if (!el || el.type !== "TASK_LIST") return s;
+    return {
+      elements: {
+        ...s.elements,
+        [id]: { ...el, content: fn(el.content), updatedAt: Date.now() },
+      },
+    };
+  });
+}
 
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
   const zs = Object.values(elements)
@@ -163,6 +192,65 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }));
     return elementId;
   },
+
+  addTaskList: (worldX, worldY) => {
+    const id = crypto.randomUUID();
+    set((s) => ({
+      elements: {
+        ...s.elements,
+        [id]: {
+          id,
+          boardId: s.currentBoardId,
+          type: "TASK_LIST",
+          x: worldX - TASK_LIST_WIDTH / 2,
+          y: worldY - 30,
+          width: TASK_LIST_WIDTH,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: {
+            title: "",
+            items: [{ id: crypto.randomUUID(), text: "", done: false }],
+          },
+          updatedAt: Date.now(),
+        },
+      },
+      selectedId: id,
+    }));
+    return id;
+  },
+
+  setTaskListTitle: (id, title) => updateTaskList(set, id, (c) => ({ ...c, title })),
+
+  addTaskItem: (id, afterItemId) => {
+    const el = get().elements[id];
+    if (!el || el.type !== "TASK_LIST") return null;
+    const newId = crypto.randomUUID();
+    updateTaskList(set, id, (c) => {
+      const at = afterItemId ? c.items.findIndex((i) => i.id === afterItemId) : -1;
+      const item = { id: newId, text: "", done: false };
+      const items = [...c.items];
+      items.splice(at < 0 ? items.length : at + 1, 0, item);
+      return { ...c, items };
+    });
+    return newId;
+  },
+
+  setTaskText: (id, itemId, text) =>
+    updateTaskList(set, id, (c) => ({
+      ...c,
+      items: c.items.map((i) => (i.id === itemId ? { ...i, text } : i)),
+    })),
+
+  toggleTask: (id, itemId) =>
+    updateTaskList(set, id, (c) => ({
+      ...c,
+      items: c.items.map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)),
+    })),
+
+  removeTaskItem: (id, itemId) =>
+    updateTaskList(set, id, (c) => ({
+      ...c,
+      items: c.items.filter((i) => i.id !== itemId),
+    })),
 
   addConnector: (sourceElementId, targetElementId) => {
     if (sourceElementId === targetElementId) return null;

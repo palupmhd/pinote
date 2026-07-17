@@ -14,6 +14,7 @@ interface Props {
 export function Toolbar({ containerRef, cameraRef }: Props) {
   const addNote = useCanvasStore((s) => s.addNote);
   const addBoard = useCanvasStore((s) => s.addBoard);
+  const addTaskList = useCanvasStore((s) => s.addTaskList);
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -27,6 +28,10 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     { label: "Catatan", hint: "Tambah catatan", onClick: () => {
         const { x, y } = viewportCenter();
         addNote(x, y);
+      } },
+    { label: "Tugas", hint: "Tambah daftar tugas", onClick: () => {
+        const { x, y } = viewportCenter();
+        addTaskList(x, y);
       } },
     { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)", onClick: () => {
         const { x, y } = viewportCenter();

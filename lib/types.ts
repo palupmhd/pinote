@@ -1,5 +1,5 @@
 // Data model per TECHNICAL_SPEC.md §2
-export type ElementType = "NOTE" | "BOARD_REF" | "CONNECTOR";
+export type ElementType = "NOTE" | "BOARD_REF" | "TASK_LIST" | "CONNECTOR";
 
 export interface Board {
   id: string;
@@ -29,6 +29,21 @@ export interface BoardRefElement extends BaseElement {
   content: { boardId: string };
 }
 
+export interface TaskItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+/** Daftar tugas. Teks item sengaja plain string, bukan rich text — item tugas
+ *  itu satu baris pendek, tidak perlu ProseMirror per baris.
+ *  Catatan: field tanggal per item belum ada; menyusul bareng Calendar view
+ *  (spec §8) supaya tidak ada field yang tidak punya UI. */
+export interface TaskListElement extends BaseElement {
+  type: "TASK_LIST";
+  content: { title: string; items: TaskItem[] };
+}
+
 /** Garis penghubung antar elemen.
  *
  *  Sengaja GENERIK: source/target cuma ID elemen, tanpa asumsi tipe apa pun.
@@ -48,7 +63,7 @@ export interface ConnectorElement {
 }
 
 /** Elemen yang punya posisi & bisa digeser di kanvas. */
-export type CardElement = NoteElement | BoardRefElement;
+export type CardElement = NoteElement | BoardRefElement | TaskListElement;
 
 export type BoardElement = CardElement | ConnectorElement;
 

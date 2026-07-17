@@ -6,6 +6,7 @@ import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { NoteCard } from "./NoteCard";
+import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
 import type { CardElement, ConnectorElement } from "@/lib/types";
 
@@ -214,13 +215,11 @@ export function Canvas() {
         {hydrated && <ConnectorLayer connectors={connectors} cards={cards} />}
 
         {hydrated &&
-          cards.map((el) =>
-            el.type === "BOARD_REF" ? (
-              <BoardCard key={el.id} element={el} />
-            ) : (
-              <NoteCard key={el.id} element={el} />
-            )
-          )}
+          cards.map((el) => {
+            if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
+            if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
+            return <NoteCard key={el.id} element={el} />;
+          })}
       </div>
 
       {hydrated && cards.length === 0 && (

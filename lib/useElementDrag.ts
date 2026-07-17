@@ -29,6 +29,11 @@ export function useElementDrag(element: CardElement, enabled = true) {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!enabled || e.button !== 0) return;
+    // Jangan mulai drag kalau yang ditekan adalah kontrol (checkbox, input,
+    // tombol) — kalau tidak, pointer capture merebut fokus dan mengetik jadi
+    // mustahil.
+    const target = e.target as HTMLElement;
+    if (target.closest('input, textarea, button, select, [contenteditable="true"]')) return;
     e.stopPropagation();
     select(element.id);
     bringToFront(element.id);
