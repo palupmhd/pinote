@@ -7,6 +7,11 @@ import { useCanvasStore } from "@/lib/store";
 import type { Box, CardElement, ConnectorElement } from "@/lib/types";
 
 const FALLBACK_HEIGHT = 64;
+/** Setengah sisi kotak SVG, samakan dengan grid di Canvas. SVG WAJIB punya
+ *  ukuran nyata — svg 0x0 (walau overflow:visible) tidak dilukis sama sekali.
+ *  Anak-anaknya digeser +EXTENT lewat <g> supaya tetap bisa memakai koordinat
+ *  world apa adanya, termasuk yang negatif. */
+const EXTENT = 6000;
 
 interface Props {
   connectors: ConnectorElement[];
@@ -90,9 +95,10 @@ export function ConnectorLayer({ connectors, cards }: Props) {
   }, [redraw]);
 
   return (
-    // width/height 0 + overflow visible: koordinat SVG = koordinat world,
-    // tanpa perlu kotak raksasa yang boros dirasterisasi.
-    <svg width="0" height="0" style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }}>
+    <svg
+      className="pointer-events-none absolute"
+      style={{ left: -EXTENT, top: -EXTENT, width: EXTENT * 2, height: EXTENT * 2 }}
+    >
       <defs>
         <marker
           id="conn-arrow"
@@ -107,36 +113,38 @@ export function ConnectorLayer({ connectors, cards }: Props) {
         </marker>
       </defs>
 
-      {connectors.map((c) => (
-        <path
-          key={c.id}
-          ref={(el) => {
-            pathRefs.current.set(c.id, el);
-          }}
-          fill="none"
-          stroke="#a1a1aa"
-          strokeWidth={2}
-          markerEnd="url(#conn-arrow)"
-          className="pointer-events-auto cursor-pointer hover:stroke-red-400"
-          style={{ strokeLinecap: "round" }}
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            removeConnector(c.id); // klik dua kali garis = hapus
-          }}
-        >
-          <title>Klik dua kali untuk hapus garis</title>
-        </path>
-      ))}
+      {/* Geser origin ke tengah kotak → anak-anaknya tetap pakai koordinat world */}
+      <g transform={`translate(${EXTENT} ${EXTENT})`}>
+        {connectors.map((c) => (
+          <path
+            key={c.id}
+            ref={(el) => {
+              pathRefs.current.set(c.id, el);
+            }}
+            fill="none"
+            stroke="#a1a1aa"
+            strokeWidth={2}
+            markerEnd="url(#conn-arrow)"
+            className="pointer-events-auto cursor-pointer hover:stroke-red-400"
+            style={{ strokeLinecap: "round" }}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              removeConnector(c.id); // klik dua kali garis = hapus
+            }}
+          >
+            <title>Klik dua kali untuk hapus garis</title>
+          </path>
+        ))}
 
-      <path
-        ref={ghostRef}
-        fill="none"
-        stroke="#60a5fa"
-        strokeWidth={2}
-        strokeDasharray="4 4"
-        markerEnd="url(#conn-arrow)"
-        className="pointer-events-none"
-      />
+        <path
+          ref={ghostRef}
+          fill="none"
+          stroke="#60a5fa"
+          strokeWidth={2}
+          strokeDasharray="4 4"
+          markerEnd="url(#conn-arrow)"
+        />
+      </g>
     </svg>
   );
 }
