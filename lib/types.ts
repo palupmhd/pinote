@@ -1,5 +1,5 @@
 // Data model per TECHNICAL_SPEC.md §2
-export type ElementType = "NOTE" | "BOARD_REF" | "TASK_LIST" | "CONNECTOR";
+export type ElementType = "NOTE" | "BOARD_REF" | "TASK_LIST" | "LINK" | "CONNECTOR";
 
 export interface Board {
   id: string;
@@ -44,6 +44,21 @@ export interface TaskListElement extends BaseElement {
   content: { title: string; items: TaskItem[] };
 }
 
+/** Tautan dengan pratinjau. Metadata di-cache di dalam elemen supaya kartu
+ *  tetap terbaca saat offline dan tidak menembak ulang situsnya tiap render. */
+export interface LinkElement extends BaseElement {
+  type: "LINK";
+  content: {
+    url: string;
+    title?: string;
+    description?: string | null;
+    image?: string | null;
+    siteName?: string | null;
+    /** pending = pratinjau sedang diambil; failed = simpan URL apa adanya */
+    state: "empty" | "pending" | "ready" | "failed";
+  };
+}
+
 /** Garis penghubung antar elemen.
  *
  *  Sengaja GENERIK: source/target cuma ID elemen, tanpa asumsi tipe apa pun.
@@ -63,7 +78,7 @@ export interface ConnectorElement {
 }
 
 /** Elemen yang punya posisi & bisa digeser di kanvas. */
-export type CardElement = NoteElement | BoardRefElement | TaskListElement;
+export type CardElement = NoteElement | BoardRefElement | TaskListElement | LinkElement;
 
 export type BoardElement = CardElement | ConnectorElement;
 

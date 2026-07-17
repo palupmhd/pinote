@@ -5,6 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
+import { LinkCard } from "./LinkCard";
 import { NoteCard } from "./NoteCard";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
@@ -219,6 +220,7 @@ export function Canvas() {
           cards.map((el) => {
             if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
             if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
+            if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
             return <NoteCard key={el.id} element={el} />;
           })}
       </div>

@@ -7,6 +7,7 @@ import {
   type Board,
   type BoardElement,
   type Camera,
+  type LinkElement,
   type TaskListElement,
 } from "./types";
 
@@ -14,6 +15,7 @@ const STORAGE_KEY = "milnote:workspace:v1";
 const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
+const LINK_WIDTH = 240;
 
 export interface Persisted {
   boards: Record<string, Board>;
@@ -46,6 +48,8 @@ interface CanvasState extends Persisted {
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
   addTaskList: (worldX: number, worldY: number) => string;
+  addLink: (worldX: number, worldY: number) => string;
+  resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
   setTaskListTitle: (id: string, title: string) => void;
   addTaskItem: (id: string, afterItemId?: string) => string | null;
@@ -278,6 +282,56 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ...c,
       items: c.items.filter((i) => i.id !== itemId),
     })),
+
+  addLink: (worldX, worldY) => {
+    const id = crypto.randomUUID();
+    set((s) => ({
+      elements: {
+        ...s.elements,
+        [id]: {
+          id,
+          boardId: s.currentBoardId,
+          type: "LINK",
+          x: worldX - LINK_WIDTH / 2,
+          y: worldY - 30,
+          width: LINK_WIDTH,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: { url: "", state: "empty" },
+          updatedAt: Date.now(),
+        },
+      },
+      selectedId: id,
+    }));
+    return id;
+  },
+
+  resolveLink: async (id, rawUrl) => {
+    const url = rawUrl.trim().match(/^https?:\/\//i) ? rawUrl.trim() : `https://${rawUrl.trim()}`;
+    const patch = (content: LinkElement["content"]) =>
+      set((s) => {
+        const el = s.elements[id];
+        if (!el || el.type !== "LINK") return s;
+        return { elements: { ...s.elements, [id]: { ...el, content, updatedAt: Date.now() } } };
+      });
+
+    patch({ url, state: "pending" });
+    try {
+      const res = await fetch(`/api/link-preview?url=${encodeURIComponent(url)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "gagal");
+      patch({
+        url: data.url ?? url,
+        title: data.title,
+        description: data.description,
+        image: data.image,
+        siteName: data.siteName,
+        state: "ready",
+      });
+    } catch {
+      // Tautannya tetap berguna walau pratinjaunya gagal — jangan buang.
+      patch({ url, state: "failed" });
+    }
+  },
 
   addConnector: (sourceElementId, targetElementId) => {
     if (sourceElementId === targetElementId) return null;
