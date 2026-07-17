@@ -6,6 +6,7 @@ import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { NoteCard } from "./NoteCard";
+import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
 import type { CardElement, ConnectorElement } from "@/lib/types";
@@ -232,6 +233,7 @@ export function Canvas() {
 
       <Breadcrumb />
       <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
+      <SyncStatus />
 
       <div
         ref={zoomBadgeRef}

@@ -15,11 +15,22 @@ const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 
-interface Persisted {
+export interface Persisted {
   boards: Record<string, Board>;
   elements: Record<string, BoardElement>;
   cameras: Record<string, Camera>;
   currentBoardId: string;
+}
+
+/** Bentuk yang disimpan & dikirim ke cloud — satu sumber kebenaran untuk
+ *  localStorage maupun sync, supaya keduanya tidak pernah berbeda. */
+export function snapshot(s: CanvasState): Persisted {
+  return {
+    boards: s.boards,
+    elements: s.elements,
+    cameras: { ...s.cameras, [s.currentBoardId]: s.camera },
+    currentBoardId: s.currentBoardId,
+  };
 }
 
 interface CanvasState extends Persisted {
@@ -29,6 +40,8 @@ interface CanvasState extends Persisted {
   hydrated: boolean;
 
   hydrate: () => void;
+  /** Ganti seluruh isi workspace — dipakai saat mengambil versi dari cloud. */
+  replaceWorkspace: (data: Persisted) => void;
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
@@ -134,6 +147,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       // data korup / format lama → mulai bersih, jangan crash
     }
     set({ hydrated: true });
+  },
+
+  replaceWorkspace: (data) => {
+    const boards: Record<string, Board> = { [ROOT_BOARD_ID]: rootBoard, ...data.boards };
+    const currentBoardId = boards[data.currentBoardId] ? data.currentBoardId : ROOT_BOARD_ID;
+    set({
+      boards,
+      elements: data.elements ?? {},
+      cameras: data.cameras ?? {},
+      currentBoardId,
+      camera: data.cameras?.[currentBoardId] ?? DEFAULT_CAMERA,
+      selectedId: null,
+      editingId: null,
+    });
   },
 
   setCamera: (camera) =>
@@ -406,13 +433,7 @@ useCanvasStore.subscribe((state) => {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
-      const payload: Persisted = {
-        boards: state.boards,
-        elements: state.elements,
-        cameras: { ...state.cameras, [state.currentBoardId]: state.camera },
-        currentBoardId: state.currentBoardId,
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot(state)));
     } catch {
       // quota penuh dsb — biarkan, jangan ganggu interaksi
     }
