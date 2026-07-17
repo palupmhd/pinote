@@ -249,13 +249,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }),
 }));
 
-/** Jalur dari root ke papan yang sedang dibuka — untuk breadcrumb. */
-export function selectBreadcrumb(s: CanvasState): Board[] {
+/** Jalur dari root ke papan yang sedang dibuka — untuk breadcrumb.
+ *  Helper biasa, BUKAN selector zustand: hasilnya array baru tiap panggil, jadi
+ *  kalau dipakai langsung sebagai selector akan memicu render loop. Panggil ini
+ *  di dalam useMemo. */
+export function breadcrumbPath(
+  boards: Record<string, Board>,
+  currentBoardId: string
+): Board[] {
   const path: Board[] = [];
-  let cur: Board | undefined = s.boards[s.currentBoardId];
+  let cur: Board | undefined = boards[currentBoardId];
   while (cur) {
     path.unshift(cur);
-    cur = cur.parentBoardId ? s.boards[cur.parentBoardId] : undefined;
+    cur = cur.parentBoardId ? boards[cur.parentBoardId] : undefined;
   }
   return path;
 }

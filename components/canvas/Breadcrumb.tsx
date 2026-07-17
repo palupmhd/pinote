@@ -1,10 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { selectBreadcrumb, useCanvasStore } from "@/lib/store";
+import { useMemo, useState } from "react";
+import { breadcrumbPath, useCanvasStore } from "@/lib/store";
 
 export function Breadcrumb() {
-  const path = useCanvasStore(selectBreadcrumb);
+  // Subscribe ke state yang referensinya stabil, lalu hitung jalurnya di
+  // useMemo — jangan bikin array baru di dalam selector (memicu render loop).
+  const boards = useCanvasStore((s) => s.boards);
+  const currentBoardId = useCanvasStore((s) => s.currentBoardId);
+  const path = useMemo(() => breadcrumbPath(boards, currentBoardId), [boards, currentBoardId]);
+
   const openBoard = useCanvasStore((s) => s.openBoard);
   const renameBoard = useCanvasStore((s) => s.renameBoard);
   const [draft, setDraft] = useState<string | null>(null);
