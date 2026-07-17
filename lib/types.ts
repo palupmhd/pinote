@@ -1,5 +1,5 @@
 // Data model per TECHNICAL_SPEC.md §2
-export type ElementType = "NOTE" | "BOARD_REF";
+export type ElementType = "NOTE" | "BOARD_REF" | "CONNECTOR";
 
 export interface Board {
   id: string;
@@ -29,7 +29,35 @@ export interface BoardRefElement extends BaseElement {
   content: { boardId: string };
 }
 
-export type BoardElement = NoteElement | BoardRefElement;
+/** Garis penghubung antar elemen.
+ *
+ *  Sengaja GENERIK: source/target cuma ID elemen, tanpa asumsi tipe apa pun.
+ *  Ini syarat supaya nanti relasi antar row database bisa digambar sebagai
+ *  panah (spec §8.6) dengan memakai ulang mekanisme ini — bukan bikin yang
+ *  baru. Jangan pernah di-hardcode ke tipe elemen tertentu.
+ *
+ *  Tidak punya x/y/width: posisinya diturunkan dari kedua ujungnya. */
+export interface ConnectorElement {
+  id: string;
+  boardId: string;
+  type: "CONNECTOR";
+  sourceElementId: string;
+  targetElementId: string;
+  zIndex: number;
+  updatedAt: number;
+}
+
+/** Elemen yang punya posisi & bisa digeser di kanvas. */
+export type CardElement = NoteElement | BoardRefElement;
+
+export type BoardElement = CardElement | ConnectorElement;
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 export interface Camera {
   x: number;

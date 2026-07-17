@@ -30,6 +30,7 @@ interface CanvasState extends Persisted {
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
+  addConnector: (sourceElementId: string, targetElementId: string) => string | null;
   openBoard: (boardId: string) => void;
   renameBoard: (boardId: string, title: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
@@ -44,7 +45,7 @@ const rootBoard: Board = { id: ROOT_BOARD_ID, title: "Home", parentBoardId: null
 
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
   const zs = Object.values(elements)
-    .filter((e) => e.boardId === boardId)
+    .filter((e) => e.boardId === boardId && e.type !== "CONNECTOR")
     .map((e) => e.zIndex);
   return zs.length ? Math.max(...zs) + 1 : 1;
 }
@@ -163,6 +164,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     return elementId;
   },
 
+  addConnector: (sourceElementId, targetElementId) => {
+    if (sourceElementId === targetElementId) return null;
+    const s = get();
+    const src = s.elements[sourceElementId];
+    const dst = s.elements[targetElementId];
+    if (!src || !dst || src.boardId !== dst.boardId) return null;
+    // jangan bikin garis ganda antara pasangan yang sama (arah bebas)
+    const exists = Object.values(s.elements).some(
+      (e) =>
+        e.type === "CONNECTOR" &&
+        ((e.sourceElementId === sourceElementId && e.targetElementId === targetElementId) ||
+          (e.sourceElementId === targetElementId && e.targetElementId === sourceElementId))
+    );
+    if (exists) return null;
+
+    const id = crypto.randomUUID();
+    set((st) => ({
+      elements: {
+        ...st.elements,
+        [id]: {
+          id,
+          boardId: src.boardId,
+          type: "CONNECTOR",
+          sourceElementId,
+          targetElementId,
+          zIndex: 0, // selalu di bawah kartu
+          updatedAt: Date.now(),
+        },
+      },
+    }));
+    return id;
+  },
+
   openBoard: (boardId) =>
     set((s) => {
       if (!s.boards[boardId] || boardId === s.currentBoardId) return s;
@@ -186,7 +220,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   moveElement: (id, x, y) =>
     set((s) => {
       const el = s.elements[id];
-      if (!el) return s;
+      if (!el || el.type === "CONNECTOR") return s; // konektor tak punya posisi sendiri
       return {
         elements: { ...s.elements, [id]: { ...el, x, y, updatedAt: Date.now() } },
       };
@@ -226,6 +260,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
 
+      // Konektor yang salah satu ujungnya sudah tidak ada ikut dibuang.
+      for (const e of Object.values(elements)) {
+        if (
+          e.type === "CONNECTOR" &&
+          (!elements[e.sourceElementId] || !elements[e.targetElementId])
+        ) {
+          delete elements[e.id];
+        }
+      }
+
       return {
         elements,
         boards,
@@ -242,7 +286,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   bringToFront: (id) =>
     set((s) => {
       const el = s.elements[id];
-      if (!el) return s;
+      if (!el || el.type === "CONNECTOR") return s;
       const top = nextZIndex(s.elements, el.boardId);
       if (el.zIndex === top - 1) return s;
       return { elements: { ...s.elements, [id]: { ...el, zIndex: top } } };

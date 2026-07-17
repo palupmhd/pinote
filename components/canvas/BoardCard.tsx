@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { BoardRefElement } from "@/lib/types";
+import { ConnectHandle } from "./ConnectHandle";
 
 function BoardCardBase({ element }: { element: BoardRefElement }) {
   const targetId = element.content.boardId;
@@ -24,8 +25,9 @@ function BoardCardBase({ element }: { element: BoardRefElement }) {
   return (
     <div
       ref={rootRef}
+      data-element-id={element.id}
       className={[
-        "absolute cursor-grab overflow-hidden rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
+        "group absolute cursor-grab rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
         selected ? "ring-2 ring-blue-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
       ].join(" ")}
       style={{
@@ -37,8 +39,9 @@ function BoardCardBase({ element }: { element: BoardRefElement }) {
       {...dragHandlers}
       onDoubleClick={onDoubleClick}
     >
+      <ConnectHandle element={element} />
       {/* Pita atas: penanda visual bahwa ini papan, bukan catatan */}
-      <div className="h-6 bg-neutral-100" />
+      <div className="h-6 rounded-t-md bg-neutral-100" />
       <div className="p-3">
         <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
         <p className="mt-0.5 text-xs text-neutral-400">

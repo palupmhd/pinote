@@ -4,8 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { useCanvasStore } from "@/lib/store";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
+import { ConnectorLayer } from "./ConnectorLayer";
 import { NoteCard } from "./NoteCard";
 import { Toolbar } from "./Toolbar";
+import type { CardElement, ConnectorElement } from "@/lib/types";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
@@ -37,6 +39,14 @@ export function Canvas() {
   const visible = useMemo(
     () => Object.values(elements).filter((e) => e.boardId === currentBoardId),
     [elements, currentBoardId]
+  );
+  const cards = useMemo(
+    () => visible.filter((e): e is CardElement => e.type !== "CONNECTOR"),
+    [visible]
+  );
+  const connectors = useMemo(
+    () => visible.filter((e): e is ConnectorElement => e.type === "CONNECTOR"),
+    [visible]
   );
 
   useEffect(() => hydrate(), [hydrate]);
@@ -184,6 +194,7 @@ export function Canvas() {
           (GPU-composited). Grid jadi anak layer ini → ikut transform, tidak
           pernah di-repaint per frame. */}
       <div
+        id="world-layer"
         ref={worldRef}
         className="absolute left-0 top-0"
         style={{ transformOrigin: "0 0", willChange: "transform" }}
@@ -199,8 +210,11 @@ export function Canvas() {
             backgroundSize: `${GRID}px ${GRID}px`,
           }}
         />
+        {/* Garis digambar sebelum kartu → selalu tampil di bawahnya */}
+        {hydrated && <ConnectorLayer connectors={connectors} cards={cards} />}
+
         {hydrated &&
-          visible.map((el) =>
+          cards.map((el) =>
             el.type === "BOARD_REF" ? (
               <BoardCard key={el.id} element={el} />
             ) : (
@@ -209,7 +223,7 @@ export function Canvas() {
           )}
       </div>
 
-      {hydrated && visible.length === 0 && (
+      {hydrated && cards.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-neutral-400">
             Klik dua kali di mana saja untuk membuat catatan

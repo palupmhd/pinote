@@ -1,14 +1,16 @@
 "use client";
 
 import { useRef } from "react";
+import { canvasBus } from "./canvasBus";
 import { useCanvasStore } from "./store";
-import type { BoardElement } from "./types";
+import type { CardElement } from "./types";
 
 const DRAG_THRESHOLD = 3;
 
 /** Drag kartu tanpa melewati React state: posisi ditulis langsung ke DOM tiap
- *  frame, store hanya di-commit sekali saat pointer dilepas. */
-export function useElementDrag(element: BoardElement, enabled = true) {
+ *  frame, store hanya di-commit sekali saat pointer dilepas. Posisi live juga
+ *  disiarkan ke bus supaya konektor bisa ikut bergerak. */
+export function useElementDrag(element: CardElement, enabled = true) {
   const select = useCanvasStore((s) => s.select);
   const bringToFront = useCanvasStore((s) => s.bringToFront);
   const moveElement = useCanvasStore((s) => s.moveElement);
@@ -57,13 +59,17 @@ export function useElementDrag(element: BoardElement, enabled = true) {
       rootRef.current.style.left = `${drag.curX}px`;
       rootRef.current.style.top = `${drag.curY}px`;
     }
+    canvasBus.emitMove(element.id, drag.curX, drag.curY);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
-    if (drag.moved) moveElement(element.id, drag.curX, drag.curY);
+    if (drag.moved) {
+      moveElement(element.id, drag.curX, drag.curY);
+      canvasBus.emitMoveEnd(element.id);
+    }
   };
 
   /** true kalau pointer barusan benar-benar digeser — dipakai untuk membedakan

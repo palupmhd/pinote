@@ -6,6 +6,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { NoteElement } from "@/lib/types";
+import { ConnectHandle } from "./ConnectHandle";
 
 // Editor hanya di-mount saat note sedang diedit — supaya note yang diam tidak
 // menahan instance ProseMirror (berat) dan tidak ikut re-render saat pan/zoom.
@@ -46,8 +47,9 @@ function NoteCardBase({ element }: { element: NoteElement }) {
   return (
     <div
       ref={rootRef}
+      data-element-id={element.id}
       className={[
-        "absolute rounded-md bg-white p-3 shadow-sm transition-shadow",
+        "group absolute rounded-md bg-white p-3 shadow-sm transition-shadow",
         selected ? "ring-2 ring-blue-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
       ].join(" ")}
@@ -60,6 +62,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       {...dragHandlers}
       onDoubleClick={onDoubleClick}
     >
+      {!editing && <ConnectHandle element={element} />}
       {editing ? (
         <NoteEditor id={element.id} initialHtml={html} />
       ) : html ? (
