@@ -1,8 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { BoardCard } from "./BoardCard";
+import { Breadcrumb } from "./Breadcrumb";
 import { NoteCard } from "./NoteCard";
+import { Toolbar } from "./Toolbar";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
@@ -22,12 +25,19 @@ export function Canvas() {
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const elements = useCanvasStore((s) => s.elements);
+  const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const hydrated = useCanvasStore((s) => s.hydrated);
   const hydrate = useCanvasStore((s) => s.hydrate);
   const addNote = useCanvasStore((s) => s.addNote);
   const select = useCanvasStore((s) => s.select);
   const setEditing = useCanvasStore((s) => s.setEditing);
   const removeElement = useCanvasStore((s) => s.removeElement);
+
+  // Hanya elemen milik papan yang sedang dibuka yang dirender.
+  const visible = useMemo(
+    () => Object.values(elements).filter((e) => e.boardId === currentBoardId),
+    [elements, currentBoardId]
+  );
 
   useEffect(() => hydrate(), [hydrate]);
 
@@ -190,16 +200,25 @@ export function Canvas() {
           }}
         />
         {hydrated &&
-          Object.values(elements).map((el) => <NoteCard key={el.id} element={el} />)}
+          visible.map((el) =>
+            el.type === "BOARD_REF" ? (
+              <BoardCard key={el.id} element={el} />
+            ) : (
+              <NoteCard key={el.id} element={el} />
+            )
+          )}
       </div>
 
-      {hydrated && Object.keys(elements).length === 0 && (
+      {hydrated && visible.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-neutral-400">
             Klik dua kali di mana saja untuk membuat catatan
           </p>
         </div>
       )}
+
+      <Breadcrumb />
+      <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
 
       <div
         ref={zoomBadgeRef}
