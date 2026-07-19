@@ -24,3 +24,23 @@ create policy "workspace milik sendiri"
   for all
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- Realtime: biar perubahan dari perangkat lain langsung muncul tanpa reload.
+-- Langganan di lib/sync.ts memfilter per user_id; RLS di atas tetap berlaku
+-- untuk realtime, jadi tiap orang cuma menerima barisnya sendiri.
+-- Dibungkus supaya aman dijalankan ulang (add table error kalau sudah ada).
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'workspaces'
+  ) then
+    alter publication supabase_realtime add table public.workspaces;
+  end if;
+end $$;
+
+-- REPLICA IDENTITY FULL supaya payload menyertakan seluruh kolom (revision &
+-- data) — tanpa ini kolom yang tak berubah bisa hilang dari event.
+alter table public.workspaces replica identity full;
