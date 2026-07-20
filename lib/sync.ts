@@ -56,6 +56,12 @@ interface SyncState {
 let applyingRemote = false;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Kanal realtime + pelepas listener fokus. Disimpan di modul supaya bisa
+ *  dibersihkan saat ganti user / keluar, tanpa menumpuk langganan ganda. */
+let realtimeChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
+let detachFocus: (() => void) | null = null;
+let lastUserId: string | null = null;
+
 export const useSyncStore = create<SyncState>((set, get) => ({
   status: supabase ? "signed-out" : "disabled",
   email: null,
@@ -63,20 +69,23 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   init: async () => {
     if (!supabase) return;
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
-    if (!user) {
-      set({ status: "signed-out", email: null });
-      return;
-    }
-    set({ email: user.email ?? null });
-    await pull();
 
+    // Satu jalur untuk sesi awal maupun perubahan berikutnya: onAuthStateChange
+    // langsung menembak INITIAL_SESSION saat didaftarkan, jadi tak perlu
+    // getSession terpisah. Guard lastUserId mencegah pull/subscribe ganda saat
+    // event yang tak mengubah user (mis. token refresh) berdatangan.
     supabase.auth.onAuthStateChange((_e, session) => {
-      if (session?.user) {
-        set({ email: session.user.email ?? null });
-        void pull();
+      const user = session?.user ?? null;
+      if (user) {
+        set({ email: user.email ?? null });
+        if (user.id !== lastUserId) {
+          lastUserId = user.id;
+          void pull();
+          watchRemote(user.id);
+        }
       } else {
+        lastUserId = null;
+        teardownRemote();
         set({ status: "signed-out", email: null });
       }
     });
@@ -98,6 +107,8 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
   signOut: async () => {
     if (!supabase) return;
+    lastUserId = null;
+    teardownRemote();
     await supabase.auth.signOut();
     set({ status: "signed-out", email: null, message: null });
   },
@@ -137,6 +148,69 @@ function applyRemote(data: Persisted, revision: number) {
   useCanvasStore.getState().replaceWorkspace(data);
   writeMeta({ revision, dirty: false });
   applyingRemote = false;
+}
+
+/** Terapkan satu baris yang datang dari cloud (realtime atau refresh fokus).
+ *  Sama seperti pull() tapi datanya sudah di tangan, jadi tak perlu fetch. */
+function ingestRemoteRow(data: Persisted, revision: number) {
+  const meta = readMeta();
+  // Revisi sama dengan dasar kita → ini gema tulisan kita sendiri, abaikan.
+  if (revision === meta.revision) return;
+
+  if (!meta.dirty) {
+    // Tak ada perubahan lokal yang belum terkirim → aman langsung ambil.
+    applyRemote(data, revision);
+    useSyncStore.setState({ status: "synced", message: null });
+    return;
+  }
+
+  // Dua-duanya berubah → jangan diam-diam membuang salah satu.
+  useSyncStore.setState({
+    status: "conflict",
+    message: "Perangkat lain menyimpan perubahan, dan di sini juga ada yang belum tersimpan.",
+  });
+}
+
+/** Langganan realtime ke baris workspace milik user ini, plus refresh saat tab
+ *  kembali terlihat (jaring pengaman kalau realtime mati / event terlewat). */
+function watchRemote(userId: string) {
+  if (!supabase) return;
+  teardownRemote();
+
+  realtimeChannel = supabase
+    .channel(`workspace:${userId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "workspaces", filter: `user_id=eq.${userId}` },
+      (payload) => {
+        const row = payload.new as { data?: Persisted; revision?: number } | null;
+        if (!row?.data || row.revision == null) return;
+        ingestRemoteRow(row.data, Number(row.revision));
+      }
+    )
+    .subscribe();
+
+  const onFocus = () => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    const status = useSyncStore.getState().status;
+    if (status === "disabled" || status === "signed-out" || status === "conflict") return;
+    void pull();
+  };
+  window.addEventListener("visibilitychange", onFocus);
+  window.addEventListener("focus", onFocus);
+  detachFocus = () => {
+    window.removeEventListener("visibilitychange", onFocus);
+    window.removeEventListener("focus", onFocus);
+  };
+}
+
+function teardownRemote() {
+  if (realtimeChannel && supabase) {
+    void supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+  detachFocus?.();
+  detachFocus = null;
 }
 
 async function pull() {
