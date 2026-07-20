@@ -36,7 +36,7 @@ export function snapshot(s: CanvasState): Persisted {
 }
 
 interface CanvasState extends Persisted {
-  selectedId: string | null;
+  selectedIds: string[];
   editingId: string | null;
   camera: Camera; // kamera papan yang sedang dibuka
   hydrated: boolean;
@@ -61,9 +61,17 @@ interface CanvasState extends Persisted {
   openBoard: (boardId: string) => void;
   renameBoard: (boardId: string, title: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
+  /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
+   *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
+  moveMany: (updates: { id: string; x: number; y: number }[]) => void;
   updateContent: (id: string, html: string) => void;
   removeElement: (id: string) => void;
-  select: (id: string | null) => void;
+  /** Hapus banyak elemen sekaligus (group delete), dengan kaskade yang sama. */
+  removeMany: (ids: string[]) => void;
+  /** additive = shift/ctrl-click: toggle keanggotaan, bukan mengganti seleksi. */
+  select: (id: string | null, additive?: boolean) => void;
+  /** Ganti seluruh himpunan terpilih sekaligus — dipakai marquee. */
+  setSelection: (ids: string[]) => void;
   setEditing: (id: string | null) => void;
   bringToFront: (id: string) => void;
 }
@@ -115,12 +123,51 @@ function collectDescendants(boards: Record<string, Board>, rootId: string): Set<
   return ids;
 }
 
+/** Buang sekumpulan elemen dari salinan kerja, dengan kaskade:
+ *  - kartu papan → papannya + seluruh keturunannya + isinya ikut hilang;
+ *  - konektor yang salah satu ujungnya lenyap dipangkas di akhir.
+ *  Dipakai bersama oleh removeElement & removeMany supaya aturannya satu. */
+function removeElements(
+  boards: Record<string, Board>,
+  elements: Record<string, BoardElement>,
+  cameras: Record<string, Camera>,
+  ids: string[]
+): { boards: Record<string, Board>; elements: Record<string, BoardElement>; cameras: Record<string, Camera> } {
+  const nb = { ...boards };
+  const ne = { ...elements };
+  const nc = { ...cameras };
+
+  for (const id of ids) {
+    const el = ne[id];
+    if (!el) continue;
+    delete ne[id];
+    if (el.type === "BOARD_REF") {
+      const doomed = collectDescendants(nb, el.content.boardId);
+      for (const bid of doomed) {
+        delete nb[bid];
+        delete nc[bid];
+        for (const e of Object.values(ne)) {
+          if (e.boardId === bid) delete ne[e.id];
+        }
+      }
+    }
+  }
+
+  for (const e of Object.values(ne)) {
+    if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
+      delete ne[e.id];
+    }
+  }
+
+  return { boards: nb, elements: ne, cameras: nc };
+}
+
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   boards: { [ROOT_BOARD_ID]: rootBoard },
   elements: {},
   cameras: {},
   currentBoardId: ROOT_BOARD_ID,
-  selectedId: null,
+  selectedIds: [],
   editingId: null,
   camera: DEFAULT_CAMERA,
   hydrated: false,
@@ -164,7 +211,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       cameras: data.cameras ?? {},
       currentBoardId,
       camera: data.cameras?.[currentBoardId] ?? DEFAULT_CAMERA,
-      selectedId: null,
+      selectedIds: [],
       editingId: null,
     });
   },
@@ -181,7 +228,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         elements: snap.elements,
         currentBoardId,
         camera: sameBoard ? s.camera : s.cameras[currentBoardId] ?? DEFAULT_CAMERA,
-        selectedId: null,
+        selectedIds: [],
         editingId: null,
       };
     }),
@@ -206,7 +253,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           updatedAt: Date.now(),
         },
       },
-      selectedId: id,
+      selectedIds: [id],
       editingId: id,
     }));
     return id;
@@ -238,7 +285,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           updatedAt: Date.now(),
         },
       },
-      selectedId: elementId,
+      selectedIds: [elementId],
     }));
     return elementId;
   },
@@ -263,7 +310,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           updatedAt: Date.now(),
         },
       },
-      selectedId: id,
+      selectedIds: [id],
     }));
     return id;
   },
@@ -319,7 +366,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           updatedAt: Date.now(),
         },
       },
-      selectedId: id,
+      selectedIds: [id],
     }));
     return id;
   },
@@ -393,7 +440,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         cameras,
         currentBoardId: boardId,
         camera: cameras[boardId] ?? DEFAULT_CAMERA,
-        selectedId: null,
+        selectedIds: [],
         editingId: null,
       };
     }),
@@ -414,6 +461,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       };
     }),
 
+  moveMany: (updates) =>
+    set((s) => {
+      const elements = { ...s.elements };
+      const now = Date.now();
+      for (const u of updates) {
+        const el = elements[u.id];
+        if (!el || el.type === "CONNECTOR") continue;
+        elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
+      }
+      return { elements };
+    }),
+
   updateContent: (id, html) =>
     set((s) => {
       const el = s.elements[id];
@@ -428,48 +487,47 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   removeElement: (id) =>
     set((s) => {
-      const el = s.elements[id];
-      if (!el) return s;
-
-      const elements = { ...s.elements };
-      const boards = { ...s.boards };
-      const cameras = { ...s.cameras };
-      delete elements[id];
-
-      // Hapus kartu papan = hapus papannya beserta seluruh isinya.
-      if (el.type === "BOARD_REF") {
-        const doomed = collectDescendants(s.boards, el.content.boardId);
-        for (const bid of doomed) {
-          delete boards[bid];
-          delete cameras[bid];
-          for (const e of Object.values(elements)) {
-            if (e.boardId === bid) delete elements[e.id];
-          }
-        }
-      }
-
-      // Konektor yang salah satu ujungnya sudah tidak ada ikut dibuang.
-      for (const e of Object.values(elements)) {
-        if (
-          e.type === "CONNECTOR" &&
-          (!elements[e.sourceElementId] || !elements[e.targetElementId])
-        ) {
-          delete elements[e.id];
-        }
-      }
-
+      if (!s.elements[id]) return s;
+      const { boards, elements, cameras } = removeElements(s.boards, s.elements, s.cameras, [id]);
       return {
         elements,
         boards,
         cameras,
-        selectedId: s.selectedId === id ? null : s.selectedId,
-        editingId: s.editingId === id ? null : s.editingId,
+        selectedIds: s.selectedIds.filter((x) => elements[x]),
+        editingId: s.editingId && elements[s.editingId] ? s.editingId : null,
       };
     }),
 
-  select: (id) => set({ selectedId: id }),
+  removeMany: (ids) =>
+    set((s) => {
+      if (!ids.some((id) => s.elements[id])) return s;
+      const { boards, elements, cameras } = removeElements(s.boards, s.elements, s.cameras, ids);
+      return {
+        elements,
+        boards,
+        cameras,
+        selectedIds: s.selectedIds.filter((x) => elements[x]),
+        editingId: s.editingId && elements[s.editingId] ? s.editingId : null,
+      };
+    }),
 
-  setEditing: (id) => set({ editingId: id, selectedId: id ?? get().selectedId }),
+  select: (id, additive = false) =>
+    set((s) => {
+      if (id === null) return { selectedIds: [] };
+      if (additive) {
+        return {
+          selectedIds: s.selectedIds.includes(id)
+            ? s.selectedIds.filter((x) => x !== id)
+            : [...s.selectedIds, id],
+        };
+      }
+      return { selectedIds: [id] };
+    }),
+
+  setSelection: (ids) => set({ selectedIds: ids }),
+
+  setEditing: (id) =>
+    set((s) => ({ editingId: id, selectedIds: id ? [id] : s.selectedIds })),
 
   bringToFront: (id) =>
     set((s) => {

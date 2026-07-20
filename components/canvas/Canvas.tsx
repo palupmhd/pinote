@@ -30,14 +30,22 @@ export function Canvas() {
   const panRef = useRef<{ pointerId: number; startX: number; startY: number; camX: number; camY: number } | null>(null);
   const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Marquee (rubber-band): koordinat layar relatif container. Digambar imperatif
+  // ke satu div overlay — nol re-render, sejalan dengan filosofi kanvas ini.
+  const marqueeRef = useRef<{ pointerId: number; startX: number; startY: number; curX: number; curY: number } | null>(null);
+  const marqueeDivRef = useRef<HTMLDivElement>(null);
+  // Space ditahan → left-drag jadi pan (gaya Figma), bukan marquee.
+  const spaceRef = useRef(false);
+
   const elements = useCanvasStore((s) => s.elements);
   const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const hydrated = useCanvasStore((s) => s.hydrated);
   const hydrate = useCanvasStore((s) => s.hydrate);
   const addNote = useCanvasStore((s) => s.addNote);
   const select = useCanvasStore((s) => s.select);
+  const setSelection = useCanvasStore((s) => s.setSelection);
   const setEditing = useCanvasStore((s) => s.setEditing);
-  const removeElement = useCanvasStore((s) => s.removeElement);
+  const removeMany = useCanvasStore((s) => s.removeMany);
 
   // Hanya elemen milik papan yang sedang dibuka yang dirender.
   const visible = useMemo(
@@ -137,9 +145,9 @@ export function Canvas() {
         return;
       }
 
-      const { selectedId, editingId } = useCanvasStore.getState();
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !editingId) {
-        removeElement(selectedId);
+      const { selectedIds, editingId } = useCanvasStore.getState();
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length && !editingId) {
+        removeMany(selectedIds);
       }
       if (e.key === "Escape") {
         setEditing(null);
@@ -148,46 +156,133 @@ export function Canvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [removeElement, select, setEditing]);
+  }, [removeMany, select, setEditing]);
+
+  // Space = tahan-untuk-pan. Diabaikan saat mengetik supaya spasi tetap terketik.
+  useEffect(() => {
+    const editable = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null;
+      return !!el && (el.isContentEditable || el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+    };
+    const down = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !editable(e.target) && !spaceRef.current) {
+        spaceRef.current = true;
+        if (containerRef.current) containerRef.current.style.cursor = "grab";
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        spaceRef.current = false;
+        if (containerRef.current && !panRef.current) containerRef.current.style.cursor = "default";
+      }
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, []);
 
   const isBackground = (e: React.PointerEvent | React.MouseEvent) =>
     (e.target as HTMLElement).dataset.canvasBg === "true";
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button === 1 || (e.button === 0 && isBackground(e))) {
-      if (isBackground(e)) {
-        select(null);
-        setEditing(null);
+  const drawMarquee = useCallback(() => {
+    const m = marqueeRef.current;
+    const div = marqueeDivRef.current;
+    if (!m || !div) return;
+    const x = Math.min(m.startX, m.curX);
+    const y = Math.min(m.startY, m.curY);
+    div.style.display = "block";
+    div.style.left = `${x}px`;
+    div.style.top = `${y}px`;
+    div.style.width = `${Math.abs(m.curX - m.startX)}px`;
+    div.style.height = `${Math.abs(m.curY - m.startY)}px`;
+  }, []);
+
+  const commitMarquee = useCallback(() => {
+    const m = marqueeRef.current;
+    if (!m) return;
+    // Geseran mungil = klik biasa → seleksi sudah dikosongkan saat pointer turun.
+    if (Math.abs(m.curX - m.startX) < 4 && Math.abs(m.curY - m.startY) < 4) return;
+    const cam = cameraRef.current;
+    const toWorldX = (sx: number) => (sx - cam.x) / cam.zoom;
+    const toWorldY = (sy: number) => (sy - cam.y) / cam.zoom;
+    const wx1 = toWorldX(Math.min(m.startX, m.curX));
+    const wx2 = toWorldX(Math.max(m.startX, m.curX));
+    const wy1 = toWorldY(Math.min(m.startY, m.curY));
+    const wy2 = toWorldY(Math.max(m.startY, m.curY));
+
+    const st = useCanvasStore.getState();
+    const hits: string[] = [];
+    for (const el of Object.values(st.elements)) {
+      if (el.boardId !== st.currentBoardId || el.type === "CONNECTOR") continue;
+      const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
+      const h = node?.offsetHeight ?? 64;
+      // AABB overlap antara marquee dan kotak kartu.
+      if (el.x < wx2 && el.x + el.width > wx1 && el.y < wy2 && el.y + h > wy1) {
+        hits.push(el.id);
       }
-      const cam = cameraRef.current;
-      panRef.current = {
-        pointerId: e.pointerId,
-        startX: e.clientX,
-        startY: e.clientY,
-        camX: cam.x,
-        camY: cam.y,
-      };
-      if (containerRef.current) containerRef.current.style.cursor = "grabbing";
+    }
+    setSelection(hits);
+  }, [setSelection]);
+
+  const startPan = (e: React.PointerEvent) => {
+    const cam = cameraRef.current;
+    panRef.current = { pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, camX: cam.x, camY: cam.y };
+    if (containerRef.current) containerRef.current.style.cursor = "grabbing";
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Pan: tombol tengah, atau Space + kiri di mana saja.
+    if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
+      startPan(e);
+      return;
+    }
+    // Kiri di latar (tanpa Space): mulai marquee & kosongkan seleksi lama.
+    if (e.button === 0 && isBackground(e)) {
+      select(null);
+      setEditing(null);
+      const rect = containerRef.current!.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      marqueeRef.current = { pointerId: e.pointerId, startX: sx, startY: sy, curX: sx, curY: sy };
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     }
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     const pan = panRef.current;
-    if (!pan || pan.pointerId !== e.pointerId) return;
-    cameraRef.current = {
-      ...cameraRef.current,
-      x: pan.camX + (e.clientX - pan.startX),
-      y: pan.camY + (e.clientY - pan.startY),
-    };
-    applyCamera(); // imperatif — tanpa re-render React
+    if (pan && pan.pointerId === e.pointerId) {
+      cameraRef.current = {
+        ...cameraRef.current,
+        x: pan.camX + (e.clientX - pan.startX),
+        y: pan.camY + (e.clientY - pan.startY),
+      };
+      applyCamera(); // imperatif — tanpa re-render React
+      return;
+    }
+    const m = marqueeRef.current;
+    if (m && m.pointerId === e.pointerId) {
+      const rect = containerRef.current!.getBoundingClientRect();
+      m.curX = e.clientX - rect.left;
+      m.curY = e.clientY - rect.top;
+      drawMarquee();
+    }
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
     if (panRef.current?.pointerId === e.pointerId) {
       panRef.current = null;
-      if (containerRef.current) containerRef.current.style.cursor = "default";
+      if (containerRef.current) containerRef.current.style.cursor = spaceRef.current ? "grab" : "default";
       commitNow();
+      return;
+    }
+    if (marqueeRef.current?.pointerId === e.pointerId) {
+      commitMarquee();
+      marqueeRef.current = null;
+      if (marqueeDivRef.current) marqueeDivRef.current.style.display = "none";
     }
   };
 
@@ -249,6 +344,13 @@ export function Canvas() {
           </p>
         </div>
       )}
+
+      {/* Kotak marquee (koordinat layar, di luar world-layer). Disembunyikan
+          sampai ada geseran; digambar imperatif lewat marqueeDivRef. */}
+      <div
+        ref={marqueeDivRef}
+        className="pointer-events-none absolute z-10 hidden rounded-sm border border-blue-400 bg-blue-400/10"
+      />
 
       <Breadcrumb />
       <Toolbar containerRef={containerRef} cameraRef={cameraRef} />

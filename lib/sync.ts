@@ -63,7 +63,7 @@ let realtimeChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null 
 let detachFocus: (() => void) | null = null;
 let lastUserId: string | null = null;
 
-export const useSyncStore = create<SyncState>((set, get) => ({
+export const useSyncStore = create<SyncState>((set) => ({
   status: supabase ? "signed-out" : "disabled",
   email: null,
   message: null,

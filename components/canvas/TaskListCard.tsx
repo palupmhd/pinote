@@ -7,7 +7,7 @@ import type { TaskListElement } from "@/lib/types";
 import { ConnectHandle } from "./ConnectHandle";
 
 function TaskListCardBase({ element }: { element: TaskListElement }) {
-  const selected = useCanvasStore((s) => s.selectedId === element.id);
+  const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const setTaskListTitle = useCanvasStore((s) => s.setTaskListTitle);
   const addTaskItem = useCanvasStore((s) => s.addTaskItem);
   const setTaskText = useCanvasStore((s) => s.setTaskText);

@@ -30,7 +30,7 @@ function NoteEditor({ id, initialHtml }: { id: string; initialHtml: string }) {
 }
 
 function NoteCardBase({ element }: { element: NoteElement }) {
-  const selected = useCanvasStore((s) => s.selectedId === element.id);
+  const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const editing = useCanvasStore((s) => s.editingId === element.id);
   const setEditing = useCanvasStore((s) => s.setEditing);
 

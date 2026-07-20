@@ -8,7 +8,7 @@ import { ConnectHandle } from "./ConnectHandle";
 
 function BoardCardBase({ element }: { element: BoardRefElement }) {
   const targetId = element.content.boardId;
-  const selected = useCanvasStore((s) => s.selectedId === element.id);
+  const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const title = useCanvasStore((s) => s.boards[targetId]?.title ?? "Papan");
   const count = useCanvasStore(
     (s) => Object.values(s.elements).filter((e) => e.boardId === targetId).length
