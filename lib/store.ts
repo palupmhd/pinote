@@ -44,6 +44,8 @@ interface CanvasState extends Persisted {
   hydrate: () => void;
   /** Ganti seluruh isi workspace — dipakai saat mengambil versi dari cloud. */
   replaceWorkspace: (data: Persisted) => void;
+  /** Pulihkan boards+elements dari snapshot undo/redo, tanpa menyentuh kamera. */
+  applyHistory: (snap: { boards: Record<string, Board>; elements: Record<string, BoardElement>; currentBoardId: string }) => void;
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
@@ -166,6 +168,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       editingId: null,
     });
   },
+
+  applyHistory: (snap) =>
+    set((s) => {
+      const boards: Record<string, Board> = { [ROOT_BOARD_ID]: rootBoard, ...snap.boards };
+      // Papan yang sedang dibuka mungkin ikut terhapus oleh langkah yang
+      // dipulihkan → jatuh ke root supaya kanvas tidak menampilkan papan hantu.
+      const currentBoardId = boards[snap.currentBoardId] ? snap.currentBoardId : ROOT_BOARD_ID;
+      const sameBoard = currentBoardId === s.currentBoardId;
+      return {
+        boards,
+        elements: snap.elements,
+        currentBoardId,
+        camera: sameBoard ? s.camera : s.cameras[currentBoardId] ?? DEFAULT_CAMERA,
+        selectedId: null,
+        editingId: null,
+      };
+    }),
 
   setCamera: (camera) =>
     set((s) => ({ camera, cameras: { ...s.cameras, [s.currentBoardId]: camera } })),

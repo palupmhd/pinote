@@ -2,6 +2,7 @@
 
 import type { RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { redo, undo, useHistoryStore } from "@/lib/history";
 import type { Camera } from "@/lib/types";
 
 interface Props {
@@ -16,6 +17,8 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addBoard = useCanvasStore((s) => s.addBoard);
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -56,6 +59,27 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           + {t.label}
         </button>
       ))}
+
+      <div className="my-0.5 h-px bg-neutral-200" />
+
+      <div className="flex gap-1">
+        <button
+          onClick={undo}
+          disabled={!canUndo}
+          title="Urungkan (Ctrl/Cmd+Z)"
+          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
+        >
+          ↶
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo}
+          title="Ulangi (Ctrl/Cmd+Shift+Z)"
+          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
+        >
+          ↷
+        </button>
+      </div>
     </div>
   );
 }

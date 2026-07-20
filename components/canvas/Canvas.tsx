@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { redo, startHistory, undo } from "@/lib/history";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
@@ -53,6 +54,7 @@ export function Canvas() {
   );
 
   useEffect(() => hydrate(), [hydrate]);
+  useEffect(() => startHistory(), []);
 
   const applyCamera = useCallback(() => {
     const { x, y, zoom } = cameraRef.current;
@@ -120,6 +122,21 @@ export function Canvas() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+      // Undo/redo. Saat mengetik di kartu, kita sudah keluar di atas → editor
+      // teks pakai undo bawaan browser; di kanvas kosong, ini yang jalan.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
       const { selectedId, editingId } = useCanvasStore.getState();
       if ((e.key === "Delete" || e.key === "Backspace") && selectedId && !editingId) {
         removeElement(selectedId);
