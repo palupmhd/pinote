@@ -17,16 +17,23 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 ## Status Implementasi (update tiap ada perubahan signifikan)
 
 **Sudah dibangun & terverifikasi (v1):**
-- Kanvas: pan/zoom imperatif (nol re-render React per frame — lihat catatan performa di bawah), drag kartu
-- Elemen: Note (Tiptap), Nested Board (BOARD_REF), Connector (generik, SVG layer), Task-list, Link (dengan preview via `/api/link-preview`)
-- Sync: Supabase (Postgres + Auth magic-link), autosave debounced, Last-Write-Wins dengan optimistic revision lock
-- **Penyimpangan dari rencana awal, sudah terjadi, jangan di-revert tanpa diskusi:** live sync via Supabase Realtime subscription ditambahkan di commit `c2493cf` oleh sesi Claude lain (PR #1, branch `claude/lanjutkan-project-8ptxi1`) — bukan hasil diskusi eksplisit di sesi manapun. Secara teknis aman (reuse revision/dirty guard yang sama, bukan CRDT), tapi ini contoh nyata kenapa dokumen ini harus dibaca dulu: sesi itu tidak tahu kita sengaja pilih pull-on-load yang simpel.
+- Kanvas: pan/zoom imperatif (nol re-render React per frame — lihat catatan performa di bawah), drag kartu, multi-select, group move/delete, copy/paste/duplicate, undo/redo
+- Elemen: Note (Tiptap), Image (paste/drop/file picker), Nested Board (BOARD_REF), Connector (generik, SVG layer), Task-list (dengan tenggat opsional per item), Link (dengan preview via `/api/link-preview`)
+- Sync: Supabase (Postgres + Auth magic-link + Realtime subscription), autosave debounced, Last-Write-Wins dengan optimistic revision lock
 
-**Belum dibangun dari v1:** Image, Table (grid sederhana), Export gambar, Quick Capture/Inbox board.
+**Belum dibangun dari v1:** Table sederhana non-relational (kemungkinan besar sudah tidak perlu — DatabaseView di bawah menutupi kebutuhannya), Export gambar, Quick Capture/Inbox board.
 
-**v1.1, v2, v3:** belum disentuh sama sekali — lihat §0 di bawah.
+**Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
+- Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan
+- **Database Block** (spec §7) sebagai `DatabaseView`: entitas `Database` terpisah dari Board (field `databases` di level workspace), dibuka lewat kartu pintu `DATABASE_REF`. **Beda dari desain awal:** row = `{id, cells}` (data terstruktur biasa), bukan reuse Nested Board — lebih murah, tapi kehilangan kemampuan "row dibuka jadi kanvas bebas" yang jadi alasan §7.3 aslinya. Kolom bertipe: text/number/checkbox/date/relation.
+- **Relation-as-Connector** (spec §7.4): kolom tipe "relation" menautkan baris ke database lain; relasinya digambar sebagai panah di kanvas dengan reuse `ConnectorLayer` yang sama (gaya putus-putus ungu, diturunkan dari data — bukan disimpan sebagai elemen Connector terpisah). Sesuai desain.
+- **Memanggil database yang sama di board lain** (kebutuhan asli §intro) — terverifikasi: `attachDatabase` menaruh kartu pintu baru ke database yang sudah ada, dan hapus satu kartu pintu tidak lagi menghapus entitasnya kalau masih ada kartu pintu lain yang menunjuk ke situ.
 
-**Catatan performa (jangan diulangi):** kanvas sempat lag berat lalu nge-hang PC karena (1) Tiptap editor di-mount di semua note sekaligus meski tidak sedang diedit, (2) NoteCard re-render tiap frame pan/zoom karena tidak di-memo, (3) SVG connector sempat `width="0" height="0"` sehingga tidak pernah dilukis browser walau path-nya valid di DOM. Ketiganya sudah diperbaiki. Prinsip yang dipegang sekarang: **posisi kamera & drag diterapkan langsung ke DOM lewat ref, bukan lewat state React**, commit ke store hanya di akhir gesture.
+**Penyimpangan proses (bukan soal kualitas kode — kodenya diverifikasi baik):** sebagian besar daftar di atas (undo/redo sampai relations) dibangun dalam satu sesi otonom ~5,5 jam tanpa jeda untuk bertanya, sebelum dokumen ini dan aturan di CLAUDE.md ada. Hasilnya kebetulan solid dan konsisten dengan arsitektur yang direncanakan, tapi itu keberuntungan proses yang cacat, bukan bukti prosesnya boleh diulang. Lihat CLAUDE.md § "Aturan keras: jangan bangun lompat fase".
+
+**v3:** belum disentuh — lihat §0 di bawah.
+
+**Catatan performa (jangan diulangi):** kanvas sempat lag berat lalu nge-hang PC karena (1) Tiptap editor di-mount di semua note sekaligus meski tidak sedang diedit, (2) NoteCard re-render tiap frame pan/zoom karena tidak di-memo, (3) SVG connector sempat `width="0" height="0"` sehingga tidak pernah dilukis browser walau path-nya valid di DOM. Ketiganya sudah diperbaiki. Prinsip yang dipegang sekarang: **posisi kamera & drag diterapkan langsung ke DOM lewat ref, bukan lewat state React**, commit ke store hanya di akhir gesture. Commit `eb6ed4c` (relations) sempat kena varian baru dari kelas bug yang sama (selector zustand mengembalikan array baru tiap render → render loop) dan sudah diperbaiki di commit yang sama.
 
 ---
 
