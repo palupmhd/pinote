@@ -58,6 +58,7 @@ interface CanvasState extends Persisted {
   setTaskListTitle: (id: string, title: string) => void;
   addTaskItem: (id: string, afterItemId?: string) => string | null;
   setTaskText: (id: string, itemId: string, text: string) => void;
+  setTaskDue: (id: string, itemId: string, due: string | null) => void;
   toggleTask: (id: string, itemId: string) => void;
   removeTaskItem: (id: string, itemId: string) => void;
   openBoard: (boardId: string) => void;
@@ -74,6 +75,9 @@ interface CanvasState extends Persisted {
   select: (id: string | null, additive?: boolean) => void;
   /** Ganti seluruh himpunan terpilih sekaligus — dipakai marquee. */
   setSelection: (ids: string[]) => void;
+  /** Loncat ke sebuah elemen: buka papannya, pusatkan kamera, pilih. Dipakai
+   *  Agenda untuk menuju tugas yang diklik, di papan mana pun ia berada. */
+  focusElement: (id: string) => void;
   /** Tempelkan potongan papan-klip ke sebuah papan dengan id baru untuk semua
    *  elemen & papan (deep clone), lalu pilih kartu hasil tempelan. */
   pasteElements: (payload: ClipboardPayload, targetBoardId: string, offset: { x: number; y: number }) => string[];
@@ -342,6 +346,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       items: c.items.map((i) => (i.id === itemId ? { ...i, text } : i)),
     })),
 
+  setTaskDue: (id, itemId, due) =>
+    updateTaskList(set, id, (c) => ({
+      ...c,
+      items: c.items.map((i) => (i.id === itemId ? { ...i, due } : i)),
+    })),
+
   toggleTask: (id, itemId) =>
     updateTaskList(set, id, (c) => ({
       ...c,
@@ -530,6 +540,30 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }),
 
   setSelection: (ids) => set({ selectedIds: ids }),
+
+  focusElement: (id) =>
+    set((s) => {
+      const el = s.elements[id];
+      if (!el || el.type === "CONNECTOR") return s;
+      const zoom = 1;
+      const W = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const H = typeof window !== "undefined" ? window.innerHeight : 800;
+      // Pusatkan tepi-atas kartu di viewport (tinggi kartu tak ada di data).
+      const wx = el.x + el.width / 2;
+      const wy = el.y + 60;
+      const camera = { x: W / 2 - wx * zoom, y: H / 2 - wy * zoom, zoom };
+      const switching = el.boardId !== s.currentBoardId;
+      const cameras = switching
+        ? { ...s.cameras, [s.currentBoardId]: s.camera, [el.boardId]: camera }
+        : { ...s.cameras, [el.boardId]: camera };
+      return {
+        currentBoardId: el.boardId,
+        cameras,
+        camera,
+        selectedIds: [id],
+        editingId: null,
+      };
+    }),
 
   pasteElements: (payload, targetBoardId, offset) => {
     let newTopIds: string[] = [];

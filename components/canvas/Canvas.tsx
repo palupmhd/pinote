@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
+import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
@@ -373,6 +374,7 @@ export function Canvas() {
       <Breadcrumb />
       <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
       <SyncStatus />
+      <AgendaView />
 
       <div
         ref={zoomBadgeRef}

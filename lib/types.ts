@@ -33,12 +33,13 @@ export interface TaskItem {
   id: string;
   text: string;
   done: boolean;
+  /** Tenggat, format lokal "YYYY-MM-DD" (bukan epoch — hari, bukan momen).
+   *  Opsional; item tanpa tenggat tidak muncul di Calendar/Agenda. */
+  due?: string | null;
 }
 
 /** Daftar tugas. Teks item sengaja plain string, bukan rich text — item tugas
- *  itu satu baris pendek, tidak perlu ProseMirror per baris.
- *  Catatan: field tanggal per item belum ada; menyusul bareng Calendar view
- *  (spec §8) supaya tidak ada field yang tidak punya UI. */
+ *  itu satu baris pendek, tidak perlu ProseMirror per baris. */
 export interface TaskListElement extends BaseElement {
   type: "TASK_LIST";
   content: { title: string; items: TaskItem[] };

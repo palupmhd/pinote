@@ -1,16 +1,58 @@
 "use client";
 
 import { memo, useRef } from "react";
+import { daysFromToday, formatShort } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
-import type { TaskListElement } from "@/lib/types";
+import type { TaskItem, TaskListElement } from "@/lib/types";
 import { ConnectHandle } from "./ConnectHandle";
+
+/** Kontrol tenggat mungil per item: tombol (tanggal atau ikon) yang memicu
+ *  pemilih tanggal native lewat input tersembunyi di sebelahnya. */
+function DueControl({ item, onChange }: { item: TaskItem; onChange: (due: string | null) => void }) {
+  const overdue = !!item.due && !item.done && daysFromToday(item.due) < 0;
+  const cls = item.due
+    ? overdue
+      ? "text-red-500"
+      : "text-neutral-500"
+    : "text-neutral-300 opacity-0 group-hover:opacity-100 focus-within:opacity-100";
+  return (
+    <span className={`relative shrink-0 text-xs tabular-nums ${cls}`}>
+      <button
+        type="button"
+        title={item.due ? `Tenggat ${item.due} — klik untuk ubah` : "Setel tenggat"}
+        onClick={(e) => {
+          const input = e.currentTarget.nextElementSibling as HTMLInputElement | null;
+          if (!input) return;
+          input.focus();
+          try {
+            input.showPicker?.();
+          } catch {
+            /* butuh gesture / tak didukung — input tetap bisa diketik */
+          }
+        }}
+        className="cursor-pointer px-1 hover:text-neutral-700"
+      >
+        {item.due ? formatShort(item.due) : "📅"}
+      </button>
+      <input
+        type="date"
+        value={item.due ?? ""}
+        onChange={(e) => onChange(e.target.value || null)}
+        tabIndex={-1}
+        aria-label="Tenggat"
+        className="absolute inset-0 h-0 w-0 opacity-0"
+      />
+    </span>
+  );
+}
 
 function TaskListCardBase({ element }: { element: TaskListElement }) {
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const setTaskListTitle = useCanvasStore((s) => s.setTaskListTitle);
   const addTaskItem = useCanvasStore((s) => s.addTaskItem);
   const setTaskText = useCanvasStore((s) => s.setTaskText);
+  const setTaskDue = useCanvasStore((s) => s.setTaskDue);
   const toggleTask = useCanvasStore((s) => s.toggleTask);
   const removeTaskItem = useCanvasStore((s) => s.removeTaskItem);
 
@@ -77,7 +119,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
 
       <ul className="space-y-0.5">
         {items.map((item, i) => (
-          <li key={item.id} className="flex items-start gap-2">
+          <li key={item.id} className="group flex items-start gap-2">
             <input
               type="checkbox"
               checked={item.done}
@@ -97,6 +139,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
                 item.done ? "text-neutral-400 line-through" : "text-neutral-700",
               ].join(" ")}
             />
+            <DueControl item={item} onChange={(due) => setTaskDue(element.id, item.id, due)} />
           </li>
         ))}
       </ul>

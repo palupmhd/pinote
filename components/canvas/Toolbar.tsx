@@ -3,6 +3,7 @@
 import type { RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { redo, undo, useHistoryStore } from "@/lib/history";
+import { useUiStore } from "@/lib/ui";
 import type { Camera } from "@/lib/types";
 
 interface Props {
@@ -19,6 +20,8 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addLink = useCanvasStore((s) => s.addLink);
   const canUndo = useHistoryStore((s) => s.canUndo);
   const canRedo = useHistoryStore((s) => s.canRedo);
+  const toggleAgenda = useUiStore((s) => s.toggleAgenda);
+  const agendaOpen = useUiStore((s) => s.agendaOpen);
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -61,6 +64,17 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       ))}
 
       <div className="my-0.5 h-px bg-neutral-200" />
+
+      <button
+        onClick={toggleAgenda}
+        title="Agenda — semua tugas bertenggat"
+        className={[
+          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
+          agendaOpen ? "text-blue-600" : "text-neutral-700",
+        ].join(" ")}
+      >
+        🗓 Agenda
+      </button>
 
       <div className="flex gap-1">
         <button
