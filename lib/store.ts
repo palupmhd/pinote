@@ -7,6 +7,8 @@ import {
   type Board,
   type BoardElement,
   type Camera,
+  type CardElement,
+  type ClipboardPayload,
   type LinkElement,
   type TaskListElement,
 } from "./types";
@@ -72,6 +74,9 @@ interface CanvasState extends Persisted {
   select: (id: string | null, additive?: boolean) => void;
   /** Ganti seluruh himpunan terpilih sekaligus — dipakai marquee. */
   setSelection: (ids: string[]) => void;
+  /** Tempelkan potongan papan-klip ke sebuah papan dengan id baru untuk semua
+   *  elemen & papan (deep clone), lalu pilih kartu hasil tempelan. */
+  pasteElements: (payload: ClipboardPayload, targetBoardId: string, offset: { x: number; y: number }) => string[];
   setEditing: (id: string | null) => void;
   bringToFront: (id: string) => void;
 }
@@ -525,6 +530,75 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }),
 
   setSelection: (ids) => set({ selectedIds: ids }),
+
+  pasteElements: (payload, targetBoardId, offset) => {
+    let newTopIds: string[] = [];
+    set((s) => {
+      // Id baru untuk tiap papan & elemen yang disalin.
+      const boardIdMap = new Map<string, string>();
+      for (const bid of Object.keys(payload.boards)) boardIdMap.set(bid, crypto.randomUUID());
+      const elIdMap = new Map<string, string>();
+      for (const eid of Object.keys(payload.elements)) elIdMap.set(eid, crypto.randomUUID());
+
+      const boards = { ...s.boards };
+      for (const [oldId, b] of Object.entries(payload.boards)) {
+        const nid = boardIdMap.get(oldId)!;
+        boards[nid] = {
+          ...b,
+          id: nid,
+          // Papan bersarang → petakan ke induk barunya. Papan yang ditunjuk
+          // langsung oleh kartu tempelan kini "tinggal" di papan tujuan.
+          parentBoardId:
+            b.parentBoardId && boardIdMap.has(b.parentBoardId)
+              ? boardIdMap.get(b.parentBoardId)!
+              : targetBoardId,
+        };
+      }
+
+      const elements = { ...s.elements };
+      let z = nextZIndex(s.elements, targetBoardId);
+      const now = Date.now();
+      const tops: string[] = [];
+
+      for (const [oldId, el] of Object.entries(payload.elements)) {
+        const nid = elIdMap.get(oldId)!;
+        // Elemen di papan turunan yang ikut dikloning vs kartu tingkat-atas
+        // (yang mendarat di papan tujuan).
+        const onClonedBoard = boardIdMap.has(el.boardId);
+        const boardId = onClonedBoard ? boardIdMap.get(el.boardId)! : targetBoardId;
+
+        if (el.type === "CONNECTOR") {
+          const src = elIdMap.get(el.sourceElementId);
+          const tgt = elIdMap.get(el.targetElementId);
+          if (!src || !tgt) continue; // salah satu ujung tak ikut tersalin
+          elements[nid] = { ...el, id: nid, boardId, sourceElementId: src, targetElementId: tgt, updatedAt: now };
+          continue;
+        }
+
+        const cloned = {
+          ...el,
+          id: nid,
+          boardId,
+          updatedAt: now,
+          content: structuredClone(el.content),
+        } as CardElement;
+        if (cloned.type === "BOARD_REF" && el.type === "BOARD_REF") {
+          cloned.content = { boardId: boardIdMap.get(el.content.boardId) ?? el.content.boardId };
+        }
+        if (!onClonedBoard) {
+          cloned.x = el.x + offset.x;
+          cloned.y = el.y + offset.y;
+          cloned.zIndex = z++;
+          tops.push(nid);
+        }
+        elements[nid] = cloned;
+      }
+
+      newTopIds = tops;
+      return { boards, elements, selectedIds: tops };
+    });
+    return newTopIds;
+  },
 
   setEditing: (id) =>
     set((s) => ({ editingId: id, selectedIds: id ? [id] : s.selectedIds })),

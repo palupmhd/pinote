@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
+import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
@@ -142,6 +143,23 @@ export function Canvas() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+        return;
+      }
+
+      // Copy / paste / duplicate. Di dalam kartu teks kita sudah keluar di atas,
+      // jadi Ctrl+C/V bawaan untuk teks tetap jalan; ini hanya untuk kanvas.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        copySelection();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        duplicateSelection();
         return;
       }
 

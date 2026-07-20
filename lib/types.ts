@@ -95,5 +95,14 @@ export interface Camera {
   zoom: number;
 }
 
+/** Isi papan-klip untuk copy/paste/duplicate. Menyimpan potongan graf yang
+ *  mandiri: kartu yang disalin, konektor di antara mereka, dan — untuk kartu
+ *  papan — seluruh subpohon papannya (papan + isinya, rekursif) supaya menempel
+ *  kembali menjadi salinan penuh, bukan menunjuk papan yang sama. */
+export interface ClipboardPayload {
+  elements: Record<string, BoardElement>;
+  boards: Record<string, Board>;
+}
+
 export const ROOT_BOARD_ID = "root";
 export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
