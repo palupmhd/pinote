@@ -8,7 +8,12 @@ import {
   type BoardElement,
   type Camera,
   type CardElement,
+  type CellValue,
   type ClipboardPayload,
+  type ColumnType,
+  type Database,
+  type DbColumn,
+  type DbRow,
   type LinkElement,
   type TaskListElement,
 } from "./types";
@@ -18,10 +23,12 @@ const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 const LINK_WIDTH = 240;
+const DATABASE_CARD_WIDTH = 220;
 
 export interface Persisted {
   boards: Record<string, Board>;
   elements: Record<string, BoardElement>;
+  databases: Record<string, Database>;
   cameras: Record<string, Camera>;
   currentBoardId: string;
 }
@@ -32,6 +39,7 @@ export function snapshot(s: CanvasState): Persisted {
   return {
     boards: s.boards,
     elements: s.elements,
+    databases: s.databases,
     cameras: { ...s.cameras, [s.currentBoardId]: s.camera },
     currentBoardId: s.currentBoardId,
   };
@@ -46,13 +54,19 @@ interface CanvasState extends Persisted {
   hydrate: () => void;
   /** Ganti seluruh isi workspace — dipakai saat mengambil versi dari cloud. */
   replaceWorkspace: (data: Persisted) => void;
-  /** Pulihkan boards+elements dari snapshot undo/redo, tanpa menyentuh kamera. */
-  applyHistory: (snap: { boards: Record<string, Board>; elements: Record<string, BoardElement>; currentBoardId: string }) => void;
+  /** Pulihkan boards+elements+databases dari snapshot undo/redo, tanpa kamera. */
+  applyHistory: (snap: {
+    boards: Record<string, Board>;
+    elements: Record<string, BoardElement>;
+    databases: Record<string, Database>;
+    currentBoardId: string;
+  }) => void;
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
   addBoard: (worldX: number, worldY: number) => string;
   addTaskList: (worldX: number, worldY: number) => string;
   addLink: (worldX: number, worldY: number) => string;
+  addDatabase: (worldX: number, worldY: number) => string;
   resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
   setTaskListTitle: (id: string, title: string) => void;
@@ -63,6 +77,15 @@ interface CanvasState extends Persisted {
   removeTaskItem: (id: string, itemId: string) => void;
   openBoard: (boardId: string) => void;
   renameBoard: (boardId: string, title: string) => void;
+  // Database (spec §8.4)
+  renameDatabase: (dbId: string, title: string) => void;
+  addColumn: (dbId: string, type?: ColumnType) => void;
+  renameColumn: (dbId: string, colId: string, name: string) => void;
+  setColumnType: (dbId: string, colId: string, type: ColumnType) => void;
+  removeColumn: (dbId: string, colId: string) => void;
+  addRow: (dbId: string) => void;
+  setCell: (dbId: string, rowId: string, colId: string, value: CellValue) => void;
+  removeRow: (dbId: string, rowId: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
@@ -108,6 +131,20 @@ function updateTaskList(
   });
 }
 
+/** Pembungkus umum untuk mengubah satu Database, menjaga guard "ada/tidak"
+ *  tetap satu tempat (mirip updateTaskList untuk daftar tugas). */
+function updateDatabase(
+  set: SetState,
+  id: string,
+  fn: (db: Database) => Database
+) {
+  set((s) => {
+    const db = s.databases[id];
+    if (!db) return s;
+    return { databases: { ...s.databases, [id]: fn(db) } };
+  });
+}
+
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
   const zs = Object.values(elements)
     .filter((e) => e.boardId === boardId && e.type !== "CONNECTOR")
@@ -139,28 +176,42 @@ function collectDescendants(boards: Record<string, Board>, rootId: string): Set<
 function removeElements(
   boards: Record<string, Board>,
   elements: Record<string, BoardElement>,
+  databases: Record<string, Database>,
   cameras: Record<string, Camera>,
   ids: string[]
-): { boards: Record<string, Board>; elements: Record<string, BoardElement>; cameras: Record<string, Camera> } {
+): {
+  boards: Record<string, Board>;
+  elements: Record<string, BoardElement>;
+  databases: Record<string, Database>;
+  cameras: Record<string, Camera>;
+} {
   const nb = { ...boards };
   const ne = { ...elements };
+  const nd = { ...databases };
   const nc = { ...cameras };
 
-  for (const id of ids) {
+  // Hapus satu elemen beserta entitas yang cuma "dimiliki" olehnya.
+  const purge = (id: string) => {
     const el = ne[id];
-    if (!el) continue;
+    if (!el) return;
     delete ne[id];
+    // Kartu database = hapus tabelnya.
+    if (el.type === "DATABASE_REF") delete nd[el.content.databaseId];
+    // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
+    // supaya kartu database di dalamnya ikut membuang tabelnya).
     if (el.type === "BOARD_REF") {
       const doomed = collectDescendants(nb, el.content.boardId);
       for (const bid of doomed) {
         delete nb[bid];
         delete nc[bid];
         for (const e of Object.values(ne)) {
-          if (e.boardId === bid) delete ne[e.id];
+          if (e.boardId === bid) purge(e.id);
         }
       }
     }
-  }
+  };
+
+  for (const id of ids) purge(id);
 
   for (const e of Object.values(ne)) {
     if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
@@ -168,12 +219,13 @@ function removeElements(
     }
   }
 
-  return { boards: nb, elements: ne, cameras: nc };
+  return { boards: nb, elements: ne, databases: nd, cameras: nc };
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   boards: { [ROOT_BOARD_ID]: rootBoard },
   elements: {},
+  databases: {},
   cameras: {},
   currentBoardId: ROOT_BOARD_ID,
   selectedIds: [],
@@ -198,6 +250,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         set({
           boards,
           elements: data.elements ?? {},
+          databases: data.databases ?? {},
           cameras: data.cameras ?? {},
           currentBoardId,
           camera: data.cameras?.[currentBoardId] ?? DEFAULT_CAMERA,
@@ -217,6 +270,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({
       boards,
       elements: data.elements ?? {},
+      databases: data.databases ?? {},
       cameras: data.cameras ?? {},
       currentBoardId,
       camera: data.cameras?.[currentBoardId] ?? DEFAULT_CAMERA,
@@ -235,6 +289,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return {
         boards,
         elements: snap.elements,
+        databases: snap.databases,
         currentBoardId,
         camera: sameBoard ? s.camera : s.cameras[currentBoardId] ?? DEFAULT_CAMERA,
         selectedIds: [],
@@ -386,6 +441,39 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     return id;
   },
 
+  addDatabase: (worldX, worldY) => {
+    const elementId = crypto.randomUUID();
+    const databaseId = crypto.randomUUID();
+    const col = (name: string, type: ColumnType): DbColumn => ({ id: crypto.randomUUID(), name, type });
+    const columns: DbColumn[] = [col("Nama", "text"), col("Catatan", "text"), col("Selesai", "checkbox")];
+    const rows: DbRow[] = [
+      { id: crypto.randomUUID(), cells: {} },
+      { id: crypto.randomUUID(), cells: {} },
+    ];
+    set((s) => ({
+      databases: {
+        ...s.databases,
+        [databaseId]: { id: databaseId, title: "Database baru", columns, rows },
+      },
+      elements: {
+        ...s.elements,
+        [elementId]: {
+          id: elementId,
+          boardId: s.currentBoardId,
+          type: "DATABASE_REF",
+          x: worldX - DATABASE_CARD_WIDTH / 2,
+          y: worldY - 30,
+          width: DATABASE_CARD_WIDTH,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: { databaseId },
+          updatedAt: Date.now(),
+        },
+      },
+      selectedIds: [elementId],
+    }));
+    return elementId;
+  },
+
   resolveLink: async (id, rawUrl) => {
     const url = rawUrl.trim().match(/^https?:\/\//i) ? rawUrl.trim() : `https://${rawUrl.trim()}`;
     const patch = (content: LinkElement["content"]) =>
@@ -467,6 +555,61 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       return { boards: { ...s.boards, [boardId]: { ...b, title } } };
     }),
 
+  // --- Database (spec §8.4) --------------------------------------------------
+  renameDatabase: (dbId, title) =>
+    updateDatabase(set, dbId, (db) => (db.title === title ? db : { ...db, title })),
+
+  addColumn: (dbId, type = "text") =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: [...db.columns, { id: crypto.randomUUID(), name: `Kolom ${db.columns.length + 1}`, type }],
+    })),
+
+  renameColumn: (dbId, colId, name) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, name } : c)),
+    })),
+
+  setColumnType: (dbId, colId, type) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, type } : c)),
+    })),
+
+  removeColumn: (dbId, colId) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.filter((c) => c.id !== colId),
+      // Buang selnya dari tiap baris supaya tak jadi data menggantung.
+      rows: db.rows.map((r) => {
+        if (!(colId in r.cells)) return r;
+        const cells = { ...r.cells };
+        delete cells[colId];
+        return { ...r, cells };
+      }),
+    })),
+
+  addRow: (dbId) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: [...db.rows, { id: crypto.randomUUID(), cells: {} }],
+    })),
+
+  setCell: (dbId, rowId, colId, value) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: db.rows.map((r) =>
+        r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: value } } : r
+      ),
+    })),
+
+  removeRow: (dbId, rowId) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: db.rows.filter((r) => r.id !== rowId),
+    })),
+
   moveElement: (id, x, y) =>
     set((s) => {
       const el = s.elements[id];
@@ -503,10 +646,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeElement: (id) =>
     set((s) => {
       if (!s.elements[id]) return s;
-      const { boards, elements, cameras } = removeElements(s.boards, s.elements, s.cameras, [id]);
+      const { boards, elements, databases, cameras } = removeElements(
+        s.boards, s.elements, s.databases, s.cameras, [id]
+      );
       return {
         elements,
         boards,
+        databases,
         cameras,
         selectedIds: s.selectedIds.filter((x) => elements[x]),
         editingId: s.editingId && elements[s.editingId] ? s.editingId : null,
@@ -516,10 +662,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeMany: (ids) =>
     set((s) => {
       if (!ids.some((id) => s.elements[id])) return s;
-      const { boards, elements, cameras } = removeElements(s.boards, s.elements, s.cameras, ids);
+      const { boards, elements, databases, cameras } = removeElements(
+        s.boards, s.elements, s.databases, s.cameras, ids
+      );
       return {
         elements,
         boards,
+        databases,
         cameras,
         selectedIds: s.selectedIds.filter((x) => elements[x]),
         editingId: s.editingId && elements[s.editingId] ? s.editingId : null,
@@ -573,6 +722,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       for (const bid of Object.keys(payload.boards)) boardIdMap.set(bid, crypto.randomUUID());
       const elIdMap = new Map<string, string>();
       for (const eid of Object.keys(payload.elements)) elIdMap.set(eid, crypto.randomUUID());
+      const dbIdMap = new Map<string, string>();
+      for (const did of Object.keys(payload.databases)) dbIdMap.set(did, crypto.randomUUID());
+
+      // Kloning tabel dengan id baru (baris tetap id lama — sudah terlingkup
+      // per-database, jadi tak bentrok).
+      const databases = { ...s.databases };
+      for (const [oldId, db] of Object.entries(payload.databases)) {
+        const nid = dbIdMap.get(oldId)!;
+        databases[nid] = structuredClone({ ...db, id: nid });
+      }
 
       const boards = { ...s.boards };
       for (const [oldId, b] of Object.entries(payload.boards)) {
@@ -619,6 +778,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (cloned.type === "BOARD_REF" && el.type === "BOARD_REF") {
           cloned.content = { boardId: boardIdMap.get(el.content.boardId) ?? el.content.boardId };
         }
+        if (cloned.type === "DATABASE_REF" && el.type === "DATABASE_REF") {
+          cloned.content = { databaseId: dbIdMap.get(el.content.databaseId) ?? el.content.databaseId };
+        }
         if (!onClonedBoard) {
           cloned.x = el.x + offset.x;
           cloned.y = el.y + offset.y;
@@ -629,7 +791,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
 
       newTopIds = tops;
-      return { boards, elements, selectedIds: tops };
+      return { boards, elements, databases, selectedIds: tops };
     });
     return newTopIds;
   },

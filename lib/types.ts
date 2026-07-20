@@ -1,10 +1,43 @@
 // Data model per TECHNICAL_SPEC.md §2
-export type ElementType = "NOTE" | "BOARD_REF" | "TASK_LIST" | "LINK" | "CONNECTOR";
+export type ElementType =
+  | "NOTE"
+  | "BOARD_REF"
+  | "TASK_LIST"
+  | "LINK"
+  | "DATABASE_REF"
+  | "CONNECTOR";
 
 export interface Board {
   id: string;
   title: string;
   parentBoardId: string | null; // null = papan root
+}
+
+// --- Database (spec §8.4) ----------------------------------------------------
+// Tabel bertipe: entitas terpisah (seperti Board), dibuka lewat kartu "pintu"
+// DATABASE_REF. Baris disimpan di dalam entitas ini, bukan sebagai elemen
+// kanvas — relasi antar-baris sebagai panah menyusul di §8.6.
+export type ColumnType = "text" | "number" | "checkbox" | "date";
+
+export interface DbColumn {
+  id: string;
+  name: string;
+  type: ColumnType;
+}
+
+export type CellValue = string | number | boolean | null;
+
+export interface DbRow {
+  id: string;
+  /** nilai per kolom, dikunci id kolom; kolom tanpa entri = sel kosong. */
+  cells: Record<string, CellValue>;
+}
+
+export interface Database {
+  id: string;
+  title: string;
+  columns: DbColumn[];
+  rows: DbRow[];
 }
 
 interface BaseElement {
@@ -23,10 +56,18 @@ export interface NoteElement extends BaseElement {
 }
 
 /** Kartu di kanvas yang membuka Board lain. Board-nya entitas terpisah, kartu
- *  ini hanya "pintu" — pola yang sama nanti dipakai DatabaseView (spec §8.4). */
+ *  ini hanya "pintu" — pola yang sama dipakai DATABASE_REF di bawah (spec §8.4). */
 export interface BoardRefElement extends BaseElement {
   type: "BOARD_REF";
   content: { boardId: string };
+}
+
+/** Kartu "pintu" ke sebuah Database. Sama seperti BOARD_REF: entitasnya
+ *  (tabelnya) terpisah, kartu ini hanya penunjuk. Membukanya menampilkan
+ *  editor tabel, bukan kanvas bersarang. */
+export interface DatabaseRefElement extends BaseElement {
+  type: "DATABASE_REF";
+  content: { databaseId: string };
 }
 
 export interface TaskItem {
@@ -79,7 +120,12 @@ export interface ConnectorElement {
 }
 
 /** Elemen yang punya posisi & bisa digeser di kanvas. */
-export type CardElement = NoteElement | BoardRefElement | TaskListElement | LinkElement;
+export type CardElement =
+  | NoteElement
+  | BoardRefElement
+  | TaskListElement
+  | LinkElement
+  | DatabaseRefElement;
 
 export type BoardElement = CardElement | ConnectorElement;
 
@@ -103,6 +149,7 @@ export interface Camera {
 export interface ClipboardPayload {
   elements: Record<string, BoardElement>;
   boards: Record<string, Board>;
+  databases: Record<string, Database>;
 }
 
 export const ROOT_BOARD_ID = "root";

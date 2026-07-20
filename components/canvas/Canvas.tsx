@@ -8,6 +8,8 @@ import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
+import { DatabaseCard } from "./DatabaseCard";
+import { DatabaseView } from "./DatabaseView";
 import { LinkCard } from "./LinkCard";
 import { NoteCard } from "./NoteCard";
 import { SyncStatus } from "./SyncStatus";
@@ -352,6 +354,7 @@ export function Canvas() {
             if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
             if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
             if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
+            if (el.type === "DATABASE_REF") return <DatabaseCard key={el.id} element={el} />;
             return <NoteCard key={el.id} element={el} />;
           })}
       </div>
@@ -375,6 +378,7 @@ export function Canvas() {
       <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
       <SyncStatus />
       <AgendaView />
+      <DatabaseView />
 
       <div
         ref={zoomBadgeRef}

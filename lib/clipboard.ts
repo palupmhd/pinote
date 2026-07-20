@@ -6,6 +6,7 @@ import type {
   BoardElement,
   CardElement,
   ClipboardPayload,
+  Database,
 } from "./types";
 
 /** Papan-klip in-app (bukan clipboard OS): copy menyimpan potongan graf di sini,
@@ -39,7 +40,8 @@ function collectBoardSubtree(
 }
 
 /** Bangun payload dari sekumpulan id terpilih: kartunya, konektor yang KEDUA
- *  ujungnya ikut terpilih, dan subpohon papan untuk tiap kartu papan. */
+ *  ujungnya ikut terpilih, subpohon papan tiap kartu papan, dan tabel tiap
+ *  kartu database (termasuk yang ada di dalam papan yang ikut tersalin). */
 export function buildClipboard(state: StoreState, ids: string[]): ClipboardPayload {
   const topCards = ids
     .map((id) => state.elements[id])
@@ -48,6 +50,7 @@ export function buildClipboard(state: StoreState, ids: string[]): ClipboardPaylo
 
   const elements: Record<string, BoardElement> = {};
   const boards: Record<string, Board> = {};
+  const databases: Record<string, Database> = {};
 
   for (const c of topCards) {
     elements[c.id] = c;
@@ -61,7 +64,16 @@ export function buildClipboard(state: StoreState, ids: string[]): ClipboardPaylo
     }
   }
 
-  return { elements, boards };
+  // Tarik tabel untuk tiap kartu database yang sudah terkumpul (tingkat-atas
+  // maupun di dalam subpohon papan).
+  for (const el of Object.values(elements)) {
+    if (el.type === "DATABASE_REF") {
+      const db = state.databases[el.content.databaseId];
+      if (db) databases[db.id] = db;
+    }
+  }
+
+  return { elements, boards, databases };
 }
 
 export function copySelection() {

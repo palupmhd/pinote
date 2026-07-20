@@ -18,6 +18,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addBoard = useCanvasStore((s) => s.addBoard);
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
+  const addDatabase = useCanvasStore((s) => s.addDatabase);
   const canUndo = useHistoryStore((s) => s.canUndo);
   const canRedo = useHistoryStore((s) => s.canRedo);
   const toggleAgenda = useUiStore((s) => s.toggleAgenda);
@@ -47,6 +48,10 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)", onClick: () => {
         const { x, y } = viewportCenter();
         addBoard(x, y);
+      } },
+    { label: "Database", hint: "Tambah tabel bertipe (spec §8.4)", onClick: () => {
+        const { x, y } = viewportCenter();
+        addDatabase(x, y);
       } },
   ];
 

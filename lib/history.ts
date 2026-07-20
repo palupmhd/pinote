@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { useCanvasStore } from "./store";
-import type { Board, BoardElement } from "./types";
+import type { Board, BoardElement, Database } from "./types";
 
 /** Undo/redo untuk dokumen (boards + elements). Sengaja TIDAK menyertakan
  *  kamera, seleksi, atau papan yang sedang dibuka — membatalkan sebuah pan/zoom
@@ -14,6 +14,7 @@ import type { Board, BoardElement } from "./types";
 interface Snapshot {
   boards: Record<string, Board>;
   elements: Record<string, BoardElement>;
+  databases: Record<string, Database>;
   /** Disimpan hanya untuk mengembalikan konteks papan bila board terpilih ikut
    *  terhapus/terpulihkan — bukan pemicu masuknya sebuah langkah undo. */
   currentBoardId: string;
@@ -45,7 +46,12 @@ const publish = () =>
 
 const snap = (): Snapshot => {
   const s = useCanvasStore.getState();
-  return { boards: s.boards, elements: s.elements, currentBoardId: s.currentBoardId };
+  return {
+    boards: s.boards,
+    elements: s.elements,
+    databases: s.databases,
+    currentBoardId: s.currentBoardId,
+  };
 };
 
 /** Jalankan fn tanpa merekamnya ke riwayat (dipakai saat menerapkan undo/redo
@@ -99,22 +105,33 @@ export function startHistory(): () => void {
     if (!state.hydrated || !prev.hydrated) return;
     const boardsChanged = state.boards !== prev.boards;
     const elementsChanged = state.elements !== prev.elements;
-    if (!boardsChanged && !elementsChanged) return;
+    const databasesChanged = state.databases !== prev.databases;
+    if (!boardsChanged && !elementsChanged && !databasesChanged) return;
 
     // Struktural = jumlah entri berubah (tambah/hapus). Ini selalu langkah
     // tersendiri; edit isi (jumlah sama) boleh menyatu bila beruntun cepat.
     const structural =
       Object.keys(state.elements).length !== Object.keys(prev.elements).length ||
-      Object.keys(state.boards).length !== Object.keys(prev.boards).length;
+      Object.keys(state.boards).length !== Object.keys(prev.boards).length ||
+      Object.keys(state.databases).length !== Object.keys(prev.databases).length;
 
     const now = Date.now();
     const coalesce = !structural && now - lastRecordTs < COALESCE_MS;
     lastRecordTs = now;
     if (coalesce) return; // baseline sebelum burst sudah tersimpan
 
-    past.push({ boards: prev.boards, elements: prev.elements, currentBoardId: prev.currentBoardId });
+    past.push({
+      boards: prev.boards,
+      elements: prev.elements,
+      databases: prev.databases,
+      currentBoardId: prev.currentBoardId,
+    });
     if (past.length > MAX_DEPTH) past.shift();
     future = []; // edit baru mematikan jalur redo
+    // Perubahan struktural menutup jendela penggabungan: edit berikutnya WAJIB
+    // jadi langkah sendiri, tak boleh ikut menyatu dan menelan langkah ini
+    // (mis. tambah kartu lalu hapus baris — dua langkah undo, bukan satu).
+    if (structural) lastRecordTs = 0;
     publish();
   });
 }
