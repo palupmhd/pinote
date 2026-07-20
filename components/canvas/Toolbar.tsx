@@ -6,6 +6,7 @@ import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
 import type { Camera } from "@/lib/types";
+import { DatabasePicker } from "./DatabasePicker";
 
 interface Props {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -20,6 +21,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
   const addDatabase = useCanvasStore((s) => s.addDatabase);
+  const attachDatabase = useCanvasStore((s) => s.attachDatabase);
   const addImage = useCanvasStore((s) => s.addImage);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canUndo = useHistoryStore((s) => s.canUndo);
@@ -75,14 +77,23 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   return (
     <div className="pointer-events-auto absolute left-3 top-16 z-10 flex flex-col gap-1 rounded-md bg-white/90 p-1.5 shadow-sm ring-1 ring-neutral-200 backdrop-blur">
       {tools.map((t) => (
-        <button
-          key={t.label}
-          onClick={t.onClick}
-          title={t.hint}
-          className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
-        >
-          + {t.label}
-        </button>
+        <div key={t.label}>
+          <button
+            onClick={t.onClick}
+            title={t.hint}
+            className="w-full rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
+          >
+            + {t.label}
+          </button>
+          {t.label === "Database" && (
+            <DatabasePicker
+              onAttach={(dbId) => {
+                const { x, y } = viewportCenter();
+                attachDatabase(dbId, x, y);
+              }}
+            />
+          )}
+        </div>
       ))}
 
       <input

@@ -69,6 +69,10 @@ interface CanvasState extends Persisted {
   addTaskList: (worldX: number, worldY: number) => string;
   addLink: (worldX: number, worldY: number) => string;
   addDatabase: (worldX: number, worldY: number) => string;
+  /** Taruh kartu pintu baru ke Database yang SUDAH ADA — ini yang bikin satu
+   *  database bisa "dipanggil" di board mana pun (spec §7.3/§7.4), beda dari
+   *  addDatabase yang bikin database baru. */
+  attachDatabase: (databaseId: string, worldX: number, worldY: number) => string | null;
   addImage: (worldX: number, worldY: number, img: { src: string; naturalWidth: number; naturalHeight: number }) => string;
   resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
@@ -202,8 +206,16 @@ function removeElements(
     const el = ne[id];
     if (!el) return;
     delete ne[id];
-    // Kartu database = hapus tabelnya.
-    if (el.type === "DATABASE_REF") delete nd[el.content.databaseId];
+    // Kartu database = hapus tabelnya, TAPI cuma kalau tidak ada kartu pintu
+    // lain (di board mana pun) yang masih menunjuk ke database yang sama —
+    // satu database bisa dipanggil dari banyak board (spec §7.3), jadi hapus
+    // satu kartu tidak boleh menghancurkan data yang masih dipakai board lain.
+    if (el.type === "DATABASE_REF") {
+      const stillReferenced = Object.values(ne).some(
+        (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
+      );
+      if (!stillReferenced) delete nd[el.content.databaseId];
+    }
     // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
     // supaya kartu database di dalamnya ikut membuang tabelnya).
     if (el.type === "BOARD_REF") {
@@ -462,6 +474,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         ...s.databases,
         [databaseId]: { id: databaseId, title: "Database baru", columns, rows },
       },
+      elements: {
+        ...s.elements,
+        [elementId]: {
+          id: elementId,
+          boardId: s.currentBoardId,
+          type: "DATABASE_REF",
+          x: worldX - DATABASE_CARD_WIDTH / 2,
+          y: worldY - 30,
+          width: DATABASE_CARD_WIDTH,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: { databaseId },
+          updatedAt: Date.now(),
+        },
+      },
+      selectedIds: [elementId],
+    }));
+    return elementId;
+  },
+
+  attachDatabase: (databaseId, worldX, worldY) => {
+    if (!get().databases[databaseId]) return null;
+    const elementId = crypto.randomUUID();
+    set((s) => ({
       elements: {
         ...s.elements,
         [elementId]: {
