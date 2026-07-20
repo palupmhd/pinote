@@ -2,24 +2,24 @@
 
 import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { useUiStore } from "@/lib/ui";
 import { useElementDrag } from "@/lib/useElementDrag";
-import type { BoardRefElement } from "@/lib/types";
+import type { DatabaseRefElement } from "@/lib/types";
 import { ConnectHandle } from "./ConnectHandle";
 
-function BoardCardBase({ element }: { element: BoardRefElement }) {
-  const targetId = element.content.boardId;
+function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
+  const dbId = element.content.databaseId;
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
-  const title = useCanvasStore((s) => s.boards[targetId]?.title ?? "Papan");
-  const count = useCanvasStore(
-    (s) => Object.values(s.elements).filter((e) => e.boardId === targetId).length
-  );
-  const openBoard = useCanvasStore((s) => s.openBoard);
+  const title = useCanvasStore((s) => s.databases[dbId]?.title ?? "Database");
+  const rows = useCanvasStore((s) => s.databases[dbId]?.rows.length ?? 0);
+  const cols = useCanvasStore((s) => s.databases[dbId]?.columns.length ?? 0);
+  const openDatabase = useUiStore((s) => s.openDatabase);
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!wasDragged()) openBoard(targetId);
+    if (!wasDragged()) openDatabase(dbId);
   };
 
   return (
@@ -40,16 +40,20 @@ function BoardCardBase({ element }: { element: BoardRefElement }) {
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
-      {/* Pita atas: penanda visual bahwa ini papan, bukan catatan */}
-      <div className="h-6 rounded-t-md bg-neutral-100" />
+      {/* Pita atas bermotif kolom → penanda visual "ini tabel", bukan papan */}
+      <div className="flex h-6 items-center gap-1 rounded-t-md bg-neutral-100 px-3">
+        <span className="h-2 w-2 rounded-[2px] bg-neutral-300" />
+        <span className="h-2 w-6 rounded-[2px] bg-neutral-300" />
+        <span className="h-2 w-4 rounded-[2px] bg-neutral-300" />
+      </div>
       <div className="p-3">
         <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
         <p className="mt-0.5 text-xs text-neutral-400">
-          {count === 0 ? "Kosong" : `${count} item`} · klik dua kali untuk buka
+          {rows} baris · {cols} kolom · klik dua kali untuk buka
         </p>
       </div>
     </div>
   );
 }
 
-export const BoardCard = memo(BoardCardBase);
+export const DatabaseCard = memo(DatabaseCardBase);

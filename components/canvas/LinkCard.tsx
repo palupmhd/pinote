@@ -7,7 +7,7 @@ import type { LinkElement } from "@/lib/types";
 import { ConnectHandle } from "./ConnectHandle";
 
 function LinkCardBase({ element }: { element: LinkElement }) {
-  const selected = useCanvasStore((s) => s.selectedId === element.id);
+  const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const resolveLink = useCanvasStore((s) => s.resolveLink);
   const { rootRef, dragHandlers } = useElementDrag(element);
 

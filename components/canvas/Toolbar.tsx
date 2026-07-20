@@ -1,7 +1,10 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { redo, undo, useHistoryStore } from "@/lib/history";
+import { firstImageFile, importImageFile } from "@/lib/images";
+import { useUiStore } from "@/lib/ui";
 import type { Camera } from "@/lib/types";
 
 interface Props {
@@ -16,6 +19,13 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addBoard = useCanvasStore((s) => s.addBoard);
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
+  const addDatabase = useCanvasStore((s) => s.addDatabase);
+  const addImage = useCanvasStore((s) => s.addImage);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const canUndo = useHistoryStore((s) => s.canUndo);
+  const canRedo = useHistoryStore((s) => s.canRedo);
+  const toggleAgenda = useUiStore((s) => s.toggleAgenda);
+  const agendaOpen = useUiStore((s) => s.agendaOpen);
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -42,7 +52,25 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
         const { x, y } = viewportCenter();
         addBoard(x, y);
       } },
+    { label: "Database", hint: "Tambah tabel bertipe (spec §8.4)", onClick: () => {
+        const { x, y } = viewportCenter();
+        addDatabase(x, y);
+      } },
+    { label: "Gambar", hint: "Tambah gambar (atau tempel/seret ke kanvas)", onClick: () => {
+        fileInputRef.current?.click();
+      } },
   ];
+
+  const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = firstImageFile(e.target.files);
+    e.target.value = ""; // izinkan memilih file yang sama lagi
+    if (!file) return;
+    const img = await importImageFile(file);
+    if (img) {
+      const { x, y } = viewportCenter();
+      addImage(x, y, img);
+    }
+  };
 
   return (
     <div className="pointer-events-auto absolute left-3 top-16 z-10 flex flex-col gap-1 rounded-md bg-white/90 p-1.5 shadow-sm ring-1 ring-neutral-200 backdrop-blur">
@@ -56,6 +84,46 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           + {t.label}
         </button>
       ))}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={onPickImage}
+        className="hidden"
+      />
+
+      <div className="my-0.5 h-px bg-neutral-200" />
+
+      <button
+        onClick={toggleAgenda}
+        title="Agenda — semua tugas bertenggat"
+        className={[
+          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
+          agendaOpen ? "text-blue-600" : "text-neutral-700",
+        ].join(" ")}
+      >
+        🗓 Agenda
+      </button>
+
+      <div className="flex gap-1">
+        <button
+          onClick={undo}
+          disabled={!canUndo}
+          title="Urungkan (Ctrl/Cmd+Z)"
+          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
+        >
+          ↶
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo}
+          title="Ulangi (Ctrl/Cmd+Shift+Z)"
+          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
+        >
+          ↷
+        </button>
+      </div>
     </div>
   );
 }

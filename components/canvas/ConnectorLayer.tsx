@@ -13,13 +13,24 @@ const FALLBACK_HEIGHT = 64;
  *  world apa adanya, termasuk yang negatif. */
 const EXTENT = 6000;
 
+/** Panah relasi database (spec §8.6): sumber/tujuan tetap id elemen (kartu
+ *  database), jadi memakai ulang jalur gambar & ikut-geser yang sama seperti
+ *  konektor biasa. Diturunkan dari data, bukan elemen tersimpan. */
+export interface RelationArrow {
+  id: string;
+  sourceElementId: string;
+  targetElementId: string;
+}
+
 interface Props {
   connectors: ConnectorElement[];
+  relations: RelationArrow[];
   cards: CardElement[];
 }
 
-export function ConnectorLayer({ connectors, cards }: Props) {
+export function ConnectorLayer({ connectors, relations, cards }: Props) {
   const pathRefs = useRef(new Map<string, SVGPathElement | null>());
+  const relPathRefs = useRef(new Map<string, SVGPathElement | null>());
   const ghostRef = useRef<SVGPathElement>(null);
   // posisi sementara saat kartu sedang digeser (store belum di-update)
   const livePos = useRef(new Map<string, Point>());
@@ -29,6 +40,8 @@ export function ConnectorLayer({ connectors, cards }: Props) {
   cardsRef.current = cards;
   const connectorsRef = useRef(connectors);
   connectorsRef.current = connectors;
+  const relationsRef = useRef(relations);
+  relationsRef.current = relations;
 
   /** Tinggi kartu tidak ada di data model (tinggi mengikuti isi), jadi diukur
    *  dari DOM. Lebar & posisi dari store, ditimpa posisi live saat digeser. */
@@ -46,20 +59,21 @@ export function ConnectorLayer({ connectors, cards }: Props) {
   const redraw = useCallback(
     (onlyTouching?: string) => {
       const byId = new Map(cardsRef.current.map((c) => [c.id, c]));
-      for (const c of connectorsRef.current) {
-        if (
-          onlyTouching &&
-          c.sourceElementId !== onlyTouching &&
-          c.targetElementId !== onlyTouching
-        ) {
-          continue;
-        }
-        const path = pathRefs.current.get(c.id);
-        const s = byId.get(c.sourceElementId);
-        const t = byId.get(c.targetElementId);
-        if (!path || !s || !t) continue;
+      const drawInto = (
+        refs: Map<string, SVGPathElement | null>,
+        id: string,
+        srcId: string,
+        tgtId: string
+      ) => {
+        if (onlyTouching && srcId !== onlyTouching && tgtId !== onlyTouching) return;
+        const path = refs.get(id);
+        const s = byId.get(srcId);
+        const t = byId.get(tgtId);
+        if (!path || !s || !t) return;
         path.setAttribute("d", connectorPath(boxOf(s), boxOf(t)));
-      }
+      };
+      for (const c of connectorsRef.current) drawInto(pathRefs.current, c.id, c.sourceElementId, c.targetElementId);
+      for (const r of relationsRef.current) drawInto(relPathRefs.current, r.id, r.sourceElementId, r.targetElementId);
     },
     [boxOf]
   );
@@ -67,7 +81,7 @@ export function ConnectorLayer({ connectors, cards }: Props) {
   // Gambar ulang saat data berubah (tambah/hapus/pindah papan/commit drag)
   useEffect(() => {
     redraw();
-  }, [redraw, connectors, cards]);
+  }, [redraw, connectors, relations, cards]);
 
   // Ikut bergerak saat kartu digeser — tanpa re-render React
   useEffect(() => {
@@ -111,10 +125,38 @@ export function ConnectorLayer({ connectors, cards }: Props) {
         >
           <path d="M 0 0 L 10 5 L 0 10 z" fill="#a1a1aa" />
         </marker>
+        <marker
+          id="rel-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#818cf8" />
+        </marker>
       </defs>
 
       {/* Geser origin ke tengah kotak → anak-anaknya tetap pakai koordinat world */}
       <g transform={`translate(${EXTENT} ${EXTENT})`}>
+        {/* Panah relasi database (§8.6): ungu putus-putus, tidak interaktif —
+            diturunkan dari data, dihapus dengan melepas tautannya di tabel. */}
+        {relations.map((r) => (
+          <path
+            key={r.id}
+            ref={(el) => {
+              relPathRefs.current.set(r.id, el);
+            }}
+            fill="none"
+            stroke="#818cf8"
+            strokeWidth={1.5}
+            strokeDasharray="5 4"
+            markerEnd="url(#rel-arrow)"
+            style={{ strokeLinecap: "round" }}
+          />
+        ))}
+
         {connectors.map((c) => (
           <path
             key={c.id}

@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { clearHistory, suspendHistory } from "./history";
 import { snapshot, useCanvasStore, type Persisted } from "./store";
 import { supabase } from "./supabase";
 
@@ -62,7 +63,7 @@ let realtimeChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null 
 let detachFocus: (() => void) | null = null;
 let lastUserId: string | null = null;
 
-export const useSyncStore = create<SyncState>((set, get) => ({
+export const useSyncStore = create<SyncState>((set) => ({
   status: supabase ? "signed-out" : "disabled",
   email: null,
   message: null,
@@ -145,7 +146,10 @@ async function fetchRemote(): Promise<{ data: Persisted; revision: number } | nu
 
 function applyRemote(data: Persisted, revision: number) {
   applyingRemote = true;
-  useCanvasStore.getState().replaceWorkspace(data);
+  // Data cloud bukan langkah undo lokal, dan membatalkan melewati titik sync
+  // bisa menimpa kerja perangkat lain → terapkan tanpa direkam, lalu reset.
+  suspendHistory(() => useCanvasStore.getState().replaceWorkspace(data));
+  clearHistory();
   writeMeta({ revision, dirty: false });
   applyingRemote = false;
 }
