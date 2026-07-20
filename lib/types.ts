@@ -4,6 +4,7 @@ export type ElementType =
   | "BOARD_REF"
   | "TASK_LIST"
   | "LINK"
+  | "IMAGE"
   | "DATABASE_REF"
   | "CONNECTOR";
 
@@ -59,6 +60,14 @@ interface BaseElement {
 export interface NoteElement extends BaseElement {
   type: "NOTE";
   content: { html: string };
+}
+
+/** Gambar tertanam. src berupa data URL (sudah dikecilkan saat impor) supaya
+ *  kartu tetap tampil offline dan ikut ke cloud tanpa hosting terpisah. Rasio
+ *  disimpan agar tinggi kartu bisa diturunkan dari lebarnya. */
+export interface ImageElement extends BaseElement {
+  type: "IMAGE";
+  content: { src: string; naturalWidth: number; naturalHeight: number };
 }
 
 /** Kartu di kanvas yang membuka Board lain. Board-nya entitas terpisah, kartu
@@ -131,6 +140,7 @@ export type CardElement =
   | BoardRefElement
   | TaskListElement
   | LinkElement
+  | ImageElement
   | DatabaseRefElement;
 
 export type BoardElement = CardElement | ConnectorElement;

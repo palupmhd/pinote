@@ -24,6 +24,8 @@ const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 const LINK_WIDTH = 240;
 const DATABASE_CARD_WIDTH = 220;
+const IMAGE_MAX_WIDTH = 320;
+const IMAGE_MIN_WIDTH = 140;
 
 export interface Persisted {
   boards: Record<string, Board>;
@@ -67,6 +69,7 @@ interface CanvasState extends Persisted {
   addTaskList: (worldX: number, worldY: number) => string;
   addLink: (worldX: number, worldY: number) => string;
   addDatabase: (worldX: number, worldY: number) => string;
+  addImage: (worldX: number, worldY: number, img: { src: string; naturalWidth: number; naturalHeight: number }) => string;
   resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
   setTaskListTitle: (id: string, title: string) => void;
@@ -476,6 +479,32 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       selectedIds: [elementId],
     }));
     return elementId;
+  },
+
+  addImage: (worldX, worldY, img) => {
+    const id = crypto.randomUUID();
+    // Lebar kartu = lebar asli dijepit ke rentang wajar; tinggi ikut rasio saat
+    // render. Pusatkan kartu di titik jatuh/tempel.
+    const width = Math.min(IMAGE_MAX_WIDTH, Math.max(IMAGE_MIN_WIDTH, img.naturalWidth));
+    const height = (width * img.naturalHeight) / img.naturalWidth;
+    set((s) => ({
+      elements: {
+        ...s.elements,
+        [id]: {
+          id,
+          boardId: s.currentBoardId,
+          type: "IMAGE",
+          x: worldX - width / 2,
+          y: worldY - height / 2,
+          width,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: img,
+          updatedAt: Date.now(),
+        },
+      },
+      selectedIds: [id],
+    }));
+    return id;
   },
 
   resolveLink: async (id, rawUrl) => {

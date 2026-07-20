@@ -4,12 +4,14 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
+import { firstImageFile, importImageFile } from "@/lib/images";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
+import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
 import { NoteCard } from "./NoteCard";
 import { SyncStatus } from "./SyncStatus";
@@ -47,6 +49,7 @@ export function Canvas() {
   const hydrated = useCanvasStore((s) => s.hydrated);
   const hydrate = useCanvasStore((s) => s.hydrate);
   const addNote = useCanvasStore((s) => s.addNote);
+  const addImage = useCanvasStore((s) => s.addImage);
   const select = useCanvasStore((s) => s.select);
   const setSelection = useCanvasStore((s) => s.setSelection);
   const setEditing = useCanvasStore((s) => s.setEditing);
@@ -132,6 +135,32 @@ export function Canvas() {
     useCanvasStore.getState().setCamera({ ...cameraRef.current });
   }, []);
 
+  const screenToWorld = useCallback((clientX: number, clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const cam = cameraRef.current;
+    return {
+      x: (clientX - (rect?.left ?? 0) - cam.x) / cam.zoom,
+      y: (clientY - (rect?.top ?? 0) - cam.y) / cam.zoom,
+    };
+  }, []);
+
+  const viewportCenterWorld = useCallback(() => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    const cam = cameraRef.current;
+    return {
+      x: ((rect?.width ?? 0) / 2 - cam.x) / cam.zoom,
+      y: ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom,
+    };
+  }, []);
+
+  const placeImageFile = useCallback(
+    async (file: File, world: { x: number; y: number }) => {
+      const img = await importImageFile(file);
+      if (img) addImage(world.x, world.y, img);
+    },
+    [addImage]
+  );
+
   // Wheel: pan (default) / zoom ke arah kursor (ctrl / pinch trackpad).
   // Listener manual karena wheel React bersifat passive → preventDefault tak jalan.
   useEffect(() => {
@@ -182,15 +211,11 @@ export function Canvas() {
         return;
       }
 
-      // Copy / paste / duplicate. Di dalam kartu teks kita sudah keluar di atas,
-      // jadi Ctrl+C/V bawaan untuk teks tetap jalan; ini hanya untuk kanvas.
+      // Copy / duplicate. Paste ditangani lewat event 'paste' terpisah supaya
+      // bisa membedakan gambar dari clipboard (→ kartu gambar) dari tempelan
+      // internal. Di dalam kartu teks kita sudah keluar di atas.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
         copySelection();
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
-        e.preventDefault();
-        pasteClipboard();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
@@ -237,6 +262,35 @@ export function Canvas() {
       window.removeEventListener("keyup", up);
     };
   }, []);
+
+  // Tempel (Ctrl/Cmd+V): gambar dari clipboard → kartu gambar; selain itu →
+  // tempelan internal. Disatukan di sini karena hanya event 'paste' yang
+  // membawa data gambar. Saat mengetik di kartu, biarkan tempel bawaan.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+
+      let file = firstImageFile(e.clipboardData?.files ?? null);
+      if (!file) {
+        const items = e.clipboardData?.items;
+        if (items) {
+          for (const it of items) {
+            if (it.type.startsWith("image/")) {
+              file = it.getAsFile();
+              break;
+            }
+          }
+        }
+      }
+
+      e.preventDefault();
+      if (file) void placeImageFile(file, viewportCenterWorld());
+      else pasteClipboard();
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [placeImageFile, viewportCenterWorld]);
 
   const isBackground = (e: React.PointerEvent | React.MouseEvent) =>
     (e.target as HTMLElement).dataset.canvasBg === "true";
@@ -358,6 +412,16 @@ export function Canvas() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onDoubleClick={onDoubleClick}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) e.preventDefault(); // izinkan drop
+      }}
+      onDrop={(e) => {
+        const file = firstImageFile(e.dataTransfer.files);
+        if (file) {
+          e.preventDefault();
+          void placeImageFile(file, screenToWorld(e.clientX, e.clientY));
+        }
+      }}
     >
       {/* Layer dunia: grid + semua elemen. Digeser/diskala lewat satu transform
           (GPU-composited). Grid jadi anak layer ini → ikut transform, tidak
@@ -387,6 +451,7 @@ export function Canvas() {
             if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
             if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
             if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
+            if (el.type === "IMAGE") return <ImageCard key={el.id} element={el} />;
             if (el.type === "DATABASE_REF") return <DatabaseCard key={el.id} element={el} />;
             return <NoteCard key={el.id} element={el} />;
           })}
