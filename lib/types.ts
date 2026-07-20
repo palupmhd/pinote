@@ -17,15 +17,21 @@ export interface Board {
 // Tabel bertipe: entitas terpisah (seperti Board), dibuka lewat kartu "pintu"
 // DATABASE_REF. Baris disimpan di dalam entitas ini, bukan sebagai elemen
 // kanvas — relasi antar-baris sebagai panah menyusul di §8.6.
-export type ColumnType = "text" | "number" | "checkbox" | "date";
+export type ColumnType = "text" | "number" | "checkbox" | "date" | "relation";
 
 export interface DbColumn {
   id: string;
   name: string;
   type: ColumnType;
+  /** Hanya untuk kolom "relation": id database yang barisnya bisa ditautkan.
+   *  Relasi antar-baris (spec §8.6) — digambar sebagai panah antar kartu
+   *  database, memakai ulang mekanisme konektor. */
+  targetDatabaseId?: string;
 }
 
-export type CellValue = string | number | boolean | null;
+/** Sel biasa = string/number/boolean/null. Sel kolom "relation" = daftar id
+ *  baris tujuan (string[]). */
+export type CellValue = string | number | boolean | string[] | null;
 
 export interface DbRow {
   id: string;

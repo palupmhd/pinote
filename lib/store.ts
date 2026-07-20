@@ -82,9 +82,13 @@ interface CanvasState extends Persisted {
   addColumn: (dbId: string, type?: ColumnType) => void;
   renameColumn: (dbId: string, colId: string, name: string) => void;
   setColumnType: (dbId: string, colId: string, type: ColumnType) => void;
+  /** Setel database tujuan untuk kolom "relation" (spec §8.6). */
+  setColumnTarget: (dbId: string, colId: string, targetDatabaseId: string) => void;
   removeColumn: (dbId: string, colId: string) => void;
   addRow: (dbId: string) => void;
   setCell: (dbId: string, rowId: string, colId: string, value: CellValue) => void;
+  /** Tautkan/lepas satu baris tujuan di sel relasi (toggle). */
+  toggleRelation: (dbId: string, rowId: string, colId: string, targetRowId: string) => void;
   removeRow: (dbId: string, rowId: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
@@ -574,7 +578,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setColumnType: (dbId, colId, type) =>
     updateDatabase(set, dbId, (db) => ({
       ...db,
-      columns: db.columns.map((c) => (c.id === colId ? { ...c, type } : c)),
+      columns: db.columns.map((c) =>
+        c.id === colId
+          ? // Pindah dari/ke relation: buang targetDatabaseId yang tak relevan.
+            { ...c, type, ...(type === "relation" ? {} : { targetDatabaseId: undefined }) }
+          : c
+      ),
+    })),
+
+  setColumnTarget: (dbId, colId, targetDatabaseId) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, targetDatabaseId } : c)),
     })),
 
   removeColumn: (dbId, colId) =>
@@ -602,6 +617,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       rows: db.rows.map((r) =>
         r.id === rowId ? { ...r, cells: { ...r.cells, [colId]: value } } : r
       ),
+    })),
+
+  toggleRelation: (dbId, rowId, colId, targetRowId) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: db.rows.map((r) => {
+        if (r.id !== rowId) return r;
+        const cur = Array.isArray(r.cells[colId]) ? (r.cells[colId] as string[]) : [];
+        const next = cur.includes(targetRowId)
+          ? cur.filter((x) => x !== targetRowId)
+          : [...cur, targetRowId];
+        return { ...r, cells: { ...r.cells, [colId]: next } };
+      }),
     })),
 
   removeRow: (dbId, rowId) =>

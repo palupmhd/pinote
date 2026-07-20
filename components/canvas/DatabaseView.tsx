@@ -1,16 +1,99 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
-import type { CellValue, ColumnType, DbColumn } from "@/lib/types";
+import type { CellValue, ColumnType, Database, DbColumn, DbRow } from "@/lib/types";
 
 const TYPE_LABEL: Record<ColumnType, string> = {
   text: "Teks",
   number: "Angka",
   checkbox: "Centang",
   date: "Tanggal",
+  relation: "Relasi",
 };
+
+/** Label ringkas sebuah baris: nilai kolom teks pertama yang terisi, kalau
+ *  tidak ada pakai nomor urut. Dipakai untuk chip & pemilih relasi. */
+function rowLabel(db: Database, row: DbRow, index: number): string {
+  const textCol = db.columns.find((c) => c.type === "text");
+  const v = textCol ? row.cells[textCol.id] : null;
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return `Baris ${index + 1}`;
+}
+
+/** Sel relasi: chip baris tertaut + pemilih untuk menautkan/melepas (spec §8.6). */
+function RelationCell({
+  dbId,
+  rowId,
+  column,
+  value,
+}: {
+  dbId: string;
+  rowId: string;
+  column: DbColumn;
+  value: CellValue;
+}) {
+  const target = useCanvasStore((s) =>
+    column.targetDatabaseId ? s.databases[column.targetDatabaseId] : undefined
+  );
+  const toggleRelation = useCanvasStore((s) => s.toggleRelation);
+  const linked = Array.isArray(value) ? value : [];
+
+  if (!column.targetDatabaseId) {
+    return <span className="text-xs text-neutral-300">pilih database tujuan di header</span>;
+  }
+  if (!target) {
+    return <span className="text-xs text-red-400">database tujuan hilang</span>;
+  }
+
+  const labelFor = (rid: string) => {
+    const idx = target.rows.findIndex((r) => r.id === rid);
+    return idx < 0 ? "?" : rowLabel(target, target.rows[idx], idx);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {linked
+        .filter((rid) => target.rows.some((r) => r.id === rid))
+        .map((rid) => (
+          <button
+            key={rid}
+            onClick={() => toggleRelation(dbId, rowId, column.id, rid)}
+            title="Klik untuk lepas"
+            className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 hover:bg-red-50 hover:text-red-600"
+          >
+            {labelFor(rid)} ✕
+          </button>
+        ))}
+      <details className="relative">
+        <summary className="cursor-pointer list-none rounded px-1 text-xs text-neutral-400 hover:text-neutral-700">
+          + tautkan
+        </summary>
+        <div className="absolute z-10 mt-1 max-h-48 w-44 overflow-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg">
+          {target.rows.length === 0 ? (
+            <p className="px-2 py-1 text-xs text-neutral-400">Tabel tujuan kosong</p>
+          ) : (
+            target.rows.map((r, i) => (
+              <label
+                key={r.id}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-neutral-100"
+              >
+                <input
+                  type="checkbox"
+                  checked={linked.includes(r.id)}
+                  onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
+                  className="h-3.5 w-3.5 accent-blue-500"
+                />
+                <span className="truncate text-neutral-700">{rowLabel(target, r, i)}</span>
+              </label>
+            ))
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
 
 /** Satu sel yang bisa diedit, bentuk kontrolnya ikut tipe kolom. */
 function CellEditor({
@@ -27,6 +110,9 @@ function CellEditor({
   const setCell = useCanvasStore((s) => s.setCell);
   const set = (v: CellValue) => setCell(dbId, rowId, column.id, v);
 
+  if (column.type === "relation") {
+    return <RelationCell dbId={dbId} rowId={rowId} column={column} value={value} />;
+  }
   if (column.type === "checkbox") {
     return (
       <input
@@ -67,38 +153,70 @@ function CellEditor({
   );
 }
 
-/** Header kolom: ganti nama, ganti tipe, hapus. */
+/** Header kolom: ganti nama, ganti tipe, hapus. Untuk kolom relasi, tampilkan
+ *  pemilih database tujuan. */
 function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   const renameColumn = useCanvasStore((s) => s.renameColumn);
   const setColumnType = useCanvasStore((s) => s.setColumnType);
+  const setColumnTarget = useCanvasStore((s) => s.setColumnTarget);
   const removeColumn = useCanvasStore((s) => s.removeColumn);
+  // Kandidat database tujuan: semua database selain diri sendiri. Pilih objek
+  // databases yang stabil lalu turunkan daftar via useMemo — mengembalikan array
+  // baru langsung di selector memicu loop tak berujung di zustand v5.
+  const databases = useCanvasStore((s) => s.databases);
+  const targets = useMemo(
+    () =>
+      Object.values(databases)
+        .filter((d) => d.id !== dbId)
+        .map((d) => ({ id: d.id, title: d.title })),
+    [databases, dbId]
+  );
 
   return (
-    <div className="flex items-center gap-1">
-      <input
-        value={column.name}
-        onChange={(e) => renameColumn(dbId, column.id, e.target.value)}
-        className="min-w-0 flex-1 bg-transparent text-xs font-medium text-neutral-600 outline-none"
-      />
-      <select
-        value={column.type}
-        onChange={(e) => setColumnType(dbId, column.id, e.target.value as ColumnType)}
-        title="Tipe kolom"
-        className="shrink-0 cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-500 outline-none"
-      >
-        {(Object.keys(TYPE_LABEL) as ColumnType[]).map((t) => (
-          <option key={t} value={t}>
-            {TYPE_LABEL[t]}
+    <div className="space-y-1">
+      <div className="flex items-center gap-1">
+        <input
+          value={column.name}
+          onChange={(e) => renameColumn(dbId, column.id, e.target.value)}
+          className="min-w-0 flex-1 bg-transparent text-xs font-medium text-neutral-600 outline-none"
+        />
+        <select
+          value={column.type}
+          onChange={(e) => setColumnType(dbId, column.id, e.target.value as ColumnType)}
+          title="Tipe kolom"
+          className="shrink-0 cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-500 outline-none"
+        >
+          {(Object.keys(TYPE_LABEL) as ColumnType[]).map((t) => (
+            <option key={t} value={t}>
+              {TYPE_LABEL[t]}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => removeColumn(dbId, column.id)}
+          title="Hapus kolom"
+          className="shrink-0 px-1 text-neutral-300 hover:text-red-500"
+        >
+          ✕
+        </button>
+      </div>
+      {column.type === "relation" && (
+        <select
+          value={column.targetDatabaseId ?? ""}
+          onChange={(e) => setColumnTarget(dbId, column.id, e.target.value)}
+          title="Database tujuan relasi"
+          className="w-full cursor-pointer rounded bg-blue-50 px-1 py-0.5 text-[10px] text-blue-700 outline-none"
+        >
+          <option value="" disabled>
+            → database tujuan…
           </option>
-        ))}
-      </select>
-      <button
-        onClick={() => removeColumn(dbId, column.id)}
-        title="Hapus kolom"
-        className="shrink-0 px-1 text-neutral-300 hover:text-red-500"
-      >
-        ✕
-      </button>
+          {targets.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.title}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

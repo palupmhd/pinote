@@ -42,6 +42,7 @@ export function Canvas() {
   const spaceRef = useRef(false);
 
   const elements = useCanvasStore((s) => s.elements);
+  const databases = useCanvasStore((s) => s.databases);
   const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const hydrated = useCanvasStore((s) => s.hydrated);
   const hydrate = useCanvasStore((s) => s.hydrate);
@@ -64,6 +65,38 @@ export function Canvas() {
     () => visible.filter((e): e is ConnectorElement => e.type === "CONNECTOR"),
     [visible]
   );
+
+  // Panah relasi (spec §8.6): diturunkan dari kolom relasi antar tabel, BUKAN
+  // disimpan sebagai elemen. Satu panah per pasangan (kartu sumber → kartu
+  // tujuan) yang punya minimal satu tautan baris, dan hanya bila kedua kartu
+  // ada di papan yang sedang dibuka. Memakai ulang rendering konektor.
+  const relations = useMemo(() => {
+    const cardByDb = new Map<string, string>();
+    for (const el of cards) {
+      if (el.type === "DATABASE_REF") cardByDb.set(el.content.databaseId, el.id);
+    }
+    const seen = new Set<string>();
+    const arrows: { id: string; sourceElementId: string; targetElementId: string }[] = [];
+    for (const el of cards) {
+      if (el.type !== "DATABASE_REF") continue;
+      const db = databases[el.content.databaseId];
+      if (!db) continue;
+      for (const col of db.columns) {
+        if (col.type !== "relation" || !col.targetDatabaseId) continue;
+        const targetId = cardByDb.get(col.targetDatabaseId);
+        if (!targetId || targetId === el.id) continue;
+        const hasLink = db.rows.some(
+          (r) => Array.isArray(r.cells[col.id]) && (r.cells[col.id] as string[]).length > 0
+        );
+        if (!hasLink) continue;
+        const key = `${el.id}->${targetId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        arrows.push({ id: key, sourceElementId: el.id, targetElementId: targetId });
+      }
+    }
+    return arrows;
+  }, [cards, databases]);
 
   useEffect(() => hydrate(), [hydrate]);
   useEffect(() => startHistory(), []);
@@ -347,7 +380,7 @@ export function Canvas() {
           }}
         />
         {/* Garis digambar sebelum kartu → selalu tampil di bawahnya */}
-        {hydrated && <ConnectorLayer connectors={connectors} cards={cards} />}
+        {hydrated && <ConnectorLayer connectors={connectors} relations={relations} cards={cards} />}
 
         {hydrated &&
           cards.map((el) => {
