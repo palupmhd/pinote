@@ -1,12 +1,15 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { exportBoardPng } from "@/lib/exportImage";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
+import { buildPresentationOrder } from "@/lib/presentation";
 import { useUiStore } from "@/lib/ui";
-import type { Camera } from "@/lib/types";
+import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
+import { TemplatePicker } from "./TemplatePicker";
 
 interface Props {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -21,13 +24,28 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
   const addDatabase = useCanvasStore((s) => s.addDatabase);
+  const addBoardFromTemplate = useCanvasStore((s) => s.addBoardFromTemplate);
   const attachDatabase = useCanvasStore((s) => s.attachDatabase);
   const addImage = useCanvasStore((s) => s.addImage);
+  const openBoard = useCanvasStore((s) => s.openBoard);
+  const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canUndo = useHistoryStore((s) => s.canUndo);
   const canRedo = useHistoryStore((s) => s.canRedo);
   const toggleAgenda = useUiStore((s) => s.toggleAgenda);
   const agendaOpen = useUiStore((s) => s.agendaOpen);
+  const openSearch = useUiStore((s) => s.openSearch);
+  const startPresentation = useUiStore((s) => s.startPresentation);
+
+  const onPresent = () => {
+    const st = useCanvasStore.getState();
+    const onBoard = Object.values(st.elements).filter((e) => e.boardId === st.currentBoardId);
+    const cards = onBoard
+      .filter((e): e is CardElement => e.type !== "CONNECTOR")
+      .map((c) => ({ id: c.id, x: c.x, y: c.y }));
+    const connectors = onBoard.filter((e): e is ConnectorElement => e.type === "CONNECTOR");
+    startPresentation(buildPresentationOrder(cards, connectors));
+  };
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -63,6 +81,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       } },
   ];
 
+  const [exporting, setExporting] = useState(false);
+  const onExport = async () => {
+    setExporting(true);
+    const res = await exportBoardPng();
+    setExporting(false);
+    if (!res.ok) window.alert(`Ekspor gagal: ${res.reason}`);
+  };
+
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = firstImageFile(e.target.files);
     e.target.value = ""; // izinkan memilih file yang sama lagi
@@ -93,6 +119,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
               }}
             />
           )}
+          {t.label === "Papan" && (
+            <TemplatePicker
+              onPick={(tpl) => {
+                const { x, y } = viewportCenter();
+                addBoardFromTemplate(tpl, x, y);
+              }}
+            />
+          )}
         </div>
       ))}
 
@@ -105,6 +139,42 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       />
 
       <div className="my-0.5 h-px bg-neutral-200" />
+
+      <button
+        onClick={openSearch}
+        title="Cari di semua papan (Ctrl/Cmd+K)"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
+      >
+        🔎 Cari
+      </button>
+
+      <button
+        onClick={() => openBoard(INBOX_BOARD_ID)}
+        title="Inbox — tangkapan cepat (Ctrl/Cmd+I untuk menangkap dari mana saja)"
+        className={[
+          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
+          currentBoardId === INBOX_BOARD_ID ? "text-blue-600" : "text-neutral-700",
+        ].join(" ")}
+      >
+        📥 Inbox
+      </button>
+
+      <button
+        onClick={onPresent}
+        title="Presentasi — telusuri kartu mengikuti arah konektor (←/→, Esc keluar)"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
+      >
+        ▶ Presentasi
+      </button>
+
+      <button
+        onClick={onExport}
+        disabled={exporting}
+        title="Ekspor papan ini sebagai gambar PNG"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-400"
+      >
+        {exporting ? "Mengekspor…" : "🖼 Ekspor PNG"}
+      </button>
 
       <button
         onClick={toggleAgenda}

@@ -5,6 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
 import { firstImageFile, importImageFile } from "@/lib/images";
+import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
@@ -13,11 +14,14 @@ import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
 import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
+import { Minimap, computeMinimapGeo, type MinimapGeo } from "./Minimap";
 import { NoteCard } from "./NoteCard";
+import { PresentationBar } from "./PresentationBar";
+import { SearchPanel } from "./SearchPanel";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
-import type { CardElement, ConnectorElement } from "@/lib/types";
+import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
@@ -28,6 +32,8 @@ export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const zoomBadgeRef = useRef<HTMLDivElement>(null);
+  const mmViewportRef = useRef<HTMLDivElement>(null);
+  const minimapGeoRef = useRef<MinimapGeo | null>(null);
 
   // Kamera "hidup" disimpan di ref, BUKAN di React state — supaya pan/zoom
   // tidak memicu re-render tiap frame. State store hanya di-commit saat gesture
@@ -50,6 +56,18 @@ export function Canvas() {
   const hydrate = useCanvasStore((s) => s.hydrate);
   const addNote = useCanvasStore((s) => s.addNote);
   const addImage = useCanvasStore((s) => s.addImage);
+  const captureToInbox = useCanvasStore((s) => s.captureToInbox);
+  const setCamera = useCanvasStore((s) => s.setCamera);
+
+  const presenting = useUiStore((s) => s.presenting);
+  const presentOrder = useUiStore((s) => s.presentOrder);
+  const presentIndex = useUiStore((s) => s.presentIndex);
+  const presentNext = useUiStore((s) => s.presentNext);
+  const presentPrev = useUiStore((s) => s.presentPrev);
+  const exitPresentation = useUiStore((s) => s.exitPresentation);
+  const openSearch = useUiStore((s) => s.openSearch);
+  const preCamRef = useRef<Camera | null>(null);
+  const wasPresenting = useRef(false);
   const select = useCanvasStore((s) => s.select);
   const setSelection = useCanvasStore((s) => s.setSelection);
   const setEditing = useCanvasStore((s) => s.setEditing);
@@ -101,7 +119,15 @@ export function Canvas() {
     return arrows;
   }, [cards, databases]);
 
-  useEffect(() => hydrate(), [hydrate]);
+  // Geometri minimap dari kotak-batas kartu (null bila papan kosong).
+  const minimapGeo = useMemo(
+    () => computeMinimapGeo(cards.map((c) => ({ x: c.x, y: c.y, width: c.width }))),
+    [cards]
+  );
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
   useEffect(() => startHistory(), []);
 
   const applyCamera = useCallback(() => {
@@ -111,6 +137,18 @@ export function Canvas() {
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
+    }
+    // Kotak viewport minimap ikut bergerak live (imperatif, sama seperti pan).
+    const geo = minimapGeoRef.current;
+    const vp = mmViewportRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (geo && vp && rect) {
+      const vx = -x / zoom;
+      const vy = -y / zoom;
+      vp.style.left = `${geo.offsetX + (vx - geo.minX) * geo.scale}px`;
+      vp.style.top = `${geo.offsetY + (vy - geo.minY) * geo.scale}px`;
+      vp.style.width = `${(rect.width / zoom) * geo.scale}px`;
+      vp.style.height = `${(rect.height / zoom) * geo.scale}px`;
     }
   }, []);
 
@@ -134,6 +172,30 @@ export function Canvas() {
     if (commitTimer.current) clearTimeout(commitTimer.current);
     useCanvasStore.getState().setCamera({ ...cameraRef.current });
   }, []);
+
+  // Pusatkan kamera pada satu titik world (dipakai klik/geser minimap),
+  // pertahankan zoom saat ini.
+  const panTo = useCallback(
+    (worldX: number, worldY: number) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const zoom = cameraRef.current.zoom;
+      cameraRef.current = {
+        x: (rect?.width ?? 0) / 2 - worldX * zoom,
+        y: (rect?.height ?? 0) / 2 - worldY * zoom,
+        zoom,
+      };
+      applyCamera();
+      commitNow();
+    },
+    [applyCamera, commitNow]
+  );
+
+  // Jaga ref geometri minimap tetap sinkron & reposisi kotak viewport saat
+  // kumpulan kartu berubah (mis. tambah/hapus).
+  useLayoutEffect(() => {
+    minimapGeoRef.current = minimapGeo;
+    applyCamera();
+  }, [minimapGeo, applyCamera]);
 
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -194,6 +256,22 @@ export function Canvas() {
   // Delete/Backspace hapus elemen terpilih (kecuali sedang mengetik); Esc batal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Tangkapan cepat harus jalan dari MANA SAJA — termasuk saat sedang
+      // mengetik di kartu lain — supaya benar-benar tanpa gesekan. Karena itu
+      // dicek sebelum guard "sedang mengetik" di bawah. Konsekuensinya Cmd+I
+      // tak lagi jadi italic di editor; ditukar demi tangkap-dari-mana-saja.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        captureToInbox();
+        return;
+      }
+      // Buka pencarian dari mana saja (Cmd/Ctrl+K).
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
@@ -235,7 +313,7 @@ export function Canvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [removeMany, select, setEditing]);
+  }, [removeMany, select, setEditing, captureToInbox, openSearch]);
 
   // Space = tahan-untuk-pan. Diabaikan saat mengetik supaya spasi tetap terketik.
   useEffect(() => {
@@ -292,6 +370,71 @@ export function Canvas() {
     return () => window.removeEventListener("paste", onPaste);
   }, [placeImageFile, viewportCenterWorld]);
 
+  // Presentation Mode: pada tiap langkah, pusatkan & pas-kan kamera ke kartunya.
+  // Saat masuk: simpan kamera awal, aktifkan transisi halus + kunci interaksi
+  // kartu. Saat keluar: pulihkan kamera & lepas kunci. useLayoutEffect supaya
+  // penyimpanan kamera awal terjadi sebelum langkah pertama menggesernya.
+  useLayoutEffect(() => {
+    const world = worldRef.current;
+    if (presenting && !wasPresenting.current) {
+      preCamRef.current = { ...cameraRef.current };
+      if (world) {
+        world.style.transition = "transform 350ms ease";
+        world.style.pointerEvents = "none";
+      }
+    }
+    if (!presenting && wasPresenting.current) {
+      if (world) {
+        world.style.transition = "";
+        world.style.pointerEvents = "";
+      }
+      if (preCamRef.current) {
+        setCamera(preCamRef.current);
+        preCamRef.current = null;
+      }
+    }
+    wasPresenting.current = presenting;
+    if (!presenting) return;
+
+    const id = presentOrder[presentIndex];
+    const el = useCanvasStore.getState().elements[id];
+    if (!el || el.type === "CONNECTOR") return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    const W = rect?.width ?? window.innerWidth;
+    const H = rect?.height ?? window.innerHeight;
+    const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+    const ch = node?.offsetHeight ?? 120;
+    const cw = el.width;
+    // Pas-kan kartu ke ~2/3 viewport, dijepit ke rentang zoom kanvas.
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(W / (cw * 1.5), H / (ch * 1.6))));
+    const wx = el.x + cw / 2;
+    const wy = el.y + ch / 2;
+    setCamera({ x: W / 2 - wx * zoom, y: H / 2 - wy * zoom, zoom });
+  }, [presenting, presentIndex, presentOrder, setCamera]);
+
+  // Navigasi presentasi lewat keyboard. Capture phase + stopImmediatePropagation
+  // supaya pintasan kanvas biasa tidak ikut bereaksi saat presentasi.
+  useEffect(() => {
+    if (!presenting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        presentNext();
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        presentPrev();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        exitPresentation();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [presenting, presentNext, presentPrev, exitPresentation]);
+
   const isBackground = (e: React.PointerEvent | React.MouseEvent) =>
     (e.target as HTMLElement).dataset.canvasBg === "true";
 
@@ -343,6 +486,7 @@ export function Canvas() {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
+    if (presenting) return; // kanvas view-only saat presentasi
     // Pan: tombol tengah, atau Space + kiri di mana saja.
     if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
       startPan(e);
@@ -433,6 +577,7 @@ export function Canvas() {
         style={{ transformOrigin: "0 0", willChange: "transform" }}
       >
         <div
+          data-export-ignore="true"
           className="pointer-events-none absolute"
           style={{
             left: -GRID_EXTENT,
@@ -457,7 +602,7 @@ export function Canvas() {
           })}
       </div>
 
-      {hydrated && cards.length === 0 && (
+      {hydrated && cards.length === 0 && !presenting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-neutral-400">
             Klik dua kali di mana saja untuk membuat catatan
@@ -472,18 +617,29 @@ export function Canvas() {
         className="pointer-events-none absolute z-10 hidden rounded-sm border border-blue-400 bg-blue-400/10"
       />
 
-      <Breadcrumb />
-      <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
-      <SyncStatus />
-      <AgendaView />
-      <DatabaseView />
+      {/* Saat presentasi: sembunyikan semua chrome, tampilkan hanya bilah kontrol. */}
+      {presenting ? (
+        <PresentationBar />
+      ) : (
+        <>
+          <Breadcrumb />
+          <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
+          <SyncStatus />
+          <AgendaView />
+          <DatabaseView />
+          <SearchPanel />
+          {minimapGeo && (
+            <Minimap geo={minimapGeo} cards={cards} viewportRef={mmViewportRef} onNavigate={panTo} />
+          )}
 
-      <div
-        ref={zoomBadgeRef}
-        className="pointer-events-none absolute bottom-3 right-4 text-xs text-neutral-400"
-      >
-        100% · tersimpan otomatis (lokal)
-      </div>
+          <div
+            ref={zoomBadgeRef}
+            className="pointer-events-none absolute bottom-3 right-4 text-xs text-neutral-400"
+          >
+            100% · tersimpan otomatis (lokal)
+          </div>
+        </>
+      )}
     </div>
   );
 }

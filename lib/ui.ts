@@ -13,6 +13,18 @@ export const useUiStore = create<{
   openDatabaseId: string | null;
   openDatabase: (id: string) => void;
   closeDatabase: () => void;
+  /** Pencarian lintas papan (spec §6 gap #6). */
+  searchOpen: boolean;
+  openSearch: () => void;
+  closeSearch: () => void;
+  /** Presentation Mode (spec §9.2): jalur cerita mengikuti urutan Connector. */
+  presenting: boolean;
+  presentOrder: string[];
+  presentIndex: number;
+  startPresentation: (order: string[]) => void;
+  exitPresentation: () => void;
+  presentNext: () => void;
+  presentPrev: () => void;
 }>((set) => ({
   agendaOpen: false,
   setAgenda: (v) => set({ agendaOpen: v }),
@@ -20,4 +32,16 @@ export const useUiStore = create<{
   openDatabaseId: null,
   openDatabase: (id) => set({ openDatabaseId: id }),
   closeDatabase: () => set({ openDatabaseId: null }),
+  searchOpen: false,
+  openSearch: () => set({ searchOpen: true }),
+  closeSearch: () => set({ searchOpen: false }),
+  presenting: false,
+  presentOrder: [],
+  presentIndex: 0,
+  startPresentation: (order) =>
+    set({ presenting: order.length > 0, presentOrder: order, presentIndex: 0 }),
+  exitPresentation: () => set({ presenting: false }),
+  presentNext: () =>
+    set((s) => ({ presentIndex: Math.min(s.presentIndex + 1, s.presentOrder.length - 1) })),
+  presentPrev: () => set((s) => ({ presentIndex: Math.max(s.presentIndex - 1, 0) })),
 }));
