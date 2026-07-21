@@ -33,7 +33,11 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 - **Minimap (spec §6 gap #5)** — peta kecil di pojok kiri-bawah menampilkan kotak semua kartu papan + kotak viewport yang **ikut pan/zoom secara live** (diposisikan imperatif dari `applyCamera`, konsisten dengan filosofi kamera imperatif). Klik/geser minimap → kamera pindah memusat ke titik itu. Sembunyi saat papan kosong & saat presentasi. Terverifikasi (6 cek: muncul/sembunyi, rect per kartu, viewport, klik-untuk-pan).
 - **Template starter (spec v1.1)** — menu "↳ dari template…" di bawah "+ Papan" membuat papan baru berisi kartu tertata dari template siap-pakai (Brainstorm, Papan tugas/kanban, Catatan rapat, Rencana mingguan — Note & Task-list saja supaya mandiri), lalu langsung membukanya. Satu langkah undo. (Duplicate board sudah ada sejak v1 lewat copy/paste/duplicate kartu papan.) Terverifikasi (10 cek: buat/buka/isi/persist/undo).
 
-**v1.1 SELESAI.** Semua item v1.1 sudah dibangun & terverifikasi (Offline cache, Presentation Mode, Search, Minimap, Template starter). Beberapa deviasi terdokumentasi (search client-side; offline data-only tanpa service worker). **Berhenti sebelum v2 — butuh persetujuan pemilik** (CLAUDE.md § "jangan bangun lompat fase").
+**v1.1 SELESAI.** Semua item v1.1 sudah dibangun & terverifikasi (Offline cache, Presentation Mode, Search, Minimap, Template starter). Beberapa deviasi terdokumentasi (search client-side; offline data-only tanpa service worker).
+
+**v2 (sedang berjalan, disetujui pemilik — satu per satu):**
+- **Database: tampilan Kanban** (§7.3 view mode) — pengalih Tabel ⇄ Kanban di header DatabaseView. Kanban mengelompokkan baris berdasarkan kolom teks/centang (default: kolom centang pertama), tiap grup jadi kolom kartu; pindah baris antar-grup lewat pemilih di kartu; "+ baris" per grup mengisi sel pengelompok otomatis; pemilih "Kelompokkan:" untuk ganti kolom. Mode & groupBy tersimpan di entitas Database (persist/sync). Terverifikasi (10 cek). *Catatan: interaksi pindah pakai dropdown, belum drag-and-drop — polish menyusul.*
+- **Belum & butuh keputusan desain:** Structured⇄Spatial dual-mode (§7.2) — bergantung apakah row jadi Nested Board (desain spec asli) atau tetap `{id,cells}` (implementasi sekarang). Calendar/Gallery view, Rollup/Formula preset, Backlinks (§10.3). **Tanya pemilik sebelum tiap item.**
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan

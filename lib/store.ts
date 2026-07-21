@@ -15,6 +15,7 @@ import {
   type ClipboardPayload,
   type ColumnType,
   type Database,
+  type DatabaseView,
   type DbColumn,
   type DbRow,
   type LinkElement,
@@ -102,10 +103,14 @@ interface CanvasState extends Persisted {
   setColumnTarget: (dbId: string, colId: string, targetDatabaseId: string) => void;
   removeColumn: (dbId: string, colId: string) => void;
   addRow: (dbId: string) => void;
+  /** Tambah baris dengan satu sel sudah terisi — dipakai "+ baris" per kolom Kanban. */
+  addRowInGroup: (dbId: string, colId: string, value: CellValue) => void;
   setCell: (dbId: string, rowId: string, colId: string, value: CellValue) => void;
   /** Tautkan/lepas satu baris tujuan di sel relasi (toggle). */
   toggleRelation: (dbId: string, rowId: string, colId: string, targetRowId: string) => void;
   removeRow: (dbId: string, rowId: string) => void;
+  setDatabaseView: (dbId: string, view: DatabaseView) => void;
+  setDatabaseGroupBy: (dbId: string, colId: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
@@ -817,6 +822,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       rows: [...db.rows, { id: crypto.randomUUID(), cells: {} }],
     })),
 
+  addRowInGroup: (dbId, colId, value) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: [...db.rows, { id: crypto.randomUUID(), cells: { [colId]: value } }],
+    })),
+
   setCell: (dbId, rowId, colId, value) =>
     updateDatabase(set, dbId, (db) => ({
       ...db,
@@ -843,6 +854,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ...db,
       rows: db.rows.filter((r) => r.id !== rowId),
     })),
+
+  setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
+
+  setDatabaseGroupBy: (dbId, colId) =>
+    updateDatabase(set, dbId, (db) => ({ ...db, groupBy: colId })),
 
   moveElement: (id, x, y) =>
     set((s) => {

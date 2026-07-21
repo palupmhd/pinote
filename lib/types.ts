@@ -40,11 +40,17 @@ export interface DbRow {
   cells: Record<string, CellValue>;
 }
 
+export type DatabaseView = "table" | "kanban";
+
 export interface Database {
   id: string;
   title: string;
   columns: DbColumn[];
   rows: DbRow[];
+  /** Mode tampilan (spec §7.3). Default "table". */
+  view?: DatabaseView;
+  /** Kolom pengelompok untuk Kanban (id kolom text/checkbox). */
+  groupBy?: string;
 }
 
 interface BaseElement {
