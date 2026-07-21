@@ -60,11 +60,21 @@ export function ConnectHandle({ element }: { element: CardElement }) {
     if (targetId) addConnector(element.id, targetId);
   };
 
+  // Pointer dibatalkan (pointercancel), tab blur, atau capture hilang → bereskan
+  // ghost supaya garis sementara tidak tertinggal di kanvas.
+  const onCancel = (e: React.PointerEvent) => {
+    if (dragging.current !== e.pointerId) return;
+    dragging.current = null;
+    canvasBus.emitGhost(null, null);
+  };
+
   return (
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onCancel}
+      onLostPointerCapture={onCancel}
       title="Tarik ke elemen lain untuk menghubungkan"
       className="absolute -right-2.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white bg-blue-400 opacity-0 shadow transition-opacity group-hover:opacity-100"
     />

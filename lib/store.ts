@@ -184,6 +184,31 @@ function updateDatabase(
   });
 }
 
+/** Konversi/buang nilai sel saat tipe kolom berubah. Mengembalikan `undefined`
+ *  berarti sel harus dihapus (data lama tak cocok tipe baru) — supaya tidak ada
+ *  nilai hantu yang UI utama sembunyikan tapi search/summary/export masih baca. */
+function coerceCell(value: CellValue, type: ColumnType): CellValue | undefined {
+  switch (type) {
+    case "text":
+      if (typeof value === "string") return value;
+      if (typeof value === "number") return String(value);
+      return undefined;
+    case "number":
+      if (typeof value === "number") return value;
+      if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)))
+        return Number(value);
+      return undefined;
+    case "checkbox":
+      return typeof value === "boolean" ? value : undefined; // jangan menebak dari teks
+    case "date":
+      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+    case "relation":
+      return Array.isArray(value) ? value : undefined;
+    case "rollup":
+      return undefined; // kolom hitung — tak menyimpan sel
+  }
+}
+
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
   const zs = Object.values(elements)
     .filter((e) => e.boardId === boardId && e.type !== "CONNECTOR")
@@ -800,6 +825,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             { ...c, type, ...(type === "relation" ? {} : { targetDatabaseId: undefined }) }
           : c
       ),
+      // Normalisasi sel kolom ini ke tipe baru — konversi bila bisa, buang bila
+      // tak cocok, supaya tak ada data lama tersembunyi yang bocor ke search/export.
+      rows: db.rows.map((r) => {
+        if (!(colId in r.cells)) return r;
+        const next = coerceCell(r.cells[colId], type);
+        const cells = { ...r.cells };
+        if (next === undefined) delete cells[colId];
+        else cells[colId] = next;
+        return { ...r, cells };
+      }),
     })),
 
   setColumnTarget: (dbId, colId, targetDatabaseId) =>
@@ -1128,11 +1163,28 @@ export function breadcrumbPath(
 // localStorage karena data URL gambar menembus batas ~5MB-nya; IndexedDB juga
 // menyimpan objek langsung tanpa biaya JSON.stringify.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastDocRefs: Pick<CanvasState, "boards" | "elements" | "databases" | "currentBoardId"> | null =
+  null;
 useCanvasStore.subscribe((state) => {
   if (!state.hydrated) return;
+  // Perubahan dokumen vs cuma kamera (pan/zoom). Kamera ikut disimpan supaya
+  // viewport pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar)
+  // tiap geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
+  const docChanged =
+    !lastDocRefs ||
+    lastDocRefs.boards !== state.boards ||
+    lastDocRefs.elements !== state.elements ||
+    lastDocRefs.databases !== state.databases ||
+    lastDocRefs.currentBoardId !== state.currentBoardId;
+  lastDocRefs = {
+    boards: state.boards,
+    elements: state.elements,
+    databases: state.databases,
+    currentBoardId: state.currentBoardId,
+  };
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     // Simpan gagal (mis. kuota) tidak boleh mengganggu interaksi.
     void idbSet(IDB_WORKSPACE_KEY, snapshot(state)).catch(() => {});
-  }, 400);
+  }, docChanged ? 400 : 1500);
 });

@@ -16,15 +16,29 @@ export interface SearchHit {
 
 const MAX_HITS = 40;
 
-const htmlToText = (html: string) =>
-  html
+const htmlToText = (html: string): string => {
+  if (!html) return "";
+  // Search jalan client-side: parser HTML asli menangani tag & entitas dengan
+  // benar (termasuk numeric/&quot;/&#39; dan '>' di dalam atribut) — jauh lebih
+  // tepat dari strip regex.
+  if (typeof window !== "undefined") {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return (doc.body.textContent ?? "").replace(/\s+/g, " ").trim();
+  }
+  // Fallback non-browser: strip kasar + decode entitas umum.
+  return html
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&quot;/g, '"')
+    .replace(/&(?:apos|#39);/g, "'")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/\s+/g, " ")
     .trim();
+};
 
 /** Potongan ~kata di sekitar kecocokan pertama, biar hasil terbaca. */
 function snippetAround(text: string, ql: string): string {
