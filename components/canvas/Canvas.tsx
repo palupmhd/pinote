@@ -14,6 +14,7 @@ import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
 import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
+import { Minimap, computeMinimapGeo, type MinimapGeo } from "./Minimap";
 import { NoteCard } from "./NoteCard";
 import { PresentationBar } from "./PresentationBar";
 import { SearchPanel } from "./SearchPanel";
@@ -31,6 +32,8 @@ export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
   const zoomBadgeRef = useRef<HTMLDivElement>(null);
+  const mmViewportRef = useRef<HTMLDivElement>(null);
+  const minimapGeoRef = useRef<MinimapGeo | null>(null);
 
   // Kamera "hidup" disimpan di ref, BUKAN di React state — supaya pan/zoom
   // tidak memicu re-render tiap frame. State store hanya di-commit saat gesture
@@ -116,6 +119,12 @@ export function Canvas() {
     return arrows;
   }, [cards, databases]);
 
+  // Geometri minimap dari kotak-batas kartu (null bila papan kosong).
+  const minimapGeo = useMemo(
+    () => computeMinimapGeo(cards.map((c) => ({ x: c.x, y: c.y, width: c.width }))),
+    [cards]
+  );
+
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
@@ -128,6 +137,18 @@ export function Canvas() {
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
+    }
+    // Kotak viewport minimap ikut bergerak live (imperatif, sama seperti pan).
+    const geo = minimapGeoRef.current;
+    const vp = mmViewportRef.current;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (geo && vp && rect) {
+      const vx = -x / zoom;
+      const vy = -y / zoom;
+      vp.style.left = `${geo.offsetX + (vx - geo.minX) * geo.scale}px`;
+      vp.style.top = `${geo.offsetY + (vy - geo.minY) * geo.scale}px`;
+      vp.style.width = `${(rect.width / zoom) * geo.scale}px`;
+      vp.style.height = `${(rect.height / zoom) * geo.scale}px`;
     }
   }, []);
 
@@ -151,6 +172,30 @@ export function Canvas() {
     if (commitTimer.current) clearTimeout(commitTimer.current);
     useCanvasStore.getState().setCamera({ ...cameraRef.current });
   }, []);
+
+  // Pusatkan kamera pada satu titik world (dipakai klik/geser minimap),
+  // pertahankan zoom saat ini.
+  const panTo = useCallback(
+    (worldX: number, worldY: number) => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      const zoom = cameraRef.current.zoom;
+      cameraRef.current = {
+        x: (rect?.width ?? 0) / 2 - worldX * zoom,
+        y: (rect?.height ?? 0) / 2 - worldY * zoom,
+        zoom,
+      };
+      applyCamera();
+      commitNow();
+    },
+    [applyCamera, commitNow]
+  );
+
+  // Jaga ref geometri minimap tetap sinkron & reposisi kotak viewport saat
+  // kumpulan kartu berubah (mis. tambah/hapus).
+  useLayoutEffect(() => {
+    minimapGeoRef.current = minimapGeo;
+    applyCamera();
+  }, [minimapGeo, applyCamera]);
 
   const screenToWorld = useCallback((clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -583,6 +628,9 @@ export function Canvas() {
           <AgendaView />
           <DatabaseView />
           <SearchPanel />
+          {minimapGeo && (
+            <Minimap geo={minimapGeo} cards={cards} viewportRef={mmViewportRef} onNavigate={panTo} />
+          )}
 
           <div
             ref={zoomBadgeRef}
