@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useCanvasStore } from "@/lib/store";
 import type { CellValue, Database, DbColumn } from "@/lib/types";
 
@@ -56,6 +56,12 @@ export function KanbanBoard({ db }: { db: Database }) {
     groupCols[0];
   const titleCol = db.columns.find((c) => c.type === "text");
 
+  // Drag-and-drop kartu antar kolom (pointer-based, konsisten dg kanvas).
+  const [dragRow, setDragRow] = useState<string | null>(null);
+  const [dropKey, setDropKey] = useState<string | null>(null);
+  const columnKeyAt = (x: number, y: number) =>
+    document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-group-key]")?.dataset.groupKey ?? null;
+
   const groups = useMemo(() => (groupCol ? buildGroups(db, groupCol) : []), [db, groupCol]);
   const byGroup = useMemo(() => {
     const m = new Map<string, Database["rows"]>();
@@ -67,6 +73,12 @@ export function KanbanBoard({ db }: { db: Database }) {
     }
     return m;
   }, [db.rows, groupCol, groups]);
+
+  const moveTo = (rowId: string, key: string | null) => {
+    if (!groupCol || !key) return;
+    const target = groups.find((g) => g.key === key);
+    if (target) setCell(db.id, rowId, groupCol.id, target.value);
+  };
 
   if (!groupCol) {
     return (
@@ -99,7 +111,14 @@ export function KanbanBoard({ db }: { db: Database }) {
         {groups.map((g) => {
           const rows = byGroup.get(g.key) ?? [];
           return (
-            <div key={g.key} className="flex w-60 shrink-0 flex-col rounded-md bg-neutral-50 p-2">
+            <div
+              key={g.key}
+              data-group-key={g.key}
+              className={[
+                "flex w-60 shrink-0 flex-col rounded-md p-2 transition-colors",
+                dropKey === g.key && dragRow ? "bg-blue-50 ring-1 ring-blue-300" : "bg-neutral-50",
+              ].join(" ")}
+            >
               <div className="mb-2 flex items-center justify-between px-1">
                 <span className="truncate text-xs font-medium text-neutral-600">{g.label}</span>
                 <span className="text-xs tabular-nums text-neutral-400">{rows.length}</span>
@@ -109,7 +128,27 @@ export function KanbanBoard({ db }: { db: Database }) {
                 {rows.map((row) => (
                   <div
                     key={row.id}
-                    className="group rounded-md bg-white p-2 shadow-sm ring-1 ring-neutral-200"
+                    onPointerDown={(e) => {
+                      // Jangan mulai drag dari kontrol (judul, pemilih, tombol).
+                      if ((e.target as HTMLElement).closest("input, select, button")) return;
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      setDragRow(row.id);
+                    }}
+                    onPointerMove={(e) => {
+                      if (dragRow !== row.id) return;
+                      setDropKey(columnKeyAt(e.clientX, e.clientY));
+                    }}
+                    onPointerUp={(e) => {
+                      if (dragRow === row.id) {
+                        moveTo(row.id, columnKeyAt(e.clientX, e.clientY));
+                        setDragRow(null);
+                        setDropKey(null);
+                      }
+                    }}
+                    className={[
+                      "group touch-none rounded-md bg-white p-2 shadow-sm ring-1 ring-neutral-200",
+                      dragRow === row.id ? "cursor-grabbing opacity-60" : "cursor-grab",
+                    ].join(" ")}
                   >
                     {titleCol && titleCol.id !== groupCol.id ? (
                       <input
