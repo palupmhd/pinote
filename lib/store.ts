@@ -859,10 +859,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })),
 
   removeRow: (dbId, rowId) =>
-    updateDatabase(set, dbId, (db) => ({
-      ...db,
-      rows: db.rows.filter((r) => r.id !== rowId),
-    })),
+    set((s) => {
+      const db = s.databases[dbId];
+      if (!db) return s;
+      const databases = { ...s.databases };
+      // Hapus barisnya dari database asalnya.
+      databases[dbId] = { ...db, rows: db.rows.filter((r) => r.id !== rowId) };
+      // Bersihkan tautan masuk: relasi mana pun yang menunjuk baris ini kini
+      // menggantung — buang idnya supaya count rollup & chip tetap konsisten.
+      for (const [id, d] of Object.entries(databases)) {
+        const relCols = d.columns.filter(
+          (c) => c.type === "relation" && c.targetDatabaseId === dbId
+        );
+        if (relCols.length === 0) continue;
+        let changed = false;
+        const rows = d.rows.map((r) => {
+          let cells = r.cells;
+          for (const col of relCols) {
+            const v = cells[col.id];
+            if (Array.isArray(v) && v.includes(rowId)) {
+              cells = { ...cells, [col.id]: (v as string[]).filter((x) => x !== rowId) };
+              changed = true;
+            }
+          }
+          return cells === r.cells ? r : { ...r, cells };
+        });
+        if (changed) databases[id] = { ...d, rows };
+      }
+      return { databases };
+    }),
 
   setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
 
@@ -992,7 +1017,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const databases = { ...s.databases };
       for (const [oldId, db] of Object.entries(payload.databases)) {
         const nid = dbIdMap.get(oldId)!;
-        databases[nid] = structuredClone({ ...db, id: nid });
+        const cloned = structuredClone({ ...db, id: nid });
+        // Relasi ke database yang ikut tersalin harus menunjuk salinannya, bukan
+        // aslinya. (Id kolom & baris dipertahankan saat kloning, jadi sel relasi
+        // dan rollup tetap valid tanpa dipetakan ulang.)
+        cloned.columns = cloned.columns.map((c) =>
+          c.type === "relation" && c.targetDatabaseId && dbIdMap.has(c.targetDatabaseId)
+            ? { ...c, targetDatabaseId: dbIdMap.get(c.targetDatabaseId)! }
+            : c
+        );
+        databases[nid] = cloned;
       }
 
       const boards = { ...s.boards };
