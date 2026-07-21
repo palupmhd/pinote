@@ -6,9 +6,16 @@ import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 
 /** Palet pencarian lintas papan (spec §6 gap #6). Ketik untuk mencari catatan,
- *  tugas, tautan, database, dan judul papan; ↑/↓ pilih, Enter loncat. */
+ *  tugas, tautan, database, dan judul papan; ↑/↓ pilih, Enter loncat.
+ *  Gerbang mount: isinya baru dipasang saat dibuka, jadi state (query/pilihan)
+ *  selalu mulai bersih tanpa perlu me-reset lewat effect. */
 export function SearchPanel() {
   const open = useUiStore((s) => s.searchOpen);
+  if (!open) return null;
+  return <SearchPanelInner />;
+}
+
+function SearchPanelInner() {
   const close = useUiStore((s) => s.closeSearch);
   const boards = useCanvasStore((s) => s.boards);
   const elements = useCanvasStore((s) => s.elements);
@@ -25,17 +32,10 @@ export function SearchPanel() {
     [boards, elements, databases, query]
   );
 
-  // Buka bersih & fokuskan input.
+  // Fokuskan input saat terpasang (efek DOM murni, bukan setState).
   useEffect(() => {
-    if (open) {
-      setQuery("");
-      setSel(0);
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, [open]);
-  useEffect(() => setSel(0), [query]);
-
-  if (!open) return null;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
 
   const activate = (i: number) => {
     const hit = results[i];
@@ -72,7 +72,10 @@ export function SearchPanel() {
         <input
           ref={inputRef}
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setSel(0); // hasil berubah → mulai dari atas
+          }}
           onKeyDown={onKeyDown}
           placeholder="Cari catatan, tugas, tautan, database, papan…"
           className="w-full border-b border-neutral-200 px-4 py-3 text-sm text-neutral-800 outline-none placeholder:text-neutral-400"

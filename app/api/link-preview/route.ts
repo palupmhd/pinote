@@ -40,6 +40,41 @@ const meta = (prop: string) => [
   new RegExp(`<meta[^>]+name=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i"),
 ];
 
+const MAX_REDIRECTS = 5;
+
+/** Ikuti redirect secara manual dan validasi TIAP hop. `redirect: "follow"`
+ *  bawaan hanya sempat kita cek di URL awal — situs publik bisa me-redirect ke
+ *  localhost / 169.254.x.x / IP privat dan server tetap menariknya (SSRF).
+ *  Di sini setiap tujuan dicek dulu sebelum di-fetch. */
+async function safeFetch(start: URL): Promise<{ res: Response; url: URL } | null> {
+  let url = start;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    if (!["http:", "https:"].includes(url.protocol) || isBlockedHost(url.hostname)) {
+      return null;
+    }
+    const res = await fetch(url, {
+      headers: { "user-agent": "MilnoteBot/0.1 (+link preview)", accept: "text/html,*/*" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      redirect: "manual",
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      await res.body?.cancel().catch(() => {}); // buang body redirect
+      if (!loc) return { res, url }; // 3xx tanpa Location → perlakukan apa adanya
+      let next: URL;
+      try {
+        next = new URL(loc, url); // Location bisa relatif
+      } catch {
+        return null;
+      }
+      url = next;
+      continue;
+    }
+    return { res, url };
+  }
+  return null; // terlalu banyak redirect
+}
+
 export async function GET(request: Request) {
   const raw = new URL(request.url).searchParams.get("url");
   if (!raw) return NextResponse.json({ error: "url wajib diisi" }, { status: 400 });
@@ -55,13 +90,13 @@ export async function GET(request: Request) {
   }
 
   try {
-    const res = await fetch(target, {
-      headers: { "user-agent": "MilnoteBot/0.1 (+link preview)", accept: "text/html,*/*" },
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      redirect: "follow",
-    });
+    const fetched = await safeFetch(target);
+    if (!fetched) {
+      return NextResponse.json({ error: "URL tidak diizinkan" }, { status: 400 });
+    }
+    const { res, url: finalUrl } = fetched;
     if (!res.ok) {
-      return NextResponse.json({ url: target.href, title: target.hostname }, { status: 200 });
+      return NextResponse.json({ url: finalUrl.href, title: finalUrl.hostname }, { status: 200 });
     }
 
     const reader = res.body?.getReader();
@@ -81,14 +116,14 @@ export async function GET(request: Request) {
 
     const image = pick(html, meta("og:image"));
     return NextResponse.json({
-      url: target.href,
+      url: finalUrl.href,
       title:
         pick(html, meta("og:title")) ??
         pick(html, [/<title[^>]*>([^<]+)<\/title>/i]) ??
-        target.hostname,
+        finalUrl.hostname,
       description: pick(html, meta("og:description")) ?? pick(html, meta("description")),
-      image: image ? new URL(image, target).href : null,
-      siteName: pick(html, meta("og:site_name")) ?? target.hostname,
+      image: image ? new URL(image, finalUrl).href : null,
+      siteName: pick(html, meta("og:site_name")) ?? finalUrl.hostname,
     });
   } catch {
     // Situs mati/lambat/blokir bot — tetap simpan tautannya, jangan gagal total.

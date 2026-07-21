@@ -51,8 +51,8 @@ interface SyncState {
   init: () => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
-  useCloudVersion: () => Promise<void>;
-  useLocalVersion: () => Promise<void>;
+  acceptCloudVersion: () => Promise<void>;
+  keepLocalVersion: () => Promise<void>;
 }
 
 /** Saat sedang menerapkan data dari cloud, jangan sampai perubahan store-nya
@@ -118,7 +118,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   },
 
   // Ambil versi cloud, buang perubahan lokal yang bentrok.
-  useCloudVersion: async () => {
+  acceptCloudVersion: async () => {
     const remote = await fetchRemote();
     if (!remote) return;
     applyRemote(remote.data, remote.revision);
@@ -126,7 +126,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   },
 
   // Pertahankan versi lokal, timpa cloud.
-  useLocalVersion: async () => {
+  keepLocalVersion: async () => {
     const remote = await fetchRemote();
     if (!remote) return;
     writeMeta({ revision: remote.revision, dirty: true }); // samakan dasar, lalu dorong

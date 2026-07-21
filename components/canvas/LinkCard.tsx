@@ -58,9 +58,9 @@ function LinkCardBase({ element }: { element: LinkElement }) {
         </form>
       ) : (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element -- gambar dari
-              domain sembarangan; next/image butuh allowlist per host */}
           {image && (
+            // gambar dari domain sembarangan; next/image butuh allowlist per host
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={image}
               alt=""

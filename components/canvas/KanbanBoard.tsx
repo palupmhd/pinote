@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useCanvasStore } from "@/lib/store";
 import type { CellValue, Database, DbColumn } from "@/lib/types";
 
@@ -42,6 +42,18 @@ function rowGroupKey(row: Database["rows"][number], col: DbColumn): string {
   return typeof v === "string" && v.trim() ? v.trim() : "__empty";
 }
 
+/** Kelompokkan baris per grup. Fungsi murni di scope modul — biar React Compiler
+ *  yang mengurus memoisasi, tanpa useMemo manual yang bikin dep-nya rumit. */
+function bucketRows(db: Database, groupCol: DbColumn, groups: Group[]): Map<string, Database["rows"]> {
+  const m = new Map<string, Database["rows"]>();
+  for (const g of groups) m.set(g.key, []);
+  for (const r of db.rows) {
+    const k = rowGroupKey(r, groupCol);
+    (m.get(k) ?? m.set(k, []).get(k)!).push(r);
+  }
+  return m;
+}
+
 export function KanbanBoard({ db }: { db: Database }) {
   const setDatabaseGroupBy = useCanvasStore((s) => s.setDatabaseGroupBy);
   const setCell = useCanvasStore((s) => s.setCell);
@@ -62,17 +74,8 @@ export function KanbanBoard({ db }: { db: Database }) {
   const columnKeyAt = (x: number, y: number) =>
     document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-group-key]")?.dataset.groupKey ?? null;
 
-  const groups = useMemo(() => (groupCol ? buildGroups(db, groupCol) : []), [db, groupCol]);
-  const byGroup = useMemo(() => {
-    const m = new Map<string, Database["rows"]>();
-    if (!groupCol) return m;
-    for (const g of groups) m.set(g.key, []);
-    for (const r of db.rows) {
-      const k = rowGroupKey(r, groupCol);
-      (m.get(k) ?? m.set(k, []).get(k)!).push(r);
-    }
-    return m;
-  }, [db.rows, groupCol, groups]);
+  const groups = groupCol ? buildGroups(db, groupCol) : [];
+  const byGroup = groupCol ? bucketRows(db, groupCol, groups) : new Map<string, Database["rows"]>();
 
   const moveTo = (rowId: string, key: string | null) => {
     if (!groupCol || !key) return;

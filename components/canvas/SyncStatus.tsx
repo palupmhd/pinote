@@ -18,8 +18,8 @@ export function SyncStatus() {
   const init = useSyncStore((s) => s.init);
   const sendMagicLink = useSyncStore((s) => s.sendMagicLink);
   const signOut = useSyncStore((s) => s.signOut);
-  const useCloudVersion = useSyncStore((s) => s.useCloudVersion);
-  const useLocalVersion = useSyncStore((s) => s.useLocalVersion);
+  const acceptCloudVersion = useSyncStore((s) => s.acceptCloudVersion);
+  const keepLocalVersion = useSyncStore((s) => s.keepLocalVersion);
 
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
@@ -58,13 +58,13 @@ export function SyncStatus() {
           <p className="mt-1 text-neutral-500">{message}</p>
           <div className="mt-2 flex gap-2">
             <button
-              onClick={() => void useCloudVersion()}
+              onClick={() => void acceptCloudVersion()}
               className="rounded bg-neutral-100 px-2 py-1 hover:bg-neutral-200"
             >
               Pakai versi perangkat lain
             </button>
             <button
-              onClick={() => void useLocalVersion()}
+              onClick={() => void keepLocalVersion()}
               className="rounded bg-neutral-100 px-2 py-1 hover:bg-neutral-200"
             >
               Pakai versi di sini

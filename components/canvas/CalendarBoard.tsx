@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { todayStr } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import type { Database, DbColumn } from "@/lib/types";
@@ -25,6 +25,18 @@ function monthGrid(year: number, month: number): Date[] {
   });
 }
 
+/** Kelompokkan baris per tanggal ("YYYY-MM-DD"). Murni & di scope modul supaya
+ *  React Compiler yang menangani memoisasi, tanpa useMemo manual. */
+function bucketByDay(db: Database, dateCol: DbColumn): Map<string, Database["rows"]> {
+  const m = new Map<string, Database["rows"]>();
+  for (const r of db.rows) {
+    const v = r.cells[dateCol.id];
+    if (typeof v !== "string" || !v) continue;
+    (m.get(v) ?? m.set(v, []).get(v)!).push(r);
+  }
+  return m;
+}
+
 export function CalendarBoard({ db }: { db: Database }) {
   const setDatabaseDateBy = useCanvasStore((s) => s.setDatabaseDateBy);
   const addRowInGroup = useCanvasStore((s) => s.addRowInGroup);
@@ -37,16 +49,7 @@ export function CalendarBoard({ db }: { db: Database }) {
   const now = new Date();
   const [ym, setYm] = useState({ year: now.getFullYear(), month: now.getMonth() });
 
-  const byDay = useMemo(() => {
-    const m = new Map<string, Database["rows"]>();
-    if (!dateCol) return m;
-    for (const r of db.rows) {
-      const v = r.cells[dateCol.id];
-      if (typeof v !== "string" || !v) continue;
-      (m.get(v) ?? m.set(v, []).get(v)!).push(r);
-    }
-    return m;
-  }, [db.rows, dateCol]);
+  const byDay = dateCol ? bucketByDay(db, dateCol) : new Map<string, Database["rows"]>();
 
   if (!dateCol) {
     return (
