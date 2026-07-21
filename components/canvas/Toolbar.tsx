@@ -6,6 +6,7 @@ import { exportBoardPng } from "@/lib/exportImage";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { buildPresentationOrder } from "@/lib/presentation";
+import { toast } from "@/lib/toast";
 import { useUiStore } from "@/lib/ui";
 import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
@@ -86,7 +87,8 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     setExporting(true);
     const res = await exportBoardPng();
     setExporting(false);
-    if (!res.ok) window.alert(`Ekspor gagal: ${res.reason}`);
+    if (res.ok) toast("PNG diekspor");
+    else window.alert(`Ekspor gagal: ${res.reason}`);
   };
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {

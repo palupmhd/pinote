@@ -1,6 +1,7 @@
 "use client";
 
 import { useCanvasStore } from "./store";
+import { toast } from "./toast";
 import type {
   Board,
   BoardElement,
@@ -78,16 +79,19 @@ export function buildClipboard(state: StoreState, ids: string[]): ClipboardPaylo
 
 export function copySelection() {
   const st = useCanvasStore.getState();
-  if (!st.selectedIds.length) return;
+  const n = st.selectedIds.length;
+  if (!n) return;
   clipboard = buildClipboard(st, st.selectedIds);
   pasteRun = 0;
+  toast(n > 1 ? `${n} kartu disalin` : "Disalin");
 }
 
 export function pasteClipboard() {
   if (!clipboard) return;
   pasteRun += 1;
   const st = useCanvasStore.getState();
-  st.pasteElements(clipboard, st.currentBoardId, { x: STEP * pasteRun, y: STEP * pasteRun });
+  const ids = st.pasteElements(clipboard, st.currentBoardId, { x: STEP * pasteRun, y: STEP * pasteRun });
+  toast(ids.length > 1 ? `${ids.length} kartu ditempel` : "Ditempel");
 }
 
 /** Salin + tempel dalam satu langkah, di papan yang sama, tanpa mengutak-atik
@@ -96,5 +100,6 @@ export function duplicateSelection() {
   const st = useCanvasStore.getState();
   if (!st.selectedIds.length) return;
   const payload = buildClipboard(st, st.selectedIds);
-  st.pasteElements(payload, st.currentBoardId, { x: STEP, y: STEP });
+  const ids = st.pasteElements(payload, st.currentBoardId, { x: STEP, y: STEP });
+  toast(ids.length > 1 ? `${ids.length} kartu diduplikat` : "Diduplikat");
 }

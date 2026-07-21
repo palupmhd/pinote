@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { clearHistory, suspendHistory } from "./history";
 import { snapshot, useCanvasStore, type Persisted } from "./store";
 import { supabase } from "./supabase";
+import { toast } from "./toast";
 
 const SYNC_KEY_PREFIX = "swanote:sync:v1";
 const LAST_USER_KEY = "swanote:sync:user"; // siapa yang terakhir sinkron di browser ini
@@ -164,11 +165,12 @@ export const useSyncStore = create<SyncState>((set) => ({
       email,
       options: { emailRedirectTo: window.location.origin },
     });
-    set(
-      error
-        ? { status: "error", message: error.message }
-        : { status: "signed-out", message: `Tautan masuk dikirim ke ${email}. Cek email.` }
-    );
+    if (error) {
+      set({ status: "error", message: error.message });
+    } else {
+      set({ status: "signed-out", message: `Tautan masuk dikirim ke ${email}. Cek email.` });
+      toast("Tautan masuk dikirim");
+    }
   },
 
   signOut: async () => {

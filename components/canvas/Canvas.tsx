@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
+import { toast } from "@/lib/toast";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
@@ -18,6 +19,7 @@ import { Minimap, computeMinimapGeo, type MinimapGeo } from "./Minimap";
 import { NoteCard } from "./NoteCard";
 import { PresentationBar } from "./PresentationBar";
 import { SearchPanel } from "./SearchPanel";
+import { ToastHost } from "./ToastHost";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
@@ -322,7 +324,13 @@ export function Canvas() {
 
       const { selectedIds, editingId } = useCanvasStore.getState();
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length && !editingId) {
+        const n = selectedIds.length;
         removeMany(selectedIds);
+        // Hapus bisa mengikis subpohon papan yang besar — beri jalan pulang.
+        toast(n > 1 ? `${n} kartu dihapus` : "Kartu dihapus", {
+          actionLabel: "Urungkan",
+          onAction: undo,
+        });
       }
       if (e.key === "Escape") {
         setEditing(null);
@@ -668,6 +676,9 @@ export function Canvas() {
           </div>
         </>
       )}
+
+      {/* Toast selalu tampil (termasuk saat presentasi) — konfirmasi aksi. */}
+      <ToastHost />
     </div>
   );
 }
