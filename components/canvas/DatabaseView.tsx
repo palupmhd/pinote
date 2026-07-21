@@ -8,6 +8,7 @@ import type { CellValue, ColumnType, Database, DbColumn, DbRow, RollupOp } from 
 import { CalendarBoard } from "./CalendarBoard";
 import { GalleryBoard } from "./GalleryBoard";
 import { KanbanBoard } from "./KanbanBoard";
+import { SpatialBoard } from "./SpatialBoard";
 
 const TYPE_LABEL: Record<ColumnType, string> = {
   text: "Teks",
@@ -194,11 +195,15 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   // databases yang stabil lalu turunkan daftar via useMemo — mengembalikan array
   // baru langsung di selector memicu loop tak berujung di zustand v5.
   const databases = useCanvasStore((s) => s.databases);
+  // Termasuk database ini sendiri: relasi self-referencing sah (mis. dependensi
+  // antar-baris) dan digambar sebagai panah di tampilan Spatial. Panah kanvas
+  // utama sudah mengabaikan self-loop kartu yang sama.
   const targets = useMemo(
     () =>
-      Object.values(databases)
-        .filter((d) => d.id !== dbId)
-        .map((d) => ({ id: d.id, title: d.title })),
+      Object.values(databases).map((d) => ({
+        id: d.id,
+        title: d.id === dbId ? `${d.title} (ini sendiri)` : d.title,
+      })),
     [databases, dbId]
   );
   // Untuk konfigurasi rollup: kolom relasi database ini, & kolom angka di
@@ -361,7 +366,7 @@ export function DatabaseView() {
               digeser horizontal supaya tak menekan judul. */}
           <div className="order-3 w-full overflow-x-auto sm:order-2 sm:w-auto">
             <div className="flex w-max rounded-md bg-neutral-100 p-0.5 text-xs">
-              {(["table", "kanban", "calendar", "gallery"] as const).map((v) => (
+              {(["table", "kanban", "calendar", "gallery", "spatial"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setDatabaseView(db.id, v)}
@@ -370,7 +375,7 @@ export function DatabaseView() {
                     (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
                   ].join(" ")}
                 >
-                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : "Galeri"}
+                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : v === "gallery" ? "Galeri" : "Spasial"}
                 </button>
               ))}
             </div>
@@ -388,6 +393,10 @@ export function DatabaseView() {
         ) : (db.view ?? "table") === "gallery" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />
+          </div>
+        ) : (db.view ?? "table") === "spatial" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <SpatialBoard db={db} onOpenRowCanvas={openRowCanvas} />
           </div>
         ) : (
         <>

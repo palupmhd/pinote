@@ -51,9 +51,13 @@ export interface DbRow {
    *  irisan tipis). Dibuat lazy saat pertama kali baris dibuka sebagai kanvas;
    *  baris tanpa field ini = belum punya kanvas (mayoritas baris). */
   boardId?: string;
+  /** Posisi kartu di tampilan Spatial (spec §7.2 dual-mode penuh). Baris tanpa
+   *  koordinat di-auto-layout grid; koordinat tersimpan begitu baris digeser. */
+  sx?: number;
+  sy?: number;
 }
 
-export type DatabaseView = "table" | "kanban" | "calendar" | "gallery";
+export type DatabaseView = "table" | "kanban" | "calendar" | "gallery" | "spatial";
 
 export interface Database {
   id: string;

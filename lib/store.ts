@@ -117,6 +117,8 @@ interface CanvasState extends Persisted {
    *  board (atau null bila db/baris tak ada). Penutupan overlay database diurus
    *  pemanggil supaya store tetap murni terhadap UI store. */
   openRowAsBoard: (dbId: string, rowId: string) => string | null;
+  /** Set posisi kartu baris di tampilan Spatial (spec §7.2). Commit saat drop. */
+  moveRowSpatial: (dbId: string, rowId: string, x: number, y: number) => void;
   setDatabaseView: (dbId: string, view: DatabaseView) => void;
   setDatabaseGroupBy: (dbId: string, colId: string) => void;
   setDatabaseDateBy: (dbId: string, colId: string) => void;
@@ -1007,6 +1009,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
     return newBoardId;
   },
+
+  moveRowSpatial: (dbId, rowId, x, y) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: db.rows.map((r) => (r.id === rowId ? { ...r, sx: x, sy: y } : r)),
+    })),
 
   setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
 
