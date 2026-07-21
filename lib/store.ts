@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import {
   DEFAULT_CAMERA,
+  INBOX_BOARD_ID,
   ROOT_BOARD_ID,
   type Board,
   type BoardElement,
@@ -65,6 +66,9 @@ interface CanvasState extends Persisted {
   }) => void;
   setCamera: (camera: Camera) => void;
   addNote: (worldX: number, worldY: number) => string;
+  /** Tangkapan cepat (spec §9.1): buka Inbox, taruh catatan baru yang menumpuk
+   *  rapi, langsung siap diketik — tanpa memilih lokasi dulu. */
+  captureToInbox: () => string;
   addBoard: (worldX: number, worldY: number) => string;
   addTaskList: (worldX: number, worldY: number) => string;
   addLink: (worldX: number, worldY: number) => string;
@@ -120,6 +124,17 @@ interface CanvasState extends Persisted {
 }
 
 const rootBoard: Board = { id: ROOT_BOARD_ID, title: "Home", parentBoardId: null };
+// Inbox anak dari root supaya breadcrumb-nya "Home / Inbox" (ada jalan pulang),
+// tapi tak pernah muncul sebagai kartu — tak ada BOARD_REF yang menunjuknya.
+const inboxBoard: Board = { id: INBOX_BOARD_ID, title: "Inbox", parentBoardId: ROOT_BOARD_ID };
+
+/** Board bawaan yang harus SELALU ada, berapa pun isi data tersimpan. Digabung
+ *  di setiap titik muat (hydrate/replace/undo) supaya Home & Inbox tak bisa
+ *  hilang atau ketimpa data lama. */
+const baseBoards = (): Record<string, Board> => ({
+  [ROOT_BOARD_ID]: rootBoard,
+  [INBOX_BOARD_ID]: inboxBoard,
+});
 
 type SetState = (fn: (s: CanvasState) => Partial<CanvasState>) => void;
 
@@ -242,7 +257,7 @@ function removeElements(
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
-  boards: { [ROOT_BOARD_ID]: rootBoard },
+  boards: baseBoards(),
   elements: {},
   databases: {},
   cameras: {},
@@ -258,10 +273,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const data = JSON.parse(raw) as Partial<Persisted>;
-        const boards: Record<string, Board> = {
-          [ROOT_BOARD_ID]: rootBoard,
-          ...(data.boards ?? {}),
-        };
+        const boards: Record<string, Board> = { ...baseBoards(), ...(data.boards ?? {}) };
         const currentBoardId =
           data.currentBoardId && boards[data.currentBoardId]
             ? data.currentBoardId
@@ -284,7 +296,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   replaceWorkspace: (data) => {
-    const boards: Record<string, Board> = { [ROOT_BOARD_ID]: rootBoard, ...data.boards };
+    const boards: Record<string, Board> = { ...baseBoards(), ...data.boards };
     const currentBoardId = boards[data.currentBoardId] ? data.currentBoardId : ROOT_BOARD_ID;
     set({
       boards,
@@ -300,7 +312,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   applyHistory: (snap) =>
     set((s) => {
-      const boards: Record<string, Board> = { [ROOT_BOARD_ID]: rootBoard, ...snap.boards };
+      const boards: Record<string, Board> = { ...baseBoards(), ...snap.boards };
       // Papan yang sedang dibuka mungkin ikut terhapus oleh langkah yang
       // dipulihkan → jatuh ke root supaya kanvas tidak menampilkan papan hantu.
       const currentBoardId = boards[snap.currentBoardId] ? snap.currentBoardId : ROOT_BOARD_ID;
@@ -339,6 +351,52 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       selectedIds: [id],
       editingId: id,
     }));
+    return id;
+  },
+
+  captureToInbox: () => {
+    const id = crypto.randomUUID();
+    set((s) => {
+      // Tumpuk vertikal berdasarkan jumlah kartu yang sudah ada di Inbox —
+      // penempatan deterministik, tak perlu pilih lokasi.
+      const count = Object.values(s.elements).filter(
+        (e) => e.boardId === INBOX_BOARD_ID && e.type !== "CONNECTOR"
+      ).length;
+      const x = 0;
+      const y = count * 132;
+
+      // Pusatkan kamera Inbox ke kartu baru supaya langsung terlihat & bisa
+      // diketik. Simpan dulu kamera papan yang sedang dibuka.
+      const W = typeof window !== "undefined" ? window.innerWidth : 1200;
+      const H = typeof window !== "undefined" ? window.innerHeight : 800;
+      const camera = { x: W / 2 - (x + NOTE_WIDTH / 2), y: H / 2 - (y + 40), zoom: 1 };
+      const cameras =
+        s.currentBoardId === INBOX_BOARD_ID
+          ? { ...s.cameras, [INBOX_BOARD_ID]: camera }
+          : { ...s.cameras, [s.currentBoardId]: s.camera, [INBOX_BOARD_ID]: camera };
+
+      return {
+        currentBoardId: INBOX_BOARD_ID,
+        cameras,
+        camera,
+        elements: {
+          ...s.elements,
+          [id]: {
+            id,
+            boardId: INBOX_BOARD_ID,
+            type: "NOTE",
+            x,
+            y,
+            width: NOTE_WIDTH,
+            zIndex: count + 1,
+            content: { html: "" },
+            updatedAt: Date.now(),
+          },
+        },
+        selectedIds: [id],
+        editingId: id,
+      };
+    });
     return id;
   },
 

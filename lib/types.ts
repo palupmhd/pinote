@@ -169,4 +169,7 @@ export interface ClipboardPayload {
 }
 
 export const ROOT_BOARD_ID = "root";
+/** Board tangkapan-cepat (spec §9.1): selalu ada, tak bisa dihapus, dijangkau
+ *  lewat tombol/pintasan — bukan lewat kartu di kanvas. */
+export const INBOX_BOARD_ID = "inbox";
 export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };

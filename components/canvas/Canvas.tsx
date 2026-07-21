@@ -50,6 +50,7 @@ export function Canvas() {
   const hydrate = useCanvasStore((s) => s.hydrate);
   const addNote = useCanvasStore((s) => s.addNote);
   const addImage = useCanvasStore((s) => s.addImage);
+  const captureToInbox = useCanvasStore((s) => s.captureToInbox);
   const select = useCanvasStore((s) => s.select);
   const setSelection = useCanvasStore((s) => s.setSelection);
   const setEditing = useCanvasStore((s) => s.setEditing);
@@ -194,6 +195,16 @@ export function Canvas() {
   // Delete/Backspace hapus elemen terpilih (kecuali sedang mengetik); Esc batal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Tangkapan cepat harus jalan dari MANA SAJA — termasuk saat sedang
+      // mengetik di kartu lain — supaya benar-benar tanpa gesekan. Karena itu
+      // dicek sebelum guard "sedang mengetik" di bawah. Konsekuensinya Cmd+I
+      // tak lagi jadi italic di editor; ditukar demi tangkap-dari-mana-saja.
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        captureToInbox();
+        return;
+      }
+
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
@@ -235,7 +246,7 @@ export function Canvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [removeMany, select, setEditing]);
+  }, [removeMany, select, setEditing, captureToInbox]);
 
   // Space = tahan-untuk-pan. Diabaikan saat mengetik supaya spasi tetap terketik.
   useEffect(() => {

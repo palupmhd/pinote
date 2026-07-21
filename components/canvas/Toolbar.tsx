@@ -5,7 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
-import type { Camera } from "@/lib/types";
+import { INBOX_BOARD_ID, type Camera } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
 
 interface Props {
@@ -23,6 +23,8 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addDatabase = useCanvasStore((s) => s.addDatabase);
   const attachDatabase = useCanvasStore((s) => s.attachDatabase);
   const addImage = useCanvasStore((s) => s.addImage);
+  const openBoard = useCanvasStore((s) => s.openBoard);
+  const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canUndo = useHistoryStore((s) => s.canUndo);
   const canRedo = useHistoryStore((s) => s.canRedo);
@@ -105,6 +107,17 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       />
 
       <div className="my-0.5 h-px bg-neutral-200" />
+
+      <button
+        onClick={() => openBoard(INBOX_BOARD_ID)}
+        title="Inbox — tangkapan cepat (Ctrl/Cmd+I untuk menangkap dari mana saja)"
+        className={[
+          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
+          currentBoardId === INBOX_BOARD_ID ? "text-blue-600" : "text-neutral-700",
+        ].join(" ")}
+      >
+        📥 Inbox
+      </button>
 
       <button
         onClick={toggleAgenda}

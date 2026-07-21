@@ -20,8 +20,9 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 - Kanvas: pan/zoom imperatif (nol re-render React per frame — lihat catatan performa di bawah), drag kartu, multi-select, group move/delete, copy/paste/duplicate, undo/redo
 - Elemen: Note (Tiptap), Image (paste/drop/file picker), Nested Board (BOARD_REF), Connector (generik, SVG layer), Task-list (dengan tenggat opsional per item), Link (dengan preview via `/api/link-preview`)
 - Sync: Supabase (Postgres + Auth magic-link + Realtime subscription), autosave debounced, Last-Write-Wins dengan optimistic revision lock
+- **Quick Capture / Inbox board** (spec §9.1) — board "Inbox" bawaan yang selalu ada & tak bisa dihapus (tak pernah muncul sebagai kartu; anak dari root supaya breadcrumb-nya "Home / Inbox"). Pintasan **Ctrl/Cmd+I dari mana saja** (termasuk saat mengetik di kartu lain — sengaja menimpa italic demi tangkap-tanpa-gesekan) membuka Inbox + catatan baru menumpuk rapi, langsung siap diketik. Tombol toolbar "📥 Inbox" untuk membuka/meninjau tanpa menambah catatan. Terverifikasi (buat/tumpuk/tinjau/persist/undo).
 
-**Belum dibangun dari v1:** Table sederhana non-relational (kemungkinan besar sudah tidak perlu — DatabaseView di bawah menutupi kebutuhannya), Export gambar, Quick Capture/Inbox board.
+**Belum dibangun dari v1:** Table sederhana non-relational (kemungkinan besar sudah tidak perlu — DatabaseView di bawah menutupi kebutuhannya), Export gambar (client-side `html-to-image`) — **satu-satunya item v1 tersisa.**
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan
