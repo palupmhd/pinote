@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { exportBoardPng } from "@/lib/exportImage";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
@@ -65,6 +66,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       } },
   ];
 
+  const [exporting, setExporting] = useState(false);
+  const onExport = async () => {
+    setExporting(true);
+    const res = await exportBoardPng();
+    setExporting(false);
+    if (!res.ok) window.alert(`Ekspor gagal: ${res.reason}`);
+  };
+
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = firstImageFile(e.target.files);
     e.target.value = ""; // izinkan memilih file yang sama lagi
@@ -117,6 +126,15 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
         ].join(" ")}
       >
         📥 Inbox
+      </button>
+
+      <button
+        onClick={onExport}
+        disabled={exporting}
+        title="Ekspor papan ini sebagai gambar PNG"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-400"
+      >
+        {exporting ? "Mengekspor…" : "🖼 Ekspor PNG"}
       </button>
 
       <button

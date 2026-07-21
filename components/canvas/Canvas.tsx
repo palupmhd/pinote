@@ -444,6 +444,7 @@ export function Canvas() {
         style={{ transformOrigin: "0 0", willChange: "transform" }}
       >
         <div
+          data-export-ignore="true"
           className="pointer-events-none absolute"
           style={{
             left: -GRID_EXTENT,

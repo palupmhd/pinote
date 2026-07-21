@@ -21,8 +21,9 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 - Elemen: Note (Tiptap), Image (paste/drop/file picker), Nested Board (BOARD_REF), Connector (generik, SVG layer), Task-list (dengan tenggat opsional per item), Link (dengan preview via `/api/link-preview`)
 - Sync: Supabase (Postgres + Auth magic-link + Realtime subscription), autosave debounced, Last-Write-Wins dengan optimistic revision lock
 - **Quick Capture / Inbox board** (spec §9.1) — board "Inbox" bawaan yang selalu ada & tak bisa dihapus (tak pernah muncul sebagai kartu; anak dari root supaya breadcrumb-nya "Home / Inbox"). Pintasan **Ctrl/Cmd+I dari mana saja** (termasuk saat mengetik di kartu lain — sengaja menimpa italic demi tangkap-tanpa-gesekan) membuka Inbox + catatan baru menumpuk rapi, langsung siap diketik. Tombol toolbar "📥 Inbox" untuk membuka/meninjau tanpa menambah catatan. Terverifikasi (buat/tumpuk/tinjau/persist/undo).
+- **Export gambar PNG** (spec §6 gap #4a) — tombol "🖼 Ekspor PNG" mengekspor SELURUH papan yang dibuka (bukan cuma viewport): hitung kotak-batas semua kartu, render `#world-layer` via `html-to-image` dengan transform diganti sementara (origin ke pojok, skala 1 → pan/zoom tak memengaruhi hasil, tanpa kedipan layar), grid titik dikecualikan, pixelRatio 2. Papan kosong ditolak; gambar lintas-domain yang menodai canvas dilaporkan apa adanya. Terverifikasi (unduhan PNG berdimensi benar, isi kartu terlihat).
 
-**Belum dibangun dari v1:** Table sederhana non-relational (kemungkinan besar sudah tidak perlu — DatabaseView di bawah menutupi kebutuhannya), Export gambar (client-side `html-to-image`) — **satu-satunya item v1 tersisa.**
+**v1 SELESAI.** Semua item v1 sudah dibangun & terverifikasi. Table sederhana non-relational sengaja dilewati (DatabaseView menutupinya). **Berhenti di sini — v1.1 butuh persetujuan pemilik sebelum dimulai** (lihat CLAUDE.md § "jangan bangun lompat fase").
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan
