@@ -5,9 +5,25 @@ import { clearHistory, suspendHistory } from "./history";
 import { snapshot, useCanvasStore, type Persisted } from "./store";
 import { supabase } from "./supabase";
 
-const SYNC_KEY_PREFIX = "milnote:sync:v1";
-const LAST_USER_KEY = "milnote:sync:user"; // siapa yang terakhir sinkron di browser ini
+const SYNC_KEY_PREFIX = "swanote:sync:v1";
+const LAST_USER_KEY = "swanote:sync:user"; // siapa yang terakhir sinkron di browser ini
+const LEGACY_SYNC_PREFIX = "milnote:sync:v1"; // key lama sebelum rename produk
+const LEGACY_LAST_USER_KEY = "milnote:sync:user";
 const PUSH_DEBOUNCE = 1500;
+
+/** Pindahkan satu key localStorage lama ke nama baru sekali saja (rename produk).
+ *  Kalau yang baru sudah ada, jangan ditimpa; yang lama selalu dibersihkan. */
+function migrateLsKey(oldK: string, newK: string) {
+  try {
+    if (localStorage.getItem(newK) == null) {
+      const v = localStorage.getItem(oldK);
+      if (v != null) localStorage.setItem(newK, v);
+    }
+    localStorage.removeItem(oldK);
+  } catch {
+    /* abaikan */
+  }
+}
 
 /** Key metadata sync di-scope ke user yang sedang masuk. Kalau global, revisi &
  *  flag dirty milik user sebelumnya bisa terpakai oleh user berikutnya di
@@ -103,6 +119,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   init: async () => {
     if (!supabase) return;
     authSub?.unsubscribe(); // re-init (Strict Mode/dev) → buang listener lama dulu
+    migrateLsKey(LEGACY_LAST_USER_KEY, LAST_USER_KEY); // rename produk: sekali di awal
 
     // Satu jalur untuk sesi awal maupun perubahan berikutnya: onAuthStateChange
     // langsung menembak INITIAL_SESSION saat didaftarkan, jadi tak perlu
@@ -116,6 +133,7 @@ export const useSyncStore = create<SyncState>((set) => ({
           lastUserId = user.id;
           // Scope metadata ke user ini sebelum pull/push apa pun.
           metaKey = `${SYNC_KEY_PREFIX}:${user.id}`;
+          migrateLsKey(`${LEGACY_SYNC_PREFIX}:${user.id}`, metaKey); // rename produk
           // User berbeda dari yang terakhir sinkron di browser ini → jangan
           // bawa data user sebelumnya ke akun ini. (Login pertama tanpa riwayat
           // tetap mempertahankan data lokal: alur "kerja lokal lalu masuk".)

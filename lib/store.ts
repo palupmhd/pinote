@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { idbGet, idbSet } from "./idb";
+import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
   DEFAULT_CAMERA,
@@ -22,7 +22,8 @@ import {
   type TaskListElement,
 } from "./types";
 
-const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dimigrasi sekali)
+const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
+const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
 const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
@@ -309,6 +310,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (get().hydrated) return;
     try {
       let data = await idbGet<Partial<Persisted>>(IDB_WORKSPACE_KEY);
+      // Migrasi sekali dari IndexedDB lama (nama db "pinote") → db baru "swanote",
+      // supaya rename produk tidak menghilangkan workspace lokal yang sudah ada.
+      if (!data) {
+        const legacy = await idbGetFrom<Partial<Persisted>>(LEGACY_IDB_DB, "kv", IDB_WORKSPACE_KEY);
+        if (legacy) {
+          data = legacy;
+          await idbSet(IDB_WORKSPACE_KEY, data);
+        }
+      }
       // Migrasi sekali dari localStorage (versi sebelum IndexedDB) → IndexedDB.
       if (!data) {
         const raw = localStorage.getItem(STORAGE_KEY);
