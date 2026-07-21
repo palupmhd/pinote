@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { idbGet, idbSet } from "./idb";
 import {
   DEFAULT_CAMERA,
   INBOX_BOARD_ID,
@@ -19,7 +20,8 @@ import {
   type TaskListElement,
 } from "./types";
 
-const STORAGE_KEY = "milnote:workspace:v1";
+const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dimigrasi sekali)
+const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
 const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
@@ -267,12 +269,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   camera: DEFAULT_CAMERA,
   hydrated: false,
 
-  hydrate: () => {
+  hydrate: async () => {
     if (get().hydrated) return;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const data = JSON.parse(raw) as Partial<Persisted>;
+      let data = await idbGet<Partial<Persisted>>(IDB_WORKSPACE_KEY);
+      // Migrasi sekali dari localStorage (versi sebelum IndexedDB) → IndexedDB.
+      if (!data) {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          data = JSON.parse(raw) as Partial<Persisted>;
+          await idbSet(IDB_WORKSPACE_KEY, data);
+          localStorage.removeItem(STORAGE_KEY);
+        }
+      }
+      if (data) {
         const boards: Record<string, Board> = { ...baseBoards(), ...(data.boards ?? {}) };
         const currentBoardId =
           data.currentBoardId && boards[data.currentBoardId]
@@ -290,7 +300,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         return;
       }
     } catch {
-      // data korup / format lama → mulai bersih, jangan crash
+      // data korup / IndexedDB gagal → mulai bersih, jangan crash
     }
     set({ hydrated: true });
   },
@@ -976,17 +986,15 @@ export function breadcrumbPath(
   return path;
 }
 
-// Autosave: debounce ke localStorage. Nanti diganti/didampingi adapter Supabase
-// (Last-Write-Wins via updatedAt) tanpa mengubah pemanggil.
+// Autosave: debounce ke IndexedDB (sumber kebenaran lokal). Dipindah dari
+// localStorage karena data URL gambar menembus batas ~5MB-nya; IndexedDB juga
+// menyimpan objek langsung tanpa biaya JSON.stringify.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 useCanvasStore.subscribe((state) => {
   if (!state.hydrated) return;
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot(state)));
-    } catch {
-      // quota penuh dsb — biarkan, jangan ganggu interaksi
-    }
+    // Simpan gagal (mis. kuota) tidak boleh mengganggu interaksi.
+    void idbSet(IDB_WORKSPACE_KEY, snapshot(state)).catch(() => {});
   }, 400);
 });

@@ -6,6 +6,7 @@ import { startSyncWatcher, useSyncStore } from "@/lib/sync";
 const LABEL: Record<string, string> = {
   syncing: "Menyinkronkan…",
   synced: "Tersinkron",
+  offline: "Offline — tersimpan lokal",
   error: "Gagal sinkron",
   conflict: "Perlu keputusan",
 };
@@ -35,9 +36,11 @@ export function SyncStatus() {
       ? "bg-emerald-400"
       : status === "syncing"
         ? "bg-amber-400"
-        : status === "signed-out"
-          ? "bg-neutral-300"
-          : "bg-red-400";
+        : status === "offline"
+          ? "bg-slate-400"
+          : status === "signed-out"
+            ? "bg-neutral-300"
+            : "bg-red-400";
 
   return (
     <div className="pointer-events-auto absolute right-4 top-3 z-20 flex flex-col items-end gap-2">

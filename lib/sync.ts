@@ -13,8 +13,11 @@ export type SyncStatus =
   | "signed-out"
   | "synced"
   | "syncing"
+  | "offline" // tak ada koneksi — perubahan tersimpan lokal, antre dikirim nanti
   | "error"
   | "conflict";
+
+const isOffline = () => typeof navigator !== "undefined" && !navigator.onLine;
 
 /** revision = versi cloud yang jadi dasar salinan lokal kita.
  *  dirty   = ada perubahan lokal yang belum sampai ke cloud. */
@@ -200,11 +203,26 @@ function watchRemote(userId: string) {
     if (status === "disabled" || status === "signed-out" || status === "conflict") return;
     void pull();
   };
+  const onOffline = () => {
+    const status = useSyncStore.getState().status;
+    if (status === "disabled" || status === "signed-out") return;
+    useSyncStore.setState({ status: "offline" });
+  };
+  const onOnline = () => {
+    const status = useSyncStore.getState().status;
+    if (status === "disabled" || status === "signed-out" || status === "conflict") return;
+    // Kembali online → rekonsiliasi; pull() akan mendorong antrean (dirty).
+    void pull();
+  };
   window.addEventListener("visibilitychange", onFocus);
   window.addEventListener("focus", onFocus);
+  window.addEventListener("offline", onOffline);
+  window.addEventListener("online", onOnline);
   detachFocus = () => {
     window.removeEventListener("visibilitychange", onFocus);
     window.removeEventListener("focus", onFocus);
+    window.removeEventListener("offline", onOffline);
+    window.removeEventListener("online", onOnline);
   };
 }
 
@@ -219,6 +237,12 @@ function teardownRemote() {
 
 async function pull() {
   if (!supabase) return;
+  // Offline → jangan menembak jaringan; tandai offline, perubahan sudah aman di
+  // IndexedDB. Antrean (dirty) di-flush oleh listener 'online'.
+  if (isOffline()) {
+    useSyncStore.setState({ status: "offline" });
+    return;
+  }
   useSyncStore.setState({ status: "syncing" });
   const meta = readMeta();
   const remote = await fetchRemote();
@@ -253,6 +277,11 @@ async function pull() {
 
 async function push(isFirst = false) {
   if (!supabase) return;
+  // Offline → biarkan dirty tetap true; nanti di-flush saat 'online'.
+  if (isOffline()) {
+    useSyncStore.setState({ status: "offline" });
+    return;
+  }
   const { data: sessionData } = await supabase.auth.getSession();
   const userId = sessionData.session?.user.id;
   if (!userId) return;

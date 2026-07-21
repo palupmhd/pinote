@@ -102,7 +102,9 @@ export function Canvas() {
     return arrows;
   }, [cards, databases]);
 
-  useEffect(() => hydrate(), [hydrate]);
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
   useEffect(() => startHistory(), []);
 
   const applyCamera = useCallback(() => {

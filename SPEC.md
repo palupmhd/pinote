@@ -23,7 +23,12 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 - **Quick Capture / Inbox board** (spec §9.1) — board "Inbox" bawaan yang selalu ada & tak bisa dihapus (tak pernah muncul sebagai kartu; anak dari root supaya breadcrumb-nya "Home / Inbox"). Pintasan **Ctrl/Cmd+I dari mana saja** (termasuk saat mengetik di kartu lain — sengaja menimpa italic demi tangkap-tanpa-gesekan) membuka Inbox + catatan baru menumpuk rapi, langsung siap diketik. Tombol toolbar "📥 Inbox" untuk membuka/meninjau tanpa menambah catatan. Terverifikasi (buat/tumpuk/tinjau/persist/undo).
 - **Export gambar PNG** (spec §6 gap #4a) — tombol "🖼 Ekspor PNG" mengekspor SELURUH papan yang dibuka (bukan cuma viewport): hitung kotak-batas semua kartu, render `#world-layer` via `html-to-image` dengan transform diganti sementara (origin ke pojok, skala 1 → pan/zoom tak memengaruhi hasil, tanpa kedipan layar), grid titik dikecualikan, pixelRatio 2. Papan kosong ditolak; gambar lintas-domain yang menodai canvas dilaporkan apa adanya. Terverifikasi (unduhan PNG berdimensi benar, isi kartu terlihat).
 
-**v1 SELESAI.** Semua item v1 sudah dibangun & terverifikasi. Table sederhana non-relational sengaja dilewati (DatabaseView menutupinya). **Berhenti di sini — v1.1 butuh persetujuan pemilik sebelum dimulai** (lihat CLAUDE.md § "jangan bangun lompat fase").
+**v1 SELESAI.** Semua item v1 sudah dibangun & terverifikasi. Table sederhana non-relational sengaja dilewati (DatabaseView menutupinya).
+
+**v1.1 (sedang berjalan, disetujui pemilik — dikerjakan satu per satu):**
+- **Offline cache (IndexedDB)** — persistensi lokal pindah dari localStorage ke IndexedDB (kapasitas jauh lebih besar; data URL gambar sebelumnya bisa menembus batas ~5MB localStorage). Migrasi sekali dari localStorage lama lalu kuncinya dihapus. Terverifikasi (simpan/muat/reload/migrasi/offline).
+- **Sync queue (online/offline-aware)** — `pull`/`push` menghormati `navigator.onLine`; saat offline statusnya "offline" dan perubahan tetap aman di IndexedDB (dirty), lalu di-flush otomatis oleh listener `online`. Indikator "Offline — tersimpan lokal" di chip sync. Catatan: ini offline **data**; shell aplikasi belum di-cache offline (butuh service worker/PWA — di luar item ini).
+- Belum: Minimap, Search, Template starter, Presentation Mode.
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan
