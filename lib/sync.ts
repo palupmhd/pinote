@@ -5,8 +5,14 @@ import { clearHistory, suspendHistory } from "./history";
 import { snapshot, useCanvasStore, type Persisted } from "./store";
 import { supabase } from "./supabase";
 
-const SYNC_KEY = "milnote:sync:v1";
+const SYNC_KEY_PREFIX = "milnote:sync:v1";
+const LAST_USER_KEY = "milnote:sync:user"; // siapa yang terakhir sinkron di browser ini
 const PUSH_DEBOUNCE = 1500;
+
+/** Key metadata sync di-scope ke user yang sedang masuk. Kalau global, revisi &
+ *  flag dirty milik user sebelumnya bisa terpakai oleh user berikutnya di
+ *  browser yang sama. Disetel saat login (lihat init). */
+let metaKey = SYNC_KEY_PREFIX;
 
 export type SyncStatus =
   | "disabled" // env Supabase belum diisi — murni lokal
@@ -28,7 +34,7 @@ interface SyncMeta {
 
 const readMeta = (): SyncMeta => {
   try {
-    const raw = localStorage.getItem(SYNC_KEY);
+    const raw = localStorage.getItem(metaKey);
     if (raw) return JSON.parse(raw) as SyncMeta;
   } catch {
     /* abaikan */
@@ -38,7 +44,7 @@ const readMeta = (): SyncMeta => {
 
 const writeMeta = (m: SyncMeta) => {
   try {
-    localStorage.setItem(SYNC_KEY, JSON.stringify(m));
+    localStorage.setItem(metaKey, JSON.stringify(m));
   } catch {
     /* abaikan */
   }
@@ -65,6 +71,29 @@ let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let realtimeChannel: ReturnType<NonNullable<typeof supabase>["channel"]> | null = null;
 let detachFocus: (() => void) | null = null;
 let lastUserId: string | null = null;
+/** Langganan auth. Disimpan supaya init() bisa idempoten: di React Strict Mode
+ *  (dev) effect jalan dua kali — tanpa ini, listener auth menumpuk dan memicu
+ *  pull/callback ganda. */
+let authSub: { unsubscribe: () => void } | null = null;
+
+const EMPTY_WORKSPACE: Persisted = {
+  boards: {},
+  elements: {},
+  databases: {},
+  cameras: {},
+  currentBoardId: "", // replaceWorkspace jatuh ke root bila tak valid
+};
+
+/** Kosongkan workspace lokal tanpa dianggap edit lokal (jangan terkirim balik).
+ *  Dipakai saat user berbeda login di browser yang sama, supaya data user
+ *  sebelumnya tidak ikut terbawa/terunggah ke akun baru. */
+function clearLocalWorkspace() {
+  applyingRemote = true;
+  suspendHistory(() => useCanvasStore.getState().replaceWorkspace(EMPTY_WORKSPACE));
+  clearHistory();
+  writeMeta({ revision: 0, dirty: false });
+  applyingRemote = false;
+}
 
 export const useSyncStore = create<SyncState>((set) => ({
   status: supabase ? "signed-out" : "disabled",
@@ -73,26 +102,41 @@ export const useSyncStore = create<SyncState>((set) => ({
 
   init: async () => {
     if (!supabase) return;
+    authSub?.unsubscribe(); // re-init (Strict Mode/dev) → buang listener lama dulu
 
     // Satu jalur untuk sesi awal maupun perubahan berikutnya: onAuthStateChange
     // langsung menembak INITIAL_SESSION saat didaftarkan, jadi tak perlu
     // getSession terpisah. Guard lastUserId mencegah pull/subscribe ganda saat
     // event yang tak mengubah user (mis. token refresh) berdatangan.
-    supabase.auth.onAuthStateChange((_e, session) => {
+    const { data } = supabase.auth.onAuthStateChange((_e, session) => {
       const user = session?.user ?? null;
       if (user) {
         set({ email: user.email ?? null });
         if (user.id !== lastUserId) {
           lastUserId = user.id;
+          // Scope metadata ke user ini sebelum pull/push apa pun.
+          metaKey = `${SYNC_KEY_PREFIX}:${user.id}`;
+          // User berbeda dari yang terakhir sinkron di browser ini → jangan
+          // bawa data user sebelumnya ke akun ini. (Login pertama tanpa riwayat
+          // tetap mempertahankan data lokal: alur "kerja lokal lalu masuk".)
+          const prevUser = localStorage.getItem(LAST_USER_KEY);
+          if (prevUser && prevUser !== user.id) clearLocalWorkspace();
+          try {
+            localStorage.setItem(LAST_USER_KEY, user.id);
+          } catch {
+            /* abaikan */
+          }
           void pull();
           watchRemote(user.id);
         }
       } else {
         lastUserId = null;
+        metaKey = SYNC_KEY_PREFIX;
         teardownRemote();
         set({ status: "signed-out", email: null });
       }
     });
+    authSub = data.subscription;
   },
 
   sendMagicLink: async (email) => {
@@ -112,6 +156,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   signOut: async () => {
     if (!supabase) return;
     lastUserId = null;
+    metaKey = SYNC_KEY_PREFIX;
     teardownRemote();
     await supabase.auth.signOut();
     set({ status: "signed-out", email: null, message: null });

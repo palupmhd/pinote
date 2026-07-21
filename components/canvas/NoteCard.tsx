@@ -1,8 +1,9 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { sanitizeHtml } from "@/lib/sanitizeHtml";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { NoteElement } from "@/lib/types";
@@ -43,6 +44,8 @@ function NoteCardBase({ element }: { element: NoteElement }) {
   };
 
   const html = element.content.html;
+  // Saring di batas render — data catatan bisa datang korup/disuntik dari cloud.
+  const safeHtml = useMemo(() => sanitizeHtml(html), [html]);
 
   return (
     <div
@@ -65,10 +68,10 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       {!editing && <ConnectHandle element={element} />}
       {editing ? (
         <NoteEditor id={element.id} initialHtml={html} />
-      ) : html ? (
+      ) : safeHtml ? (
         <div
           className="note-editor text-sm text-neutral-800"
-          dangerouslySetInnerHTML={{ __html: html }}
+          dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
       ) : (
         <p className="text-sm text-neutral-300">Catatan kosong</p>

@@ -16,7 +16,14 @@ export interface ImportedImage {
 
 export async function importImageFile(file: File): Promise<ImportedImage | null> {
   if (!file.type.startsWith("image/")) return null;
-  const bitmap = await createImageBitmap(file);
+  let bitmap: ImageBitmap;
+  try {
+    // File rusak / format tak didukung → jangan lempar promise yang tak
+    // tertangani ke picker/drop/paste; cukup batal (null).
+    bitmap = await createImageBitmap(file);
+  } catch {
+    return null;
+  }
   try {
     const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
     const w = Math.max(1, Math.round(bitmap.width * scale));

@@ -294,7 +294,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
       if (data) {
-        const boards: Record<string, Board> = { ...baseBoards(), ...(data.boards ?? {}) };
+        // baseBoards() terakhir: papan bawaan (root/inbox) selalu pakai definisi
+        // kanonik, tak bisa ditimpa data persisted yang korup/basi.
+        const boards: Record<string, Board> = { ...(data.boards ?? {}), ...baseBoards() };
         const currentBoardId =
           data.currentBoardId && boards[data.currentBoardId]
             ? data.currentBoardId
@@ -317,7 +319,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   replaceWorkspace: (data) => {
-    const boards: Record<string, Board> = { ...baseBoards(), ...data.boards };
+    const boards: Record<string, Board> = { ...data.boards, ...baseBoards() };
     const currentBoardId = boards[data.currentBoardId] ? data.currentBoardId : ROOT_BOARD_ID;
     set({
       boards,
@@ -333,7 +335,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   applyHistory: (snap) =>
     set((s) => {
-      const boards: Record<string, Board> = { ...baseBoards(), ...snap.boards };
+      const boards: Record<string, Board> = { ...snap.boards, ...baseBoards() };
       // Papan yang sedang dibuka mungkin ikut terhapus oleh langkah yang
       // dipulihkan → jatuh ke root supaya kanvas tidak menampilkan papan hantu.
       const currentBoardId = boards[snap.currentBoardId] ? snap.currentBoardId : ROOT_BOARD_ID;

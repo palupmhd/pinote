@@ -87,6 +87,14 @@ export function Canvas() {
     [visible]
   );
 
+  // Jumlah item per papan, dihitung sekali dari seluruh elemen — supaya tiap
+  // BoardCard tidak memindai `elements` sendiri (O(kartu papan × elemen)).
+  const countByBoard = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const el of Object.values(elements)) m.set(el.boardId, (m.get(el.boardId) ?? 0) + 1);
+    return m;
+  }, [elements]);
+
   // Panah relasi (spec §8.6): diturunkan dari kolom relasi antar tabel, BUKAN
   // disimpan sebagai elemen. Satu panah per pasangan (kartu sumber → kartu
   // tujuan) yang punya minimal satu tautan baris, dan hanya bila kedua kartu
@@ -593,7 +601,8 @@ export function Canvas() {
 
         {hydrated &&
           cards.map((el) => {
-            if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
+            if (el.type === "BOARD_REF")
+              return <BoardCard key={el.id} element={el} count={countByBoard.get(el.content.boardId) ?? 0} />;
             if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
             if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
             if (el.type === "IMAGE") return <ImageCard key={el.id} element={el} />;
