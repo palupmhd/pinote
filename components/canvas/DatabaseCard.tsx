@@ -5,6 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { DatabaseRefElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
@@ -40,6 +41,7 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
       {/* Pita atas bermotif kolom → penanda visual "ini tabel", bukan papan */}
       <div className="flex h-6 items-center gap-1 rounded-t-md bg-neutral-100 px-3">
         <span className="h-2 w-2 rounded-[2px] bg-neutral-300" />

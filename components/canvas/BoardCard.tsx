@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { BoardRefElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 function BoardCardBase({ element, count }: { element: BoardRefElement; count: number }) {
@@ -37,6 +38,7 @@ function BoardCardBase({ element, count }: { element: BoardRefElement; count: nu
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
       {/* Pita atas: penanda visual bahwa ini papan, bukan catatan */}
       <div className="h-6 rounded-t-md bg-neutral-100" />
       <div className="p-3">

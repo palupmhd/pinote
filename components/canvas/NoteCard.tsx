@@ -7,6 +7,7 @@ import { sanitizeHtml } from "@/lib/sanitizeHtml";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { NoteElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 // Editor hanya di-mount saat note sedang diedit — supaya note yang diam tidak
@@ -66,6 +67,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       onDoubleClick={onDoubleClick}
     >
       {!editing && <ConnectHandle element={element} />}
+      <CardActionBar element={element} />
       {editing ? (
         <NoteEditor id={element.id} initialHtml={html} />
       ) : safeHtml ? (

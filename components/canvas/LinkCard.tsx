@@ -4,6 +4,7 @@ import { memo, useState } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { LinkElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 function LinkCardBase({ element }: { element: LinkElement }) {
@@ -44,6 +45,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
 
       {showForm ? (
         <form

@@ -5,6 +5,7 @@ import { daysFromToday, formatShort } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { TaskItem, TaskListElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 /** Kontrol tenggat mungil per item: tombol (tanggal atau ikon) yang memicu
@@ -102,6 +103,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
 
       <div className="mb-1.5 flex items-baseline gap-2">
         <input

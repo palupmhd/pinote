@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { ImageElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 function ImageCardBase({ element }: { element: ImageElement }) {
@@ -30,6 +31,7 @@ function ImageCardBase({ element }: { element: ImageElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal;
           next/image tak relevan untuk gambar yang sudah tertanam & dikecilkan */}
       <img
