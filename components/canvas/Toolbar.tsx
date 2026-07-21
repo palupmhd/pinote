@@ -32,6 +32,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const canRedo = useHistoryStore((s) => s.canRedo);
   const toggleAgenda = useUiStore((s) => s.toggleAgenda);
   const agendaOpen = useUiStore((s) => s.agendaOpen);
+  const openSearch = useUiStore((s) => s.openSearch);
   const startPresentation = useUiStore((s) => s.startPresentation);
 
   const onPresent = () => {
@@ -128,6 +129,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       />
 
       <div className="my-0.5 h-px bg-neutral-200" />
+
+      <button
+        onClick={openSearch}
+        title="Cari di semua papan (Ctrl/Cmd+K)"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
+      >
+        🔎 Cari
+      </button>
 
       <button
         onClick={() => openBoard(INBOX_BOARD_ID)}

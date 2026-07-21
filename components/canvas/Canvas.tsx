@@ -16,6 +16,7 @@ import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
 import { NoteCard } from "./NoteCard";
 import { PresentationBar } from "./PresentationBar";
+import { SearchPanel } from "./SearchPanel";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
@@ -61,6 +62,7 @@ export function Canvas() {
   const presentNext = useUiStore((s) => s.presentNext);
   const presentPrev = useUiStore((s) => s.presentPrev);
   const exitPresentation = useUiStore((s) => s.exitPresentation);
+  const openSearch = useUiStore((s) => s.openSearch);
   const preCamRef = useRef<Camera | null>(null);
   const wasPresenting = useRef(false);
   const select = useCanvasStore((s) => s.select);
@@ -218,6 +220,12 @@ export function Canvas() {
         captureToInbox();
         return;
       }
+      // Buka pencarian dari mana saja (Cmd/Ctrl+K).
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
 
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
@@ -260,7 +268,7 @@ export function Canvas() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [removeMany, select, setEditing, captureToInbox]);
+  }, [removeMany, select, setEditing, captureToInbox, openSearch]);
 
   // Space = tahan-untuk-pan. Diabaikan saat mengetik supaya spasi tetap terketik.
   useEffect(() => {
@@ -574,6 +582,7 @@ export function Canvas() {
           <SyncStatus />
           <AgendaView />
           <DatabaseView />
+          <SearchPanel />
 
           <div
             ref={zoomBadgeRef}

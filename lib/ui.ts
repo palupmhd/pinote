@@ -13,6 +13,10 @@ export const useUiStore = create<{
   openDatabaseId: string | null;
   openDatabase: (id: string) => void;
   closeDatabase: () => void;
+  /** Pencarian lintas papan (spec §6 gap #6). */
+  searchOpen: boolean;
+  openSearch: () => void;
+  closeSearch: () => void;
   /** Presentation Mode (spec §9.2): jalur cerita mengikuti urutan Connector. */
   presenting: boolean;
   presentOrder: string[];
@@ -28,6 +32,9 @@ export const useUiStore = create<{
   openDatabaseId: null,
   openDatabase: (id) => set({ openDatabaseId: id }),
   closeDatabase: () => set({ openDatabaseId: null }),
+  searchOpen: false,
+  openSearch: () => set({ searchOpen: true }),
+  closeSearch: () => set({ searchOpen: false }),
   presenting: false,
   presentOrder: [],
   presentIndex: 0,
