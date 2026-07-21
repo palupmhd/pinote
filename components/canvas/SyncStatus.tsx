@@ -6,7 +6,7 @@ import { startSyncWatcher, useSyncStore } from "@/lib/sync";
 const LABEL: Record<string, string> = {
   syncing: "Menyinkronkan…",
   synced: "Tersinkron",
-  offline: "Offline — tersimpan lokal",
+  offline: "Offline · antre sync",
   error: "Gagal sinkron",
   conflict: "Perlu keputusan",
 };
@@ -29,7 +29,22 @@ export function SyncStatus() {
     return startSyncWatcher();
   }, [init]);
 
-  if (status === "disabled") return null; // env belum diisi → jangan ganggu
+  // Env Supabase belum diisi → murni lokal. Dulu chip-nya hilang total; sekarang
+  // tetap tampil supaya jelas datanya aman tersimpan (bukan hilang), hanya tak
+  // ada sinkron. Tak ada panel login karena memang tak ada tujuannya.
+  if (status === "disabled") {
+    return (
+      <div className="pointer-events-auto absolute right-4 top-3 z-20">
+        <span
+          title="Sinkronisasi cloud tidak dikonfigurasi — semua tersimpan di perangkat ini"
+          className="flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-500 shadow-sm ring-1 ring-neutral-200 backdrop-blur"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+          Lokal saja
+        </span>
+      </div>
+    );
+  }
 
   const dot =
     status === "synced"
@@ -49,7 +64,7 @@ export function SyncStatus() {
         className="flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur hover:text-neutral-900"
       >
         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-        {status === "signed-out" ? "Hanya di perangkat ini" : (LABEL[status] ?? status)}
+        {status === "signed-out" ? "Masuk untuk sinkron" : (LABEL[status] ?? status)}
       </button>
 
       {status === "conflict" && (
