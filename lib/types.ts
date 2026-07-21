@@ -18,7 +18,11 @@ export interface Board {
 // Tabel bertipe: entitas terpisah (seperti Board), dibuka lewat kartu "pintu"
 // DATABASE_REF. Baris disimpan di dalam entitas ini, bukan sebagai elemen
 // kanvas — relasi antar-baris sebagai panah menyusul di §8.6.
-export type ColumnType = "text" | "number" | "checkbox" | "date" | "relation";
+export type ColumnType = "text" | "number" | "checkbox" | "date" | "relation" | "rollup";
+
+/** Agregasi kolom rollup (spec §7.1). count = jumlah baris tertaut; sisanya
+ *  atas kolom angka di database tujuan relasi. */
+export type RollupOp = "count" | "sum" | "avg" | "min" | "max";
 
 export interface DbColumn {
   id: string;
@@ -28,6 +32,11 @@ export interface DbColumn {
    *  Relasi antar-baris (spec §8.6) — digambar sebagai panah antar kartu
    *  database, memakai ulang mekanisme konektor. */
   targetDatabaseId?: string;
+  /** Konfigurasi kolom "rollup": lewat relasi mana, fungsi apa, kolom angka apa
+   *  (untuk sum/avg/min/max) di database tujuan. Nilainya dihitung, tak disimpan. */
+  rollupRelationId?: string;
+  rollupOp?: RollupOp;
+  rollupTargetColumnId?: string;
 }
 
 /** Sel biasa = string/number/boolean/null. Sel kolom "relation" = daftar id
@@ -40,11 +49,19 @@ export interface DbRow {
   cells: Record<string, CellValue>;
 }
 
+export type DatabaseView = "table" | "kanban" | "calendar" | "gallery";
+
 export interface Database {
   id: string;
   title: string;
   columns: DbColumn[];
   rows: DbRow[];
+  /** Mode tampilan (spec §7.3). Default "table". */
+  view?: DatabaseView;
+  /** Kolom pengelompok untuk Kanban (id kolom text/checkbox). */
+  groupBy?: string;
+  /** Kolom tanggal untuk Kalender (id kolom date). */
+  dateBy?: string;
 }
 
 interface BaseElement {

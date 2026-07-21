@@ -1,9 +1,13 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { computeRollup } from "@/lib/rollup";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
-import type { CellValue, ColumnType, Database, DbColumn, DbRow } from "@/lib/types";
+import type { CellValue, ColumnType, Database, DbColumn, DbRow, RollupOp } from "@/lib/types";
+import { CalendarBoard } from "./CalendarBoard";
+import { GalleryBoard } from "./GalleryBoard";
+import { KanbanBoard } from "./KanbanBoard";
 
 const TYPE_LABEL: Record<ColumnType, string> = {
   text: "Teks",
@@ -11,7 +15,29 @@ const TYPE_LABEL: Record<ColumnType, string> = {
   checkbox: "Centang",
   date: "Tanggal",
   relation: "Relasi",
+  rollup: "Rollup",
 };
+
+const ROLLUP_OPS: Record<RollupOp, string> = {
+  count: "Jumlah tautan",
+  sum: "Total",
+  avg: "Rata-rata",
+  min: "Minimum",
+  max: "Maksimum",
+};
+
+/** Sel rollup: nilai dihitung dari relasi, baca saja (spec §7.1). */
+function RollupCell({ dbId, rowId, column }: { dbId: string; rowId: string; column: DbColumn }) {
+  const databases = useCanvasStore((s) => s.databases);
+  const db = databases[dbId];
+  const row = db?.rows.find((r) => r.id === rowId);
+  if (!db || !row) return null;
+  if (!column.rollupRelationId) {
+    return <span className="text-xs text-neutral-300">atur di header</span>;
+  }
+  const v = computeRollup(db, row, column, databases);
+  return <span className="text-sm tabular-nums text-neutral-700">{v == null ? "—" : v}</span>;
+}
 
 /** Label ringkas sebuah baris: nilai kolom teks pertama yang terisi, kalau
  *  tidak ada pakai nomor urut. Dipakai untuk chip & pemilih relasi. */
@@ -113,6 +139,9 @@ function CellEditor({
   if (column.type === "relation") {
     return <RelationCell dbId={dbId} rowId={rowId} column={column} value={value} />;
   }
+  if (column.type === "rollup") {
+    return <RollupCell dbId={dbId} rowId={rowId} column={column} />;
+  }
   if (column.type === "checkbox") {
     return (
       <input
@@ -159,6 +188,7 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   const renameColumn = useCanvasStore((s) => s.renameColumn);
   const setColumnType = useCanvasStore((s) => s.setColumnType);
   const setColumnTarget = useCanvasStore((s) => s.setColumnTarget);
+  const setRollup = useCanvasStore((s) => s.setRollup);
   const removeColumn = useCanvasStore((s) => s.removeColumn);
   // Kandidat database tujuan: semua database selain diri sendiri. Pilih objek
   // databases yang stabil lalu turunkan daftar via useMemo — mengembalikan array
@@ -171,6 +201,17 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
         .map((d) => ({ id: d.id, title: d.title })),
     [databases, dbId]
   );
+  // Untuk konfigurasi rollup: kolom relasi database ini, & kolom angka di
+  // database tujuan relasi terpilih.
+  const relationCols = useMemo(
+    () => databases[dbId]?.columns.filter((c) => c.type === "relation") ?? [],
+    [databases, dbId]
+  );
+  const rollupRelCol = relationCols.find((c) => c.id === column.rollupRelationId);
+  const numberCols = useMemo(() => {
+    const tid = rollupRelCol?.targetDatabaseId;
+    return tid ? (databases[tid]?.columns.filter((c) => c.type === "number") ?? []) : [];
+  }, [databases, rollupRelCol]);
 
   return (
     <div className="space-y-1">
@@ -217,6 +258,44 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
           ))}
         </select>
       )}
+      {column.type === "rollup" && (
+        <div className="space-y-1">
+          <select
+            value={column.rollupRelationId ?? ""}
+            onChange={(e) => setRollup(dbId, column.id, { rollupRelationId: e.target.value })}
+            title="Lewat kolom relasi mana"
+            className="w-full cursor-pointer rounded bg-amber-50 px-1 py-0.5 text-[10px] text-amber-700 outline-none"
+          >
+            <option value="" disabled>→ lewat relasi…</option>
+            {relationCols.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+          <select
+            value={column.rollupOp ?? "count"}
+            onChange={(e) => setRollup(dbId, column.id, { rollupOp: e.target.value as RollupOp })}
+            title="Fungsi rollup"
+            className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
+          >
+            {(Object.keys(ROLLUP_OPS) as RollupOp[]).map((op) => (
+              <option key={op} value={op}>{ROLLUP_OPS[op]}</option>
+            ))}
+          </select>
+          {(column.rollupOp ?? "count") !== "count" && (
+            <select
+              value={column.rollupTargetColumnId ?? ""}
+              onChange={(e) => setRollup(dbId, column.id, { rollupTargetColumnId: e.target.value })}
+              title="Kolom angka di database tujuan"
+              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
+            >
+              <option value="" disabled>→ kolom angka…</option>
+              {numberCols.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -231,6 +310,7 @@ export function DatabaseView() {
   const addColumn = useCanvasStore((s) => s.addColumn);
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
+  const setDatabaseView = useCanvasStore((s) => s.setDatabaseView);
 
   // Esc menutup editor (tapi tidak saat sedang mengetik di sel — biar Esc di
   // input tak sengaja menutup seluruh tabel).
@@ -262,6 +342,21 @@ export function DatabaseView() {
             placeholder="Judul database"
             className="min-w-0 flex-1 bg-transparent text-base font-semibold text-neutral-800 outline-none placeholder:text-neutral-300"
           />
+          {/* Pengalih tampilan (spec §7.3): Tabel ⇄ Kanban */}
+          <div className="ml-2 flex shrink-0 rounded-md bg-neutral-100 p-0.5 text-xs">
+            {(["table", "kanban", "calendar", "gallery"] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setDatabaseView(db.id, v)}
+                className={[
+                  "rounded px-2 py-1",
+                  (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
+                ].join(" ")}
+              >
+                {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : "Galeri"}
+              </button>
+            ))}
+          </div>
           <button
             onClick={close}
             className="ml-2 shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
@@ -271,6 +366,20 @@ export function DatabaseView() {
           </button>
         </div>
 
+        {(db.view ?? "table") === "kanban" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <KanbanBoard db={db} />
+          </div>
+        ) : (db.view ?? "table") === "calendar" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CalendarBoard db={db} />
+          </div>
+        ) : (db.view ?? "table") === "gallery" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <GalleryBoard db={db} />
+          </div>
+        ) : (
+        <>
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full border-collapse text-left">
             <thead>
@@ -331,6 +440,8 @@ export function DatabaseView() {
             + Tambah baris
           </button>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,7 @@ import {
   type ClipboardPayload,
   type ColumnType,
   type Database,
+  type DatabaseView,
   type DbColumn,
   type DbRow,
   type LinkElement,
@@ -100,12 +101,19 @@ interface CanvasState extends Persisted {
   setColumnType: (dbId: string, colId: string, type: ColumnType) => void;
   /** Setel database tujuan untuk kolom "relation" (spec §8.6). */
   setColumnTarget: (dbId: string, colId: string, targetDatabaseId: string) => void;
+  /** Perbarui konfigurasi kolom "rollup" (spec §7.1). */
+  setRollup: (dbId: string, colId: string, patch: Partial<Pick<DbColumn, "rollupRelationId" | "rollupOp" | "rollupTargetColumnId">>) => void;
   removeColumn: (dbId: string, colId: string) => void;
   addRow: (dbId: string) => void;
+  /** Tambah baris dengan satu sel sudah terisi — dipakai "+ baris" per kolom Kanban. */
+  addRowInGroup: (dbId: string, colId: string, value: CellValue) => void;
   setCell: (dbId: string, rowId: string, colId: string, value: CellValue) => void;
   /** Tautkan/lepas satu baris tujuan di sel relasi (toggle). */
   toggleRelation: (dbId: string, rowId: string, colId: string, targetRowId: string) => void;
   removeRow: (dbId: string, rowId: string) => void;
+  setDatabaseView: (dbId: string, view: DatabaseView) => void;
+  setDatabaseGroupBy: (dbId: string, colId: string) => void;
+  setDatabaseDateBy: (dbId: string, colId: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
@@ -798,6 +806,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       columns: db.columns.map((c) => (c.id === colId ? { ...c, targetDatabaseId } : c)),
     })),
 
+  setRollup: (dbId, colId, patch) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
+    })),
+
   removeColumn: (dbId, colId) =>
     updateDatabase(set, dbId, (db) => ({
       ...db,
@@ -815,6 +829,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     updateDatabase(set, dbId, (db) => ({
       ...db,
       rows: [...db.rows, { id: crypto.randomUUID(), cells: {} }],
+    })),
+
+  addRowInGroup: (dbId, colId, value) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      rows: [...db.rows, { id: crypto.randomUUID(), cells: { [colId]: value } }],
     })),
 
   setCell: (dbId, rowId, colId, value) =>
@@ -843,6 +863,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ...db,
       rows: db.rows.filter((r) => r.id !== rowId),
     })),
+
+  setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
+
+  setDatabaseGroupBy: (dbId, colId) =>
+    updateDatabase(set, dbId, (db) => ({ ...db, groupBy: colId })),
+
+  setDatabaseDateBy: (dbId, colId) =>
+    updateDatabase(set, dbId, (db) => ({ ...db, dateBy: colId })),
 
   moveElement: (id, x, y) =>
     set((s) => {
