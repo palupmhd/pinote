@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { idbGet, idbSet } from "./idb";
+import type { BoardTemplate } from "./templates";
 import {
   DEFAULT_CAMERA,
   INBOX_BOARD_ID,
@@ -72,6 +73,8 @@ interface CanvasState extends Persisted {
    *  rapi, langsung siap diketik — tanpa memilih lokasi dulu. */
   captureToInbox: () => string;
   addBoard: (worldX: number, worldY: number) => string;
+  /** Buat papan baru dari template (kartu tertata) lalu langsung membukanya. */
+  addBoardFromTemplate: (template: BoardTemplate, worldX: number, worldY: number) => string;
   addTaskList: (worldX: number, worldY: number) => string;
   addLink: (worldX: number, worldY: number) => string;
   addDatabase: (worldX: number, worldY: number) => string;
@@ -439,6 +442,77 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       selectedIds: [elementId],
     }));
     return elementId;
+  },
+
+  addBoardFromTemplate: (template, worldX, worldY) => {
+    const elementId = crypto.randomUUID();
+    const newBoardId = crypto.randomUUID();
+    const now = Date.now();
+    set((s) => {
+      const boards = {
+        ...s.boards,
+        [newBoardId]: { id: newBoardId, title: template.title, parentBoardId: s.currentBoardId },
+      };
+      const elements = {
+        ...s.elements,
+        [elementId]: {
+          id: elementId,
+          boardId: s.currentBoardId,
+          type: "BOARD_REF" as const,
+          x: worldX - BOARD_CARD_WIDTH / 2,
+          y: worldY - 30,
+          width: BOARD_CARD_WIDTH,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: { boardId: newBoardId },
+          updatedAt: now,
+        },
+      };
+      // Isi papan baru dengan kartu template.
+      let z = 1;
+      for (const tc of template.cards) {
+        const cid = crypto.randomUUID();
+        if (tc.type === "NOTE") {
+          elements[cid] = {
+            id: cid,
+            boardId: newBoardId,
+            type: "NOTE",
+            x: tc.x,
+            y: tc.y,
+            width: tc.width ?? NOTE_WIDTH,
+            zIndex: z++,
+            content: { html: tc.html },
+            updatedAt: now,
+          };
+        } else {
+          elements[cid] = {
+            id: cid,
+            boardId: newBoardId,
+            type: "TASK_LIST",
+            x: tc.x,
+            y: tc.y,
+            width: tc.width ?? TASK_LIST_WIDTH,
+            zIndex: z++,
+            content: {
+              title: tc.title,
+              items: tc.items.map((text) => ({ id: crypto.randomUUID(), text, done: false })),
+            },
+            updatedAt: now,
+          };
+        }
+      }
+      // Langsung buka papan baru supaya isinya kelihatan; stash kamera lama.
+      const cameras = { ...s.cameras, [s.currentBoardId]: s.camera };
+      return {
+        boards,
+        elements,
+        cameras,
+        currentBoardId: newBoardId,
+        camera: DEFAULT_CAMERA,
+        selectedIds: [],
+        editingId: null,
+      };
+    });
+    return newBoardId;
   },
 
   addTaskList: (worldX, worldY) => {

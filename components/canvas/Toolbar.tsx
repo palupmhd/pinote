@@ -9,6 +9,7 @@ import { buildPresentationOrder } from "@/lib/presentation";
 import { useUiStore } from "@/lib/ui";
 import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
+import { TemplatePicker } from "./TemplatePicker";
 
 interface Props {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -23,6 +24,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addTaskList = useCanvasStore((s) => s.addTaskList);
   const addLink = useCanvasStore((s) => s.addLink);
   const addDatabase = useCanvasStore((s) => s.addDatabase);
+  const addBoardFromTemplate = useCanvasStore((s) => s.addBoardFromTemplate);
   const attachDatabase = useCanvasStore((s) => s.attachDatabase);
   const addImage = useCanvasStore((s) => s.addImage);
   const openBoard = useCanvasStore((s) => s.openBoard);
@@ -114,6 +116,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
               onAttach={(dbId) => {
                 const { x, y } = viewportCenter();
                 attachDatabase(dbId, x, y);
+              }}
+            />
+          )}
+          {t.label === "Papan" && (
+            <TemplatePicker
+              onPick={(tpl) => {
+                const { x, y } = viewportCenter();
+                addBoardFromTemplate(tpl, x, y);
               }}
             />
           )}
