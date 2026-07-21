@@ -34,7 +34,9 @@ function ImageCardBase({ element }: { element: ImageElement }) {
           next/image tak relevan untuk gambar yang sudah tertanam & dikecilkan */}
       <img
         src={src}
-        alt=""
+        // Gambar yang diimpor user = konten, bukan dekorasi → beri alt bermakna
+        // supaya tidak dilewati screen reader. (Caption yang bisa diedit: nanti.)
+        alt="Gambar terlampir"
         draggable={false}
         style={{ width: "100%", height, display: "block" }}
         className="select-none bg-neutral-100 object-cover"

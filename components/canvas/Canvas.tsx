@@ -265,10 +265,14 @@ export function Canvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Tangkapan cepat harus jalan dari MANA SAJA — termasuk saat sedang
-      // mengetik di kartu lain — supaya benar-benar tanpa gesekan. Karena itu
-      // dicek sebelum guard "sedang mengetik" di bawah. Konsekuensinya Cmd+I
-      // tak lagi jadi italic di editor; ditukar demi tangkap-dari-mana-saja.
+      // mengetik di editor note (contentEditable) — supaya benar-benar tanpa
+      // gesekan. Karena itu dicek sebelum guard "sedang mengetik" di bawah.
+      // Konsekuensinya Cmd+I tak lagi jadi italic di editor; ditukar demi
+      // tangkap-dari-mana-saja. TAPI jangan mencuri fokus dari field form
+      // (pencarian, email login): di INPUT/TEXTAREA, biarkan lewat.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+        const t = e.target as HTMLElement;
+        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
         e.preventDefault();
         captureToInbox();
         return;
@@ -282,6 +286,12 @@ export function Canvas() {
 
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+      // Overlay (pencarian / tabel database) menutupi kanvas → jangan biarkan
+      // shortcut yang mengubah kanvas di belakangnya (hapus, salin, undo, dll.)
+      // jalan. Escape tetap lewat supaya bisa dipakai menutup.
+      const ui = useUiStore.getState();
+      if ((ui.searchOpen || ui.openDatabaseId) && e.key !== "Escape") return;
 
       // Undo/redo. Saat mengetik di kartu, kita sudah keluar di atas → editor
       // teks pakai undo bawaan browser; di kanvas kosong, ini yang jalan.
@@ -532,7 +542,11 @@ export function Canvas() {
     }
   };
 
-  const onPointerUp = (e: React.PointerEvent) => {
+  // Satu jalur untuk mengakhiri gesture — dipakai pointerup (selesai normal)
+  // maupun pointercancel/lostpointercapture (dibatalkan browser/blur), supaya
+  // kursor tak nyangkut "grabbing", marquee tak tertinggal, dan kamera tetap
+  // di-commit. Pada pembatalan, seleksi marquee tidak di-commit.
+  const endGesture = (e: React.PointerEvent, cancelled: boolean) => {
     if (panRef.current?.pointerId === e.pointerId) {
       panRef.current = null;
       if (containerRef.current) containerRef.current.style.cursor = spaceRef.current ? "grab" : "default";
@@ -540,11 +554,14 @@ export function Canvas() {
       return;
     }
     if (marqueeRef.current?.pointerId === e.pointerId) {
-      commitMarquee();
+      if (!cancelled) commitMarquee();
       marqueeRef.current = null;
       if (marqueeDivRef.current) marqueeDivRef.current.style.display = "none";
     }
   };
+
+  const onPointerUp = (e: React.PointerEvent) => endGesture(e, false);
+  const onPointerCancel = (e: React.PointerEvent) => endGesture(e, true);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     if (!isBackground(e)) return;
@@ -563,6 +580,8 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onPointerCancel}
       onDoubleClick={onDoubleClick}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) e.preventDefault(); // izinkan drop
