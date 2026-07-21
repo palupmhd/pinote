@@ -23,6 +23,7 @@ import { ToastHost } from "./ToastHost";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
+import { INBOX_BOARD_ID } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
 const MIN_ZOOM = 0.25;
@@ -59,6 +60,7 @@ export function Canvas() {
   const addNote = useCanvasStore((s) => s.addNote);
   const addImage = useCanvasStore((s) => s.addImage);
   const captureToInbox = useCanvasStore((s) => s.captureToInbox);
+  const openBoard = useCanvasStore((s) => s.openBoard);
   const setCamera = useCanvasStore((s) => s.setCamera);
 
   const presenting = useUiStore((s) => s.presenting);
@@ -640,9 +642,35 @@ export function Canvas() {
 
       {hydrated && cards.length === 0 && !presenting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-neutral-400">
-            Klik dua kali di mana saja untuk membuat catatan
-          </p>
+          <div className="pointer-events-auto flex max-w-xs flex-col items-center gap-3 rounded-xl bg-white/80 p-6 text-center shadow-sm ring-1 ring-neutral-200 backdrop-blur">
+            <p className="text-sm font-medium text-neutral-700">Kanvas ini masih kosong</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  const cam = cameraRef.current;
+                  const wx = ((rect?.width ?? 0) / 2 - cam.x) / cam.zoom;
+                  const wy = ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom;
+                  addNote(wx, wy);
+                }}
+                className="rounded-md bg-blue-500 px-3 py-1.5 text-sm text-white hover:bg-blue-600"
+              >
+                + Catatan
+              </button>
+              {currentBoardId !== INBOX_BOARD_ID && (
+                <button
+                  onClick={() => openBoard(INBOX_BOARD_ID)}
+                  className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-200"
+                >
+                  📥 Buka Inbox
+                </button>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-neutral-400">
+              Klik dua kali di mana saja untuk catatan cepat · geser untuk geser kanvas ·
+              scroll/pinch untuk zoom · bilah kiri untuk papan, tabel & gambar
+            </p>
+          </div>
         </div>
       )}
 
