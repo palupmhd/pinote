@@ -310,7 +310,14 @@ export function DatabaseView() {
   const addColumn = useCanvasStore((s) => s.addColumn);
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
+  const openRowAsBoard = useCanvasStore((s) => s.openRowAsBoard);
   const setDatabaseView = useCanvasStore((s) => s.setDatabaseView);
+
+  // Buka isi kanvas sebuah baris: bikin/buka board bersarang lalu tutup overlay
+  // ini supaya kanvas board baru kelihatan (spec §7.2, irisan tipis).
+  const openRowCanvas = (rowId: string) => {
+    if (openRowAsBoard(db!.id, rowId)) close();
+  };
 
   // Esc menutup editor (tapi tidak saat sedang mengetik di sel — biar Esc di
   // input tak sengaja menutup seluruh tabel).
@@ -380,7 +387,7 @@ export function DatabaseView() {
           </div>
         ) : (db.view ?? "table") === "gallery" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
-            <GalleryBoard db={db} />
+            <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />
           </div>
         ) : (
         <>
@@ -415,11 +422,23 @@ export function DatabaseView() {
                       <CellEditor dbId={db.id} rowId={row.id} column={c} value={row.cells[c.id] ?? null} />
                     </td>
                   ))}
-                  <td className="px-2 text-center align-middle">
+                  <td className="whitespace-nowrap px-2 text-center align-middle">
+                    <button
+                      onClick={() => openRowCanvas(row.id)}
+                      title={row.boardId ? "Buka kanvas baris" : "Buka baris sebagai kanvas"}
+                      className={[
+                        "px-1",
+                        row.boardId
+                          ? "text-blue-500 hover:text-blue-700"
+                          : "text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100",
+                      ].join(" ")}
+                    >
+                      ⤢
+                    </button>
                     <button
                       onClick={() => removeRow(db.id, row.id)}
                       title="Hapus baris"
-                      className="text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                      className="px-1 text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
                     >
                       ✕
                     </button>

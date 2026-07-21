@@ -14,7 +14,13 @@ function cellSummary(col: DbColumn, v: CellValue): string | null {
   return `${col.name}: ${v}`;
 }
 
-export function GalleryBoard({ db }: { db: Database }) {
+export function GalleryBoard({
+  db,
+  onOpenRowCanvas,
+}: {
+  db: Database;
+  onOpenRowCanvas: (rowId: string) => void;
+}) {
   const setCell = useCanvasStore((s) => s.setCell);
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
@@ -55,13 +61,26 @@ export function GalleryBoard({ db }: { db: Database }) {
                 })}
               </div>
 
-              <button
-                onClick={() => removeRow(db.id, row.id)}
-                title="Hapus baris"
-                className="absolute right-1.5 top-1.5 text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
-              >
-                ✕
-              </button>
+              <div className="absolute right-1.5 top-1.5 flex items-center gap-1">
+                <button
+                  onClick={() => onOpenRowCanvas(row.id)}
+                  title={row.boardId ? "Buka kanvas baris" : "Buka baris sebagai kanvas"}
+                  className={
+                    row.boardId
+                      ? "text-blue-500 hover:text-blue-700"
+                      : "text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100"
+                  }
+                >
+                  ⤢
+                </button>
+                <button
+                  onClick={() => removeRow(db.id, row.id)}
+                  title="Hapus baris"
+                  className="text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           ))}
         </div>

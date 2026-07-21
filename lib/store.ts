@@ -112,6 +112,11 @@ interface CanvasState extends Persisted {
   /** Tautkan/lepas satu baris tujuan di sel relasi (toggle). */
   toggleRelation: (dbId: string, rowId: string, colId: string, targetRowId: string) => void;
   removeRow: (dbId: string, rowId: string) => void;
+  /** Buka isi kanvas sebuah baris (spec §7.2, irisan tipis). Board bersarangnya
+   *  dibuat lazy saat pertama dipanggil, lalu langsung dibuka. Mengembalikan id
+   *  board (atau null bila db/baris tak ada). Penutupan overlay database diurus
+   *  pemanggil supaya store tetap murni terhadap UI store. */
+  openRowAsBoard: (dbId: string, rowId: string) => string | null;
   setDatabaseView: (dbId: string, view: DatabaseView) => void;
   setDatabaseGroupBy: (dbId: string, colId: string) => void;
   setDatabaseDateBy: (dbId: string, colId: string) => void;
@@ -268,7 +273,23 @@ function removeElements(
       const stillReferenced = Object.values(ne).some(
         (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
       );
-      if (!stillReferenced) delete nd[el.content.databaseId];
+      if (!stillReferenced) {
+        // Board kanvas bertaut milik tiap baris ikut yatim → buang board +
+        // keturunannya + isinya, sama seperti penghapusan kartu BOARD_REF.
+        const db = nd[el.content.databaseId];
+        for (const r of db?.rows ?? []) {
+          if (!r.boardId || !nb[r.boardId]) continue;
+          const doomed = collectDescendants(nb, r.boardId);
+          for (const bid of doomed) {
+            delete nb[bid];
+            delete nc[bid];
+            for (const e of Object.values(ne)) {
+              if (e.boardId === bid) purge(e.id);
+            }
+          }
+        }
+        delete nd[el.content.databaseId];
+      }
     }
     // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
     // supaya kartu database di dalamnya ikut membuang tabelnya).
@@ -909,6 +930,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set((s) => {
       const db = s.databases[dbId];
       if (!db) return s;
+      const gone = db.rows.find((r) => r.id === rowId);
       const databases = { ...s.databases };
       // Hapus barisnya dari database asalnya.
       databases[dbId] = { ...db, rows: db.rows.filter((r) => r.id !== rowId) };
@@ -933,8 +955,58 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         });
         if (changed) databases[id] = { ...d, rows };
       }
+      // Baris punya kanvas bertaut → buang board + keturunannya + isinya, supaya
+      // tak jadi data menggantung (konsisten dg penghapusan kartu BOARD_REF).
+      if (gone?.boardId && s.boards[gone.boardId]) {
+        const nb = { ...s.boards };
+        const nc = { ...s.cameras };
+        const ne = { ...s.elements };
+        const doomed = collectDescendants(nb, gone.boardId);
+        for (const bid of doomed) {
+          delete nb[bid];
+          delete nc[bid];
+          for (const e of Object.values(ne)) {
+            if (e.boardId === bid) delete ne[e.id];
+          }
+        }
+        return { databases, boards: nb, cameras: nc, elements: ne };
+      }
       return { databases };
     }),
+
+  openRowAsBoard: (dbId, rowId) => {
+    const s0 = get();
+    const db = s0.databases[dbId];
+    const row = db?.rows.find((r) => r.id === rowId);
+    if (!db || !row) return null;
+    // Sudah punya kanvas & board-nya masih hidup → cukup buka.
+    if (row.boardId && s0.boards[row.boardId]) {
+      get().openBoard(row.boardId);
+      return row.boardId;
+    }
+    const newBoardId = crypto.randomUUID();
+    // Judul board = nilai kolom teks pertama yang terisi, kalau kosong "Baris".
+    const textCol = db.columns.find((c) => c.type === "text");
+    const tv = textCol ? row.cells[textCol.id] : null;
+    const title = typeof tv === "string" && tv.trim() ? tv.trim() : "Baris";
+    set((s) => {
+      const board: Board = { id: newBoardId, title, parentBoardId: s.currentBoardId };
+      const rows = (s.databases[dbId]?.rows ?? []).map((r) =>
+        r.id === rowId ? { ...r, boardId: newBoardId } : r
+      );
+      const cameras = { ...s.cameras, [s.currentBoardId]: s.camera };
+      return {
+        boards: { ...s.boards, [newBoardId]: board },
+        databases: { ...s.databases, [dbId]: { ...s.databases[dbId], rows } },
+        cameras,
+        currentBoardId: newBoardId,
+        camera: DEFAULT_CAMERA,
+        selectedIds: [],
+        editingId: null,
+      };
+    });
+    return newBoardId;
+  },
 
   setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
 
@@ -1073,6 +1145,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             ? { ...c, targetDatabaseId: dbIdMap.get(c.targetDatabaseId)! }
             : c
         );
+        // Lepas tautan kanvas baris: board bersarangnya tak ikut dikloning di
+        // jalur salin ini, jadi mempertahankan boardId akan membuat salinan &
+        // asli berbagi board yang sama (hapus di satu sisi menghapus di sisi lain).
+        // cloned = hasil structuredClone yang segar, jadi aman dimutasi.
+        for (const r of cloned.rows) delete r.boardId;
         databases[nid] = cloned;
       }
 

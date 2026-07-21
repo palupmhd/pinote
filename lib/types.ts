@@ -47,6 +47,10 @@ export interface DbRow {
   id: string;
   /** nilai per kolom, dikunci id kolom; kolom tanpa entri = sel kosong. */
   cells: Record<string, CellValue>;
+  /** Board bersarang opsional untuk "isi kanvas" baris ini (spec §7.2 dual-mode,
+   *  irisan tipis). Dibuat lazy saat pertama kali baris dibuka sebagai kanvas;
+   *  baris tanpa field ini = belum punya kanvas (mayoritas baris). */
+  boardId?: string;
 }
 
 export type DatabaseView = "table" | "kanban" | "calendar" | "gallery";
