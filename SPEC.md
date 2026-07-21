@@ -37,7 +37,8 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 
 **v2 (sedang berjalan, disetujui pemilik — satu per satu):**
 - **Database: tampilan Kanban** (§7.3 view mode) — pengalih Tabel ⇄ Kanban di header DatabaseView. Kanban mengelompokkan baris berdasarkan kolom teks/centang (default: kolom centang pertama), tiap grup jadi kolom kartu; pindah baris antar-grup lewat pemilih di kartu; "+ baris" per grup mengisi sel pengelompok otomatis; pemilih "Kelompokkan:" untuk ganti kolom. Mode & groupBy tersimpan di entitas Database (persist/sync). Terverifikasi (10 cek). *Catatan: interaksi pindah pakai dropdown, belum drag-and-drop — polish menyusul.*
-- **Belum & butuh keputusan desain:** Structured⇄Spatial dual-mode (§7.2) — bergantung apakah row jadi Nested Board (desain spec asli) atau tetap `{id,cells}` (implementasi sekarang). Calendar/Gallery view, Rollup/Formula preset, Backlinks (§10.3). **Tanya pemilik sebelum tiap item.**
+- **Database: tampilan Kalender** (§7.3 view mode) — pengalih Tabel⇄Kanban⇄Kalender. Kalender menempatkan baris pada grid bulan berdasarkan kolom Tanggal (default: kolom date pertama; pemilih "Berdasarkan:" bila ada beberapa). Navigasi bulan ‹ › + "Hari ini", hari ini disorot, "+" per hari menambah baris bertanggal itu, overflow "+N lagi". Kolom date tersimpan di entitas (`dateBy`, persist/sync). Bulan tampil = state lokal (selalu buka di bulan ini). Terverifikasi (9 cek).
+- **Belum & butuh keputusan desain:** Structured⇄Spatial dual-mode (§7.2) — bergantung apakah row jadi Nested Board (desain spec asli) atau tetap `{id,cells}` (implementasi sekarang). Gallery view, Rollup/Formula preset, Backlinks (§10.3). **Tanya pemilik sebelum tiap item.**
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan

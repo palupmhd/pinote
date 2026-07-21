@@ -111,6 +111,7 @@ interface CanvasState extends Persisted {
   removeRow: (dbId: string, rowId: string) => void;
   setDatabaseView: (dbId: string, view: DatabaseView) => void;
   setDatabaseGroupBy: (dbId: string, colId: string) => void;
+  setDatabaseDateBy: (dbId: string, colId: string) => void;
   moveElement: (id: string, x: number, y: number) => void;
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
@@ -859,6 +860,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setDatabaseGroupBy: (dbId, colId) =>
     updateDatabase(set, dbId, (db) => ({ ...db, groupBy: colId })),
+
+  setDatabaseDateBy: (dbId, colId) =>
+    updateDatabase(set, dbId, (db) => ({ ...db, dateBy: colId })),
 
   moveElement: (id, x, y) =>
     set((s) => {

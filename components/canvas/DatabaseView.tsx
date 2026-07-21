@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import type { CellValue, ColumnType, Database, DbColumn, DbRow } from "@/lib/types";
+import { CalendarBoard } from "./CalendarBoard";
 import { KanbanBoard } from "./KanbanBoard";
 
 const TYPE_LABEL: Record<ColumnType, string> = {
@@ -266,7 +267,7 @@ export function DatabaseView() {
           />
           {/* Pengalih tampilan (spec §7.3): Tabel ⇄ Kanban */}
           <div className="ml-2 flex shrink-0 rounded-md bg-neutral-100 p-0.5 text-xs">
-            {(["table", "kanban"] as const).map((v) => (
+            {(["table", "kanban", "calendar"] as const).map((v) => (
               <button
                 key={v}
                 onClick={() => setDatabaseView(db.id, v)}
@@ -275,7 +276,7 @@ export function DatabaseView() {
                   (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
                 ].join(" ")}
               >
-                {v === "table" ? "Tabel" : "Kanban"}
+                {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : "Kalender"}
               </button>
             ))}
           </div>
@@ -291,6 +292,10 @@ export function DatabaseView() {
         {(db.view ?? "table") === "kanban" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <KanbanBoard db={db} />
+          </div>
+        ) : (db.view ?? "table") === "calendar" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CalendarBoard db={db} />
           </div>
         ) : (
         <>

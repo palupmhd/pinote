@@ -40,7 +40,7 @@ export interface DbRow {
   cells: Record<string, CellValue>;
 }
 
-export type DatabaseView = "table" | "kanban";
+export type DatabaseView = "table" | "kanban" | "calendar";
 
 export interface Database {
   id: string;
@@ -51,6 +51,8 @@ export interface Database {
   view?: DatabaseView;
   /** Kolom pengelompok untuk Kanban (id kolom text/checkbox). */
   groupBy?: string;
+  /** Kolom tanggal untuk Kalender (id kolom date). */
+  dateBy?: string;
 }
 
 interface BaseElement {
