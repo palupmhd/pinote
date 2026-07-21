@@ -101,6 +101,8 @@ interface CanvasState extends Persisted {
   setColumnType: (dbId: string, colId: string, type: ColumnType) => void;
   /** Setel database tujuan untuk kolom "relation" (spec §8.6). */
   setColumnTarget: (dbId: string, colId: string, targetDatabaseId: string) => void;
+  /** Perbarui konfigurasi kolom "rollup" (spec §7.1). */
+  setRollup: (dbId: string, colId: string, patch: Partial<Pick<DbColumn, "rollupRelationId" | "rollupOp" | "rollupTargetColumnId">>) => void;
   removeColumn: (dbId: string, colId: string) => void;
   addRow: (dbId: string) => void;
   /** Tambah baris dengan satu sel sudah terisi — dipakai "+ baris" per kolom Kanban. */
@@ -802,6 +804,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     updateDatabase(set, dbId, (db) => ({
       ...db,
       columns: db.columns.map((c) => (c.id === colId ? { ...c, targetDatabaseId } : c)),
+    })),
+
+  setRollup: (dbId, colId, patch) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
     })),
 
   removeColumn: (dbId, colId) =>
