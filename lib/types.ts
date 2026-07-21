@@ -40,7 +40,7 @@ export interface DbRow {
   cells: Record<string, CellValue>;
 }
 
-export type DatabaseView = "table" | "kanban" | "calendar";
+export type DatabaseView = "table" | "kanban" | "calendar" | "gallery";
 
 export interface Database {
   id: string;
