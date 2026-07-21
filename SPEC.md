@@ -28,7 +28,8 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 **v1.1 (sedang berjalan, disetujui pemilik — dikerjakan satu per satu):**
 - **Offline cache (IndexedDB)** — persistensi lokal pindah dari localStorage ke IndexedDB (kapasitas jauh lebih besar; data URL gambar sebelumnya bisa menembus batas ~5MB localStorage). Migrasi sekali dari localStorage lama lalu kuncinya dihapus. Terverifikasi (simpan/muat/reload/migrasi/offline).
 - **Sync queue (online/offline-aware)** — `pull`/`push` menghormati `navigator.onLine`; saat offline statusnya "offline" dan perubahan tetap aman di IndexedDB (dirty), lalu di-flush otomatis oleh listener `online`. Indikator "Offline — tersimpan lokal" di chip sync. Catatan: ini offline **data**; shell aplikasi belum di-cache offline (butuh service worker/PWA — di luar item ini).
-- Belum: Minimap, Search, Template starter, Presentation Mode.
+- **Presentation Mode (spec §9.2/§10.2)** — tombol "▶ Presentasi" menelusuri kartu papan mengikuti arah Connector sebagai jalur cerita (mulai dari kartu tanpa panah masuk, DFS panah keluar; sisa kartu disisipkan di akhir; tanpa konektor → urut baca). Saat presentasi: semua chrome disembunyikan, kamera memusatkan & mem-pas-kan tiap kartu dengan transisi halus, kanvas view-only. Navigasi ←/→/spasi & bilah kontrol; Esc keluar & memulihkan kamera semula. Terverifikasi (urutan: 6 kasus unit; mekanik UI: 12 cek).
+- Belum: Minimap, Search, Template starter.
 
 **Sudah dibangun lebih awal dari jadwal (v1.1/v2, sebelum v1 tuntas):**
 - Task due dates + Agenda view (harusnya v2, nyusul Calendar) — terverifikasi jalan

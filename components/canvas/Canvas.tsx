@@ -5,6 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
 import { firstImageFile, importImageFile } from "@/lib/images";
+import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { Breadcrumb } from "./Breadcrumb";
@@ -14,10 +15,11 @@ import { DatabaseView } from "./DatabaseView";
 import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
 import { NoteCard } from "./NoteCard";
+import { PresentationBar } from "./PresentationBar";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
-import type { CardElement, ConnectorElement } from "@/lib/types";
+import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
@@ -51,6 +53,16 @@ export function Canvas() {
   const addNote = useCanvasStore((s) => s.addNote);
   const addImage = useCanvasStore((s) => s.addImage);
   const captureToInbox = useCanvasStore((s) => s.captureToInbox);
+  const setCamera = useCanvasStore((s) => s.setCamera);
+
+  const presenting = useUiStore((s) => s.presenting);
+  const presentOrder = useUiStore((s) => s.presentOrder);
+  const presentIndex = useUiStore((s) => s.presentIndex);
+  const presentNext = useUiStore((s) => s.presentNext);
+  const presentPrev = useUiStore((s) => s.presentPrev);
+  const exitPresentation = useUiStore((s) => s.exitPresentation);
+  const preCamRef = useRef<Camera | null>(null);
+  const wasPresenting = useRef(false);
   const select = useCanvasStore((s) => s.select);
   const setSelection = useCanvasStore((s) => s.setSelection);
   const setEditing = useCanvasStore((s) => s.setEditing);
@@ -305,6 +317,71 @@ export function Canvas() {
     return () => window.removeEventListener("paste", onPaste);
   }, [placeImageFile, viewportCenterWorld]);
 
+  // Presentation Mode: pada tiap langkah, pusatkan & pas-kan kamera ke kartunya.
+  // Saat masuk: simpan kamera awal, aktifkan transisi halus + kunci interaksi
+  // kartu. Saat keluar: pulihkan kamera & lepas kunci. useLayoutEffect supaya
+  // penyimpanan kamera awal terjadi sebelum langkah pertama menggesernya.
+  useLayoutEffect(() => {
+    const world = worldRef.current;
+    if (presenting && !wasPresenting.current) {
+      preCamRef.current = { ...cameraRef.current };
+      if (world) {
+        world.style.transition = "transform 350ms ease";
+        world.style.pointerEvents = "none";
+      }
+    }
+    if (!presenting && wasPresenting.current) {
+      if (world) {
+        world.style.transition = "";
+        world.style.pointerEvents = "";
+      }
+      if (preCamRef.current) {
+        setCamera(preCamRef.current);
+        preCamRef.current = null;
+      }
+    }
+    wasPresenting.current = presenting;
+    if (!presenting) return;
+
+    const id = presentOrder[presentIndex];
+    const el = useCanvasStore.getState().elements[id];
+    if (!el || el.type === "CONNECTOR") return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    const W = rect?.width ?? window.innerWidth;
+    const H = rect?.height ?? window.innerHeight;
+    const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
+    const ch = node?.offsetHeight ?? 120;
+    const cw = el.width;
+    // Pas-kan kartu ke ~2/3 viewport, dijepit ke rentang zoom kanvas.
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(W / (cw * 1.5), H / (ch * 1.6))));
+    const wx = el.x + cw / 2;
+    const wy = el.y + ch / 2;
+    setCamera({ x: W / 2 - wx * zoom, y: H / 2 - wy * zoom, zoom });
+  }, [presenting, presentIndex, presentOrder, setCamera]);
+
+  // Navigasi presentasi lewat keyboard. Capture phase + stopImmediatePropagation
+  // supaya pintasan kanvas biasa tidak ikut bereaksi saat presentasi.
+  useEffect(() => {
+    if (!presenting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        presentNext();
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        presentPrev();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        exitPresentation();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [presenting, presentNext, presentPrev, exitPresentation]);
+
   const isBackground = (e: React.PointerEvent | React.MouseEvent) =>
     (e.target as HTMLElement).dataset.canvasBg === "true";
 
@@ -356,6 +433,7 @@ export function Canvas() {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
+    if (presenting) return; // kanvas view-only saat presentasi
     // Pan: tombol tengah, atau Space + kiri di mana saja.
     if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
       startPan(e);
@@ -471,7 +549,7 @@ export function Canvas() {
           })}
       </div>
 
-      {hydrated && cards.length === 0 && (
+      {hydrated && cards.length === 0 && !presenting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <p className="text-sm text-neutral-400">
             Klik dua kali di mana saja untuk membuat catatan
@@ -486,18 +564,25 @@ export function Canvas() {
         className="pointer-events-none absolute z-10 hidden rounded-sm border border-blue-400 bg-blue-400/10"
       />
 
-      <Breadcrumb />
-      <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
-      <SyncStatus />
-      <AgendaView />
-      <DatabaseView />
+      {/* Saat presentasi: sembunyikan semua chrome, tampilkan hanya bilah kontrol. */}
+      {presenting ? (
+        <PresentationBar />
+      ) : (
+        <>
+          <Breadcrumb />
+          <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
+          <SyncStatus />
+          <AgendaView />
+          <DatabaseView />
 
-      <div
-        ref={zoomBadgeRef}
-        className="pointer-events-none absolute bottom-3 right-4 text-xs text-neutral-400"
-      >
-        100% · tersimpan otomatis (lokal)
-      </div>
+          <div
+            ref={zoomBadgeRef}
+            className="pointer-events-none absolute bottom-3 right-4 text-xs text-neutral-400"
+          >
+            100% · tersimpan otomatis (lokal)
+          </div>
+        </>
+      )}
     </div>
   );
 }

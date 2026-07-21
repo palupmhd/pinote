@@ -5,8 +5,9 @@ import { useCanvasStore } from "@/lib/store";
 import { exportBoardPng } from "@/lib/exportImage";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
+import { buildPresentationOrder } from "@/lib/presentation";
 import { useUiStore } from "@/lib/ui";
-import { INBOX_BOARD_ID, type Camera } from "@/lib/types";
+import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
 
 interface Props {
@@ -31,6 +32,17 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const canRedo = useHistoryStore((s) => s.canRedo);
   const toggleAgenda = useUiStore((s) => s.toggleAgenda);
   const agendaOpen = useUiStore((s) => s.agendaOpen);
+  const startPresentation = useUiStore((s) => s.startPresentation);
+
+  const onPresent = () => {
+    const st = useCanvasStore.getState();
+    const onBoard = Object.values(st.elements).filter((e) => e.boardId === st.currentBoardId);
+    const cards = onBoard
+      .filter((e): e is CardElement => e.type !== "CONNECTOR")
+      .map((c) => ({ id: c.id, x: c.x, y: c.y }));
+    const connectors = onBoard.filter((e): e is ConnectorElement => e.type === "CONNECTOR");
+    startPresentation(buildPresentationOrder(cards, connectors));
+  };
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -126,6 +138,14 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
         ].join(" ")}
       >
         📥 Inbox
+      </button>
+
+      <button
+        onClick={onPresent}
+        title="Presentasi — telusuri kartu mengikuti arah konektor (←/→, Esc keluar)"
+        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
+      >
+        ▶ Presentasi
       </button>
 
       <button
