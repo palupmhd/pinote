@@ -333,37 +333,41 @@ export function DatabaseView() {
   if (!openId || !db) return null;
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-6">
-      <div className="flex max-h-full w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
+    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6">
+      {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat. */}
+      <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-full sm:rounded-lg">
+        <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-3">
           <input
             value={db.title}
             onChange={(e) => renameDatabase(db.id, e.target.value)}
             placeholder="Judul database"
-            className="min-w-0 flex-1 bg-transparent text-base font-semibold text-neutral-800 outline-none placeholder:text-neutral-300"
+            className="order-1 min-w-0 flex-1 basis-40 bg-transparent text-base font-semibold text-neutral-800 outline-none placeholder:text-neutral-300"
           />
-          {/* Pengalih tampilan (spec §7.3): Tabel ⇄ Kanban */}
-          <div className="ml-2 flex shrink-0 rounded-md bg-neutral-100 p-0.5 text-xs">
-            {(["table", "kanban", "calendar", "gallery"] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setDatabaseView(db.id, v)}
-                className={[
-                  "rounded px-2 py-1",
-                  (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
-                ].join(" ")}
-              >
-                {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : "Galeri"}
-              </button>
-            ))}
-          </div>
           <button
             onClick={close}
-            className="ml-2 shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+            className="order-2 shrink-0 rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 sm:order-3"
             aria-label="Tutup"
           >
             ✕
           </button>
+          {/* Pengalih tampilan (spec §7.3). Di layar sempit: baris sendiri, bisa
+              digeser horizontal supaya tak menekan judul. */}
+          <div className="order-3 w-full overflow-x-auto sm:order-2 sm:w-auto">
+            <div className="flex w-max rounded-md bg-neutral-100 p-0.5 text-xs">
+              {(["table", "kanban", "calendar", "gallery"] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setDatabaseView(db.id, v)}
+                  className={[
+                    "shrink-0 whitespace-nowrap rounded px-2 py-1",
+                    (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
+                  ].join(" ")}
+                >
+                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : "Galeri"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {(db.view ?? "table") === "kanban" ? (
