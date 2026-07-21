@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Milnote",
+  title: "Swanote",
   description: "Visual workspace — kanvas untuk catatan, ide, dan proyek",
 };
 

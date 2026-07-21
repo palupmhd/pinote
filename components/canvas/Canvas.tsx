@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react"
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
+import { toast } from "@/lib/toast";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
@@ -18,9 +19,11 @@ import { Minimap, computeMinimapGeo, type MinimapGeo } from "./Minimap";
 import { NoteCard } from "./NoteCard";
 import { PresentationBar } from "./PresentationBar";
 import { SearchPanel } from "./SearchPanel";
+import { ToastHost } from "./ToastHost";
 import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
+import { INBOX_BOARD_ID } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
 const MIN_ZOOM = 0.25;
@@ -57,6 +60,7 @@ export function Canvas() {
   const addNote = useCanvasStore((s) => s.addNote);
   const addImage = useCanvasStore((s) => s.addImage);
   const captureToInbox = useCanvasStore((s) => s.captureToInbox);
+  const openBoard = useCanvasStore((s) => s.openBoard);
   const setCamera = useCanvasStore((s) => s.setCamera);
 
   const presenting = useUiStore((s) => s.presenting);
@@ -86,6 +90,14 @@ export function Canvas() {
     () => visible.filter((e): e is ConnectorElement => e.type === "CONNECTOR"),
     [visible]
   );
+
+  // Jumlah item per papan, dihitung sekali dari seluruh elemen — supaya tiap
+  // BoardCard tidak memindai `elements` sendiri (O(kartu papan × elemen)).
+  const countByBoard = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const el of Object.values(elements)) m.set(el.boardId, (m.get(el.boardId) ?? 0) + 1);
+    return m;
+  }, [elements]);
 
   // Panah relasi (spec §8.6): diturunkan dari kolom relasi antar tabel, BUKAN
   // disimpan sebagai elemen. Satu panah per pasangan (kartu sumber → kartu
@@ -257,10 +269,14 @@ export function Canvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Tangkapan cepat harus jalan dari MANA SAJA — termasuk saat sedang
-      // mengetik di kartu lain — supaya benar-benar tanpa gesekan. Karena itu
-      // dicek sebelum guard "sedang mengetik" di bawah. Konsekuensinya Cmd+I
-      // tak lagi jadi italic di editor; ditukar demi tangkap-dari-mana-saja.
+      // mengetik di editor note (contentEditable) — supaya benar-benar tanpa
+      // gesekan. Karena itu dicek sebelum guard "sedang mengetik" di bawah.
+      // Konsekuensinya Cmd+I tak lagi jadi italic di editor; ditukar demi
+      // tangkap-dari-mana-saja. TAPI jangan mencuri fokus dari field form
+      // (pencarian, email login): di INPUT/TEXTAREA, biarkan lewat.
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+        const t = e.target as HTMLElement;
+        if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
         e.preventDefault();
         captureToInbox();
         return;
@@ -274,6 +290,12 @@ export function Canvas() {
 
       const target = e.target as HTMLElement;
       if (target.isContentEditable || target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+      // Overlay (pencarian / tabel database) menutupi kanvas → jangan biarkan
+      // shortcut yang mengubah kanvas di belakangnya (hapus, salin, undo, dll.)
+      // jalan. Escape tetap lewat supaya bisa dipakai menutup.
+      const ui = useUiStore.getState();
+      if ((ui.searchOpen || ui.openDatabaseId) && e.key !== "Escape") return;
 
       // Undo/redo. Saat mengetik di kartu, kita sudah keluar di atas → editor
       // teks pakai undo bawaan browser; di kanvas kosong, ini yang jalan.
@@ -304,7 +326,13 @@ export function Canvas() {
 
       const { selectedIds, editingId } = useCanvasStore.getState();
       if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.length && !editingId) {
+        const n = selectedIds.length;
         removeMany(selectedIds);
+        // Hapus bisa mengikis subpohon papan yang besar — beri jalan pulang.
+        toast(n > 1 ? `${n} kartu dihapus` : "Kartu dihapus", {
+          actionLabel: "Urungkan",
+          onAction: undo,
+        });
       }
       if (e.key === "Escape") {
         setEditing(null);
@@ -524,7 +552,11 @@ export function Canvas() {
     }
   };
 
-  const onPointerUp = (e: React.PointerEvent) => {
+  // Satu jalur untuk mengakhiri gesture — dipakai pointerup (selesai normal)
+  // maupun pointercancel/lostpointercapture (dibatalkan browser/blur), supaya
+  // kursor tak nyangkut "grabbing", marquee tak tertinggal, dan kamera tetap
+  // di-commit. Pada pembatalan, seleksi marquee tidak di-commit.
+  const endGesture = (e: React.PointerEvent, cancelled: boolean) => {
     if (panRef.current?.pointerId === e.pointerId) {
       panRef.current = null;
       if (containerRef.current) containerRef.current.style.cursor = spaceRef.current ? "grab" : "default";
@@ -532,11 +564,14 @@ export function Canvas() {
       return;
     }
     if (marqueeRef.current?.pointerId === e.pointerId) {
-      commitMarquee();
+      if (!cancelled) commitMarquee();
       marqueeRef.current = null;
       if (marqueeDivRef.current) marqueeDivRef.current.style.display = "none";
     }
   };
+
+  const onPointerUp = (e: React.PointerEvent) => endGesture(e, false);
+  const onPointerCancel = (e: React.PointerEvent) => endGesture(e, true);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     if (!isBackground(e)) return;
@@ -555,6 +590,8 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onLostPointerCapture={onPointerCancel}
       onDoubleClick={onDoubleClick}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) e.preventDefault(); // izinkan drop
@@ -593,7 +630,8 @@ export function Canvas() {
 
         {hydrated &&
           cards.map((el) => {
-            if (el.type === "BOARD_REF") return <BoardCard key={el.id} element={el} />;
+            if (el.type === "BOARD_REF")
+              return <BoardCard key={el.id} element={el} count={countByBoard.get(el.content.boardId) ?? 0} />;
             if (el.type === "TASK_LIST") return <TaskListCard key={el.id} element={el} />;
             if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
             if (el.type === "IMAGE") return <ImageCard key={el.id} element={el} />;
@@ -604,9 +642,35 @@ export function Canvas() {
 
       {hydrated && cards.length === 0 && !presenting && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-neutral-400">
-            Klik dua kali di mana saja untuk membuat catatan
-          </p>
+          <div className="pointer-events-auto flex max-w-xs flex-col items-center gap-3 rounded-xl bg-white/80 p-6 text-center shadow-sm ring-1 ring-neutral-200 backdrop-blur">
+            <p className="text-sm font-medium text-neutral-700">Kanvas ini masih kosong</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                onClick={() => {
+                  const rect = containerRef.current?.getBoundingClientRect();
+                  const cam = cameraRef.current;
+                  const wx = ((rect?.width ?? 0) / 2 - cam.x) / cam.zoom;
+                  const wy = ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom;
+                  addNote(wx, wy);
+                }}
+                className="rounded-md bg-blue-500 px-3 py-1.5 text-sm text-white hover:bg-blue-600"
+              >
+                + Catatan
+              </button>
+              {currentBoardId !== INBOX_BOARD_ID && (
+                <button
+                  onClick={() => openBoard(INBOX_BOARD_ID)}
+                  className="rounded-md bg-neutral-100 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-200"
+                >
+                  📥 Buka Inbox
+                </button>
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-neutral-400">
+              Klik dua kali di mana saja untuk catatan cepat · geser untuk geser kanvas ·
+              scroll/pinch untuk zoom · bilah kiri untuk papan, tabel & gambar
+            </p>
+          </div>
         </div>
       )}
 
@@ -640,6 +704,9 @@ export function Canvas() {
           </div>
         </>
       )}
+
+      {/* Toast selalu tampil (termasuk saat presentasi) — konfirmasi aksi. */}
+      <ToastHost />
     </div>
   );
 }

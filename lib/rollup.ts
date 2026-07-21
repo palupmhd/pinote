@@ -15,9 +15,15 @@ export function computeRollup(
 
   const links = Array.isArray(row.cells[relCol.id]) ? (row.cells[relCol.id] as string[]) : [];
   const op = col.rollupOp ?? "count";
-  if (op === "count") return links.length;
-
   const targetDb = relCol.targetDatabaseId ? databases[relCol.targetDatabaseId] : undefined;
+
+  if (op === "count") {
+    // Hitung hanya tautan yang barisnya masih ada — konsisten dengan chip yang
+    // ditampilkan (yang juga menyaring baris terhapus) dan dengan sum/avg/min/max.
+    if (!targetDb) return links.length;
+    return links.filter((id) => targetDb.rows.some((r) => r.id === id)).length;
+  }
+
   const targetColId = col.rollupTargetColumnId;
   if (!targetDb || !targetColId) return null;
 
@@ -27,7 +33,8 @@ export function computeRollup(
     .map((r) => r.cells[targetColId])
     .filter((v): v is number => typeof v === "number");
 
-  if (nums.length === 0) return 0;
+  // Tanpa nilai: sum wajar 0, tapi min/max/avg "nol" itu mengada-ada → kosong.
+  if (nums.length === 0) return op === "sum" ? 0 : null;
   switch (op) {
     case "sum":
       return nums.reduce((a, b) => a + b, 0);

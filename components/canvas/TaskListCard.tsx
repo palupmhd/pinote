@@ -5,10 +5,13 @@ import { daysFromToday, formatShort } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { TaskItem, TaskListElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
-/** Kontrol tenggat mungil per item: tombol (tanggal atau ikon) yang memicu
- *  pemilih tanggal native lewat input tersembunyi di sebelahnya. */
+/** Kontrol tenggat mungil per item: label terlihat (tanggal atau ikon) dengan
+ *  input date native transparan menutupinya. Input-nya nyata (bisa di-Tab,
+ *  dioperasikan keyboard, dan menampilkan pemilih native) — bukan lagi kotak
+ *  0×0 tabIndex -1 yang tak terjangkau keyboard dan rusak tanpa showPicker. */
 function DueControl({ item, onChange }: { item: TaskItem; onChange: (due: string | null) => void }) {
   const overdue = !!item.due && !item.done && daysFromToday(item.due) < 0;
   const cls = item.due
@@ -17,31 +20,27 @@ function DueControl({ item, onChange }: { item: TaskItem; onChange: (due: string
       : "text-neutral-500"
     : "text-neutral-300 opacity-0 group-hover:opacity-100 focus-within:opacity-100";
   return (
-    <span className={`relative shrink-0 text-xs tabular-nums ${cls}`}>
-      <button
-        type="button"
-        title={item.due ? `Tenggat ${item.due} — klik untuk ubah` : "Setel tenggat"}
-        onClick={(e) => {
-          const input = e.currentTarget.nextElementSibling as HTMLInputElement | null;
-          if (!input) return;
-          input.focus();
-          try {
-            input.showPicker?.();
-          } catch {
-            /* butuh gesture / tak didukung — input tetap bisa diketik */
-          }
-        }}
-        className="cursor-pointer px-1 hover:text-neutral-700"
-      >
+    <span className={`relative inline-flex shrink-0 items-center text-xs tabular-nums ${cls}`}>
+      <span aria-hidden className="pointer-events-none px-1">
         {item.due ? formatShort(item.due) : "📅"}
-      </button>
+      </span>
       <input
         type="date"
         value={item.due ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
-        tabIndex={-1}
-        aria-label="Tenggat"
-        className="absolute inset-0 h-0 w-0 opacity-0"
+        onPointerDown={(e) => e.stopPropagation()} // jangan mulai drag kartu
+        onClick={(e) => {
+          // Buka pemilih native bila didukung; kalau tidak, input tetap fokus &
+          // bisa diketik/dioperasikan keyboard.
+          try {
+            (e.currentTarget as HTMLInputElement).showPicker?.();
+          } catch {
+            /* butuh gesture / tak didukung */
+          }
+        }}
+        aria-label={item.due ? `Tenggat ${item.due}, ubah` : "Setel tenggat"}
+        title={item.due ? `Tenggat ${item.due}` : "Setel tenggat"}
+        className="absolute inset-0 cursor-pointer opacity-0"
       />
     </span>
   );
@@ -102,6 +101,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
 
       <div className="mb-1.5 flex items-baseline gap-2">
         <input

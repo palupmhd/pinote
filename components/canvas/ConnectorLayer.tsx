@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
 import { connectorPath, curveBetween, type Point } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
@@ -36,12 +36,18 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
   const livePos = useRef(new Map<string, Point>());
   const removeConnector = useCanvasStore((s) => s.removeElement);
 
+  // Cermin props terbaru untuk redraw imperatif (dipanggil dari canvasBus,
+  // di luar render). Disetel di layout-effect, bukan saat render, supaya tidak
+  // melanggar aturan "jangan sentuh ref saat render" tapi tetap segar sebelum
+  // effect redraw di bawah dijalankan.
   const cardsRef = useRef(cards);
-  cardsRef.current = cards;
   const connectorsRef = useRef(connectors);
-  connectorsRef.current = connectors;
   const relationsRef = useRef(relations);
-  relationsRef.current = relations;
+  useLayoutEffect(() => {
+    cardsRef.current = cards;
+    connectorsRef.current = connectors;
+    relationsRef.current = relations;
+  }, [cards, connectors, relations]);
 
   /** Tinggi kartu tidak ada di data model (tinggi mengikuti isi), jadi diukur
    *  dari DOM. Lebar & posisi dari store, ditimpa posisi live saat digeser. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { idbGet, idbSet } from "./idb";
+import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
   DEFAULT_CAMERA,
@@ -22,7 +22,8 @@ import {
   type TaskListElement,
 } from "./types";
 
-const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dimigrasi sekali)
+const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
+const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
 const NOTE_WIDTH = 248;
 const BOARD_CARD_WIDTH = 200;
@@ -184,6 +185,31 @@ function updateDatabase(
   });
 }
 
+/** Konversi/buang nilai sel saat tipe kolom berubah. Mengembalikan `undefined`
+ *  berarti sel harus dihapus (data lama tak cocok tipe baru) — supaya tidak ada
+ *  nilai hantu yang UI utama sembunyikan tapi search/summary/export masih baca. */
+function coerceCell(value: CellValue, type: ColumnType): CellValue | undefined {
+  switch (type) {
+    case "text":
+      if (typeof value === "string") return value;
+      if (typeof value === "number") return String(value);
+      return undefined;
+    case "number":
+      if (typeof value === "number") return value;
+      if (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)))
+        return Number(value);
+      return undefined;
+    case "checkbox":
+      return typeof value === "boolean" ? value : undefined; // jangan menebak dari teks
+    case "date":
+      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+    case "relation":
+      return Array.isArray(value) ? value : undefined;
+    case "rollup":
+      return undefined; // kolom hitung — tak menyimpan sel
+  }
+}
+
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
   const zs = Object.values(elements)
     .filter((e) => e.boardId === boardId && e.type !== "CONNECTOR")
@@ -284,6 +310,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (get().hydrated) return;
     try {
       let data = await idbGet<Partial<Persisted>>(IDB_WORKSPACE_KEY);
+      // Migrasi sekali dari IndexedDB lama (nama db "pinote") → db baru "swanote",
+      // supaya rename produk tidak menghilangkan workspace lokal yang sudah ada.
+      if (!data) {
+        const legacy = await idbGetFrom<Partial<Persisted>>(LEGACY_IDB_DB, "kv", IDB_WORKSPACE_KEY);
+        if (legacy) {
+          data = legacy;
+          await idbSet(IDB_WORKSPACE_KEY, data);
+        }
+      }
       // Migrasi sekali dari localStorage (versi sebelum IndexedDB) → IndexedDB.
       if (!data) {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -294,7 +329,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
       }
       if (data) {
-        const boards: Record<string, Board> = { ...baseBoards(), ...(data.boards ?? {}) };
+        // baseBoards() terakhir: papan bawaan (root/inbox) selalu pakai definisi
+        // kanonik, tak bisa ditimpa data persisted yang korup/basi.
+        const boards: Record<string, Board> = { ...(data.boards ?? {}), ...baseBoards() };
         const currentBoardId =
           data.currentBoardId && boards[data.currentBoardId]
             ? data.currentBoardId
@@ -317,7 +354,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   replaceWorkspace: (data) => {
-    const boards: Record<string, Board> = { ...baseBoards(), ...data.boards };
+    const boards: Record<string, Board> = { ...data.boards, ...baseBoards() };
     const currentBoardId = boards[data.currentBoardId] ? data.currentBoardId : ROOT_BOARD_ID;
     set({
       boards,
@@ -333,7 +370,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   applyHistory: (snap) =>
     set((s) => {
-      const boards: Record<string, Board> = { ...baseBoards(), ...snap.boards };
+      const boards: Record<string, Board> = { ...snap.boards, ...baseBoards() };
       // Papan yang sedang dibuka mungkin ikut terhapus oleh langkah yang
       // dipulihkan → jatuh ke root supaya kanvas tidak menampilkan papan hantu.
       const currentBoardId = boards[snap.currentBoardId] ? snap.currentBoardId : ROOT_BOARD_ID;
@@ -798,6 +835,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             { ...c, type, ...(type === "relation" ? {} : { targetDatabaseId: undefined }) }
           : c
       ),
+      // Normalisasi sel kolom ini ke tipe baru — konversi bila bisa, buang bila
+      // tak cocok, supaya tak ada data lama tersembunyi yang bocor ke search/export.
+      rows: db.rows.map((r) => {
+        if (!(colId in r.cells)) return r;
+        const next = coerceCell(r.cells[colId], type);
+        const cells = { ...r.cells };
+        if (next === undefined) delete cells[colId];
+        else cells[colId] = next;
+        return { ...r, cells };
+      }),
     })),
 
   setColumnTarget: (dbId, colId, targetDatabaseId) =>
@@ -859,10 +906,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })),
 
   removeRow: (dbId, rowId) =>
-    updateDatabase(set, dbId, (db) => ({
-      ...db,
-      rows: db.rows.filter((r) => r.id !== rowId),
-    })),
+    set((s) => {
+      const db = s.databases[dbId];
+      if (!db) return s;
+      const databases = { ...s.databases };
+      // Hapus barisnya dari database asalnya.
+      databases[dbId] = { ...db, rows: db.rows.filter((r) => r.id !== rowId) };
+      // Bersihkan tautan masuk: relasi mana pun yang menunjuk baris ini kini
+      // menggantung — buang idnya supaya count rollup & chip tetap konsisten.
+      for (const [id, d] of Object.entries(databases)) {
+        const relCols = d.columns.filter(
+          (c) => c.type === "relation" && c.targetDatabaseId === dbId
+        );
+        if (relCols.length === 0) continue;
+        let changed = false;
+        const rows = d.rows.map((r) => {
+          let cells = r.cells;
+          for (const col of relCols) {
+            const v = cells[col.id];
+            if (Array.isArray(v) && v.includes(rowId)) {
+              cells = { ...cells, [col.id]: (v as string[]).filter((x) => x !== rowId) };
+              changed = true;
+            }
+          }
+          return cells === r.cells ? r : { ...r, cells };
+        });
+        if (changed) databases[id] = { ...d, rows };
+      }
+      return { databases };
+    }),
 
   setDatabaseView: (dbId, view) => updateDatabase(set, dbId, (db) => ({ ...db, view })),
 
@@ -992,7 +1064,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const databases = { ...s.databases };
       for (const [oldId, db] of Object.entries(payload.databases)) {
         const nid = dbIdMap.get(oldId)!;
-        databases[nid] = structuredClone({ ...db, id: nid });
+        const cloned = structuredClone({ ...db, id: nid });
+        // Relasi ke database yang ikut tersalin harus menunjuk salinannya, bukan
+        // aslinya. (Id kolom & baris dipertahankan saat kloning, jadi sel relasi
+        // dan rollup tetap valid tanpa dipetakan ulang.)
+        cloned.columns = cloned.columns.map((c) =>
+          c.type === "relation" && c.targetDatabaseId && dbIdMap.has(c.targetDatabaseId)
+            ? { ...c, targetDatabaseId: dbIdMap.get(c.targetDatabaseId)! }
+            : c
+        );
+        databases[nid] = cloned;
       }
 
       const boards = { ...s.boards };
@@ -1092,11 +1173,28 @@ export function breadcrumbPath(
 // localStorage karena data URL gambar menembus batas ~5MB-nya; IndexedDB juga
 // menyimpan objek langsung tanpa biaya JSON.stringify.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let lastDocRefs: Pick<CanvasState, "boards" | "elements" | "databases" | "currentBoardId"> | null =
+  null;
 useCanvasStore.subscribe((state) => {
   if (!state.hydrated) return;
+  // Perubahan dokumen vs cuma kamera (pan/zoom). Kamera ikut disimpan supaya
+  // viewport pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar)
+  // tiap geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
+  const docChanged =
+    !lastDocRefs ||
+    lastDocRefs.boards !== state.boards ||
+    lastDocRefs.elements !== state.elements ||
+    lastDocRefs.databases !== state.databases ||
+    lastDocRefs.currentBoardId !== state.currentBoardId;
+  lastDocRefs = {
+    boards: state.boards,
+    elements: state.elements,
+    databases: state.databases,
+    currentBoardId: state.currentBoardId,
+  };
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     // Simpan gagal (mis. kuota) tidak boleh mengganggu interaksi.
     void idbSet(IDB_WORKSPACE_KEY, snapshot(state)).catch(() => {});
-  }, 400);
+  }, docChanged ? 400 : 1500);
 });

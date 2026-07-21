@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { todayStr } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import type { Database, DbColumn } from "@/lib/types";
@@ -25,9 +25,33 @@ function monthGrid(year: number, month: number): Date[] {
   });
 }
 
+/** Kelompokkan baris per tanggal ("YYYY-MM-DD"). Murni & di scope modul supaya
+ *  React Compiler yang menangani memoisasi, tanpa useMemo manual. */
+function bucketByDay(db: Database, dateCol: DbColumn): Map<string, Database["rows"]> {
+  const m = new Map<string, Database["rows"]>();
+  for (const r of db.rows) {
+    const v = r.cells[dateCol.id];
+    if (typeof v !== "string" || !v) continue;
+    (m.get(v) ?? m.set(v, []).get(v)!).push(r);
+  }
+  return m;
+}
+
+/** "2026-08-15" → "Sabtu, 15 Agustus 2026". Key kosong/invalid → "". */
+function longDate(key: string): string {
+  const [y, m, d] = key.split("-").map(Number);
+  if (!y || !m || !d) return "";
+  const wd = WEEKDAYS_LONG[new Date(y, m - 1, d).getDay()];
+  return `${wd}, ${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+const WEEKDAYS_LONG = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+
 export function CalendarBoard({ db }: { db: Database }) {
   const setDatabaseDateBy = useCanvasStore((s) => s.setDatabaseDateBy);
   const addRowInGroup = useCanvasStore((s) => s.addRowInGroup);
+  const setCell = useCanvasStore((s) => s.setCell);
+  const removeRow = useCanvasStore((s) => s.removeRow);
 
   const dateCols = db.columns.filter((c) => c.type === "date");
   const dateCol: DbColumn | undefined =
@@ -36,17 +60,9 @@ export function CalendarBoard({ db }: { db: Database }) {
 
   const now = new Date();
   const [ym, setYm] = useState({ year: now.getFullYear(), month: now.getMonth() });
+  const [openDay, setOpenDay] = useState<string | null>(null); // tanggal yang drawer-nya terbuka
 
-  const byDay = useMemo(() => {
-    const m = new Map<string, Database["rows"]>();
-    if (!dateCol) return m;
-    for (const r of db.rows) {
-      const v = r.cells[dateCol.id];
-      if (typeof v !== "string" || !v) continue;
-      (m.get(v) ?? m.set(v, []).get(v)!).push(r);
-    }
-    return m;
-  }, [db.rows, dateCol]);
+  const byDay = dateCol ? bucketByDay(db, dateCol) : new Map<string, Database["rows"]>();
 
   if (!dateCol) {
     return (
@@ -70,7 +86,7 @@ export function CalendarBoard({ db }: { db: Database }) {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-100 px-4 py-2 text-sm">
         <button onClick={() => shift(-1)} className="rounded px-2 py-0.5 text-neutral-500 hover:bg-neutral-100" title="Bulan sebelumnya">‹</button>
         <span className="min-w-[9rem] text-center font-medium text-neutral-700">
@@ -138,18 +154,78 @@ export function CalendarBoard({ db }: { db: Database }) {
               </div>
               <div className="mt-0.5 space-y-0.5">
                 {rows.slice(0, 3).map((r) => (
-                  <div key={r.id} className="truncate rounded bg-blue-50 px-1 py-0.5 text-[11px] text-blue-700">
+                  <button
+                    key={r.id}
+                    onClick={() => setOpenDay(key)}
+                    title="Lihat / edit hari ini"
+                    className="block w-full truncate rounded bg-blue-50 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-100"
+                  >
                     {label(r)}
-                  </div>
+                  </button>
                 ))}
                 {rows.length > 3 && (
-                  <div className="px-1 text-[10px] text-neutral-400">+{rows.length - 3} lagi</div>
+                  <button
+                    onClick={() => setOpenDay(key)}
+                    className="px-1 text-[10px] text-neutral-400 hover:text-neutral-700"
+                  >
+                    +{rows.length - 3} lagi
+                  </button>
                 )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Drawer hari: daftar penuh baris di satu tanggal, bisa edit/hapus/tambah
+          — jalan keluar dari batas "3 item + N lagi" per sel. */}
+      {openDay && (
+        <div className="absolute inset-y-0 right-0 z-10 flex w-72 max-w-full flex-col border-l border-neutral-200 bg-white shadow-xl">
+          <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-2">
+            <span className="text-sm font-medium text-neutral-700">{longDate(openDay)}</span>
+            <button
+              onClick={() => setOpenDay(null)}
+              className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+              aria-label="Tutup"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+            {(byDay.get(openDay) ?? []).length === 0 ? (
+              <p className="px-1 py-4 text-center text-xs text-neutral-400">Belum ada baris.</p>
+            ) : (
+              (byDay.get(openDay) ?? []).map((r) => (
+                <div key={r.id} className="group flex items-center gap-1 rounded px-1 hover:bg-neutral-50">
+                  {titleCol ? (
+                    <input
+                      value={typeof r.cells[titleCol.id] === "string" ? (r.cells[titleCol.id] as string) : ""}
+                      onChange={(e) => setCell(db.id, r.id, titleCol.id, e.target.value || null)}
+                      placeholder="Tanpa judul"
+                      className="min-w-0 flex-1 bg-transparent py-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-300"
+                    />
+                  ) : (
+                    <span className="flex-1 py-1 text-sm text-neutral-500">Baris</span>
+                  )}
+                  <button
+                    onClick={() => removeRow(db.id, r.id)}
+                    title="Hapus baris"
+                    className="shrink-0 px-1 text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+          <button
+            onClick={() => addRowInGroup(db.id, dateCol.id, openDay)}
+            className="border-t border-neutral-100 px-3 py-2 text-left text-xs text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
+          >
+            + Tambah baris di tanggal ini
+          </button>
+        </div>
+      )}
     </div>
   );
 }

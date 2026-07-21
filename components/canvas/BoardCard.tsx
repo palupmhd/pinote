@@ -4,15 +4,13 @@ import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { BoardRefElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
-function BoardCardBase({ element }: { element: BoardRefElement }) {
+function BoardCardBase({ element, count }: { element: BoardRefElement; count: number }) {
   const targetId = element.content.boardId;
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const title = useCanvasStore((s) => s.boards[targetId]?.title ?? "Papan");
-  const count = useCanvasStore(
-    (s) => Object.values(s.elements).filter((e) => e.boardId === targetId).length
-  );
   const openBoard = useCanvasStore((s) => s.openBoard);
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
@@ -40,6 +38,7 @@ function BoardCardBase({ element }: { element: BoardRefElement }) {
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
       {/* Pita atas: penanda visual bahwa ini papan, bukan catatan */}
       <div className="h-6 rounded-t-md bg-neutral-100" />
       <div className="p-3">

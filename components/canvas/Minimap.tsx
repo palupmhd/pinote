@@ -73,6 +73,7 @@ export function Minimap({ geo, cards, viewportRef, onNavigate }: Props) {
     <div
       ref={ref}
       onPointerDown={(e) => {
+        if (e.button !== 0) return; // hanya tombol utama — klik kanan jangan menggeser
         e.stopPropagation();
         dragging.current = true;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -82,6 +83,12 @@ export function Minimap({ geo, cards, viewportRef, onNavigate }: Props) {
         if (dragging.current) navTo(e.clientX, e.clientY);
       }}
       onPointerUp={() => {
+        dragging.current = false;
+      }}
+      onPointerCancel={() => {
+        dragging.current = false;
+      }}
+      onLostPointerCapture={() => {
         dragging.current = false;
       }}
       title="Minimap — klik atau geser untuk berpindah"

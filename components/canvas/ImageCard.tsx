@@ -4,6 +4,7 @@ import { memo } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { ImageElement } from "@/lib/types";
+import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
 
 function ImageCardBase({ element }: { element: ImageElement }) {
@@ -30,11 +31,14 @@ function ImageCardBase({ element }: { element: ImageElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <CardActionBar element={element} />
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal;
           next/image tak relevan untuk gambar yang sudah tertanam & dikecilkan */}
       <img
         src={src}
-        alt=""
+        // Gambar yang diimpor user = konten, bukan dekorasi → beri alt bermakna
+        // supaya tidak dilewati screen reader. (Caption yang bisa diedit: nanti.)
+        alt="Gambar terlampir"
         draggable={false}
         style={{ width: "100%", height, display: "block" }}
         className="select-none bg-neutral-100 object-cover"

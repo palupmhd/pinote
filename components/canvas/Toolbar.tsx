@@ -6,6 +6,7 @@ import { exportBoardPng } from "@/lib/exportImage";
 import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { buildPresentationOrder } from "@/lib/presentation";
+import { toast } from "@/lib/toast";
 import { useUiStore } from "@/lib/ui";
 import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
@@ -15,6 +16,18 @@ interface Props {
   containerRef: RefObject<HTMLDivElement | null>;
   cameraRef: RefObject<Camera>;
 }
+
+/** Konfigurasi tombol "tambah" — statik (tanpa closure yang menyentuh ref),
+ *  supaya array ini tidak dibuat ulang tiap render dan tidak memicu aturan
+ *  "jangan akses ref saat render". Aksinya dijalankan lewat runTool. */
+const TOOLS = [
+  { label: "Catatan", hint: "Tambah catatan" },
+  { label: "Tugas", hint: "Tambah daftar tugas" },
+  { label: "Tautan", hint: "Tambah tautan dengan pratinjau" },
+  { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)" },
+  { label: "Database", hint: "Tambah tabel bertipe (spec §8.4)" },
+  { label: "Gambar", hint: "Tambah gambar (atau tempel/seret ke kanvas)" },
+] as const;
 
 /** Toolbar kiri. Elemen baru diletakkan di tengah viewport papan yang sedang
  *  dibuka (dihitung dari kamera "hidup", bukan dari state). */
@@ -55,38 +68,27 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     return { x: (cx - cam.x) / cam.zoom, y: (cy - cam.y) / cam.zoom };
   };
 
-  const tools = [
-    { label: "Catatan", hint: "Tambah catatan", onClick: () => {
-        const { x, y } = viewportCenter();
-        addNote(x, y);
-      } },
-    { label: "Tugas", hint: "Tambah daftar tugas", onClick: () => {
-        const { x, y } = viewportCenter();
-        addTaskList(x, y);
-      } },
-    { label: "Tautan", hint: "Tambah tautan dengan pratinjau", onClick: () => {
-        const { x, y } = viewportCenter();
-        addLink(x, y);
-      } },
-    { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)", onClick: () => {
-        const { x, y } = viewportCenter();
-        addBoard(x, y);
-      } },
-    { label: "Database", hint: "Tambah tabel bertipe (spec §8.4)", onClick: () => {
-        const { x, y } = viewportCenter();
-        addDatabase(x, y);
-      } },
-    { label: "Gambar", hint: "Tambah gambar (atau tempel/seret ke kanvas)", onClick: () => {
-        fileInputRef.current?.click();
-      } },
-  ];
+  // Dipanggil dari onClick (event handler) → boleh membaca ref di sini.
+  const runTool = (label: (typeof TOOLS)[number]["label"]) => {
+    if (label === "Gambar") {
+      fileInputRef.current?.click();
+      return;
+    }
+    const { x, y } = viewportCenter();
+    if (label === "Catatan") addNote(x, y);
+    else if (label === "Tugas") addTaskList(x, y);
+    else if (label === "Tautan") addLink(x, y);
+    else if (label === "Papan") addBoard(x, y);
+    else if (label === "Database") addDatabase(x, y);
+  };
 
   const [exporting, setExporting] = useState(false);
   const onExport = async () => {
     setExporting(true);
     const res = await exportBoardPng();
     setExporting(false);
-    if (!res.ok) window.alert(`Ekspor gagal: ${res.reason}`);
+    if (res.ok) toast("PNG diekspor");
+    else window.alert(`Ekspor gagal: ${res.reason}`);
   };
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,10 +104,10 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
 
   return (
     <div className="pointer-events-auto absolute left-3 top-16 z-10 flex flex-col gap-1 rounded-md bg-white/90 p-1.5 shadow-sm ring-1 ring-neutral-200 backdrop-blur">
-      {tools.map((t) => (
+      {TOOLS.map((t) => (
         <div key={t.label}>
           <button
-            onClick={t.onClick}
+            onClick={() => runTool(t.label)}
             title={t.hint}
             className="w-full rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
           >
