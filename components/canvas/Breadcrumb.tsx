@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { backlinksTo } from "@/lib/backlinks";
 import { breadcrumbPath, useCanvasStore } from "@/lib/store";
 
 export function Breadcrumb() {
@@ -12,7 +13,16 @@ export function Breadcrumb() {
 
   const openBoard = useCanvasStore((s) => s.openBoard);
   const renameBoard = useCanvasStore((s) => s.renameBoard);
+  const elements = useCanvasStore((s) => s.elements);
+  const focusElement = useCanvasStore((s) => s.focusElement);
   const [draft, setDraft] = useState<string | null>(null);
+  const [backOpen, setBackOpen] = useState(false);
+
+  // Referensi balik ke papan yang sedang dibuka (spec §9.3).
+  const backlinks = useMemo(
+    () => backlinksTo(currentBoardId, elements),
+    [currentBoardId, elements]
+  );
 
   const current = path[path.length - 1];
   if (!current) return null;
@@ -55,6 +65,44 @@ export function Breadcrumb() {
           }}
           className="w-48 rounded border border-neutral-300 px-1 font-medium text-neutral-900 outline-none focus:border-blue-400"
         />
+      )}
+
+      {backlinks.length > 0 && (
+        <div className="relative ml-1 flex items-center">
+          <span className="mr-1 text-neutral-300">·</span>
+          <button
+            onClick={() => setBackOpen((v) => !v)}
+            title="Referensi balik: catatan yang me-mention papan ini"
+            className={[
+              "rounded px-1.5 py-0.5 text-xs",
+              backOpen ? "bg-blue-50 text-blue-700" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
+            ].join(" ")}
+          >
+            ↩ {backlinks.length}
+          </button>
+          {backOpen && (
+            <div className="absolute left-0 top-full z-20 mt-1 max-h-72 w-72 overflow-y-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg">
+              <p className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">
+                Referensi balik
+              </p>
+              {backlinks.map((bl) => (
+                <button
+                  key={bl.noteId}
+                  onClick={() => {
+                    focusElement(bl.noteId);
+                    setBackOpen(false);
+                  }}
+                  className="block w-full rounded px-2 py-1.5 text-left hover:bg-neutral-50"
+                >
+                  <span className="block truncate text-sm text-neutral-700">{bl.snippet}</span>
+                  <span className="block truncate text-[11px] text-neutral-400">
+                    di {boards[bl.boardId]?.title ?? "papan"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

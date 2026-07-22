@@ -3,6 +3,7 @@
 import { memo, useMemo } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
+import { BoardMention } from "@/lib/mentionSuggestion";
 import { sanitizeHtml } from "@/lib/sanitizeHtml";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
@@ -17,7 +18,7 @@ function NoteEditor({ id, initialHtml }: { id: string; initialHtml: string }) {
   const setEditing = useCanvasStore((s) => s.setEditing);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [StarterKit, BoardMention],
     content: initialHtml,
     immediatelyRender: false,
     autofocus: "end",
@@ -35,6 +36,22 @@ function NoteCardBase({ element }: { element: NoteElement }) {
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
   const editing = useCanvasStore((s) => s.editingId === element.id);
   const setEditing = useCanvasStore((s) => s.setEditing);
+  const openBoard = useCanvasStore((s) => s.openBoard);
+
+  // Klik mention `board:<id>` di render statis → buka papan itu. onPointerDown
+  // capture menahan agar tak memulai drag kartu saat mengeklik tautan.
+  const mentionAt = (t: EventTarget | null) =>
+    (t as HTMLElement | null)?.closest?.('a[href^="board:"]') ?? null;
+  const onContentPointerDown = (e: React.PointerEvent) => {
+    if (mentionAt(e.target)) e.stopPropagation();
+  };
+  const onContentClick = (e: React.MouseEvent) => {
+    const a = mentionAt(e.target);
+    if (!a) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openBoard(a.getAttribute("href")!.slice("board:".length));
+  };
 
   // saat mengetik: matikan drag supaya seleksi teks tetap jalan
   const { rootRef, dragHandlers } = useElementDrag(element, !editing);
@@ -73,6 +90,8 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       ) : safeHtml ? (
         <div
           className="note-editor text-sm text-neutral-800"
+          onPointerDownCapture={onContentPointerDown}
+          onClick={onContentClick}
           dangerouslySetInnerHTML={{ __html: safeHtml }}
         />
       ) : (
