@@ -90,7 +90,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       data-element-id={element.id}
       className={[
         "group absolute cursor-grab rounded-md bg-white p-3 shadow-sm transition-shadow active:cursor-grabbing",
-        selected ? "ring-2 ring-blue-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
       ].join(" ")}
       style={{
         left: element.x,
@@ -124,7 +124,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
               type="checkbox"
               checked={item.done}
               onChange={() => toggleTask(element.id, item.id)}
-              className="mt-[3px] h-3.5 w-3.5 shrink-0 cursor-pointer accent-blue-500"
+              className="mt-[3px] h-3.5 w-3.5 shrink-0 cursor-pointer accent-indigo-500"
             />
             <input
               ref={(el) => {

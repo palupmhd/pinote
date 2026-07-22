@@ -29,7 +29,7 @@ export function TemplatePicker({ onPick }: { onPick: (t: BoardTemplate) => void 
       </button>
 
       {open && (
-        <div className="absolute left-full top-0 z-20 ml-1 w-56 rounded-md bg-white p-1 shadow-lg ring-1 ring-neutral-200">
+        <div className="absolute bottom-full left-0 z-20 mb-1 w-56 rounded-md bg-white p-1 shadow-lg ring-1 ring-neutral-200">
           {BOARD_TEMPLATES.map((t) => (
             <button
               key={t.id}

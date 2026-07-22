@@ -34,7 +34,7 @@ export function DatabasePicker({ onAttach }: { onAttach: (databaseId: string) =>
       </button>
 
       {open && (
-        <div className="absolute left-full top-0 z-20 ml-1 w-48 rounded-md bg-white p-1 shadow-lg ring-1 ring-neutral-200">
+        <div className="absolute bottom-full left-0 z-20 mb-1 w-48 rounded-md bg-white p-1 shadow-lg ring-1 ring-neutral-200">
           {list.map((db) => (
             <button
               key={db.id}

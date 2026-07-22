@@ -34,15 +34,13 @@ export function SyncStatus() {
   // ada sinkron. Tak ada panel login karena memang tak ada tujuannya.
   if (status === "disabled") {
     return (
-      <div className="pointer-events-auto absolute right-4 top-3 z-20">
-        <span
-          title="Sinkronisasi cloud tidak dikonfigurasi — semua tersimpan di perangkat ini"
-          className="flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-500 shadow-sm ring-1 ring-neutral-200 backdrop-blur"
-        >
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-          Lokal saja
-        </span>
-      </div>
+      <span
+        title="Sinkronisasi cloud tidak dikonfigurasi — semua tersimpan di perangkat ini"
+        className="flex items-center gap-1.5 whitespace-nowrap px-2 py-1 text-xs text-neutral-500"
+      >
+        <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+        Lokal saja
+      </span>
     );
   }
 
@@ -58,17 +56,17 @@ export function SyncStatus() {
             : "bg-red-400";
 
   return (
-    <div className="pointer-events-auto absolute right-4 top-3 z-20 flex flex-col items-end gap-2">
+    <div className="relative flex flex-col items-end gap-2">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-md bg-white/90 px-2.5 py-1.5 text-xs text-neutral-600 shadow-sm ring-1 ring-neutral-200 backdrop-blur hover:text-neutral-900"
+        className="flex items-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1 text-xs text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
       >
         <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
         {status === "signed-out" ? "Masuk untuk sinkron" : (LABEL[status] ?? status)}
       </button>
 
       {status === "conflict" && (
-        <div className="w-72 rounded-md bg-white p-3 text-xs shadow-lg ring-1 ring-red-200">
+        <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-md bg-white p-3 text-xs shadow-lg ring-1 ring-red-200">
           <p className="font-medium text-neutral-800">Perubahan bentrok</p>
           <p className="mt-1 text-neutral-500">{message}</p>
           <div className="mt-2 flex gap-2">
@@ -89,7 +87,7 @@ export function SyncStatus() {
       )}
 
       {open && (
-        <div className="w-72 rounded-md bg-white p-3 text-xs shadow-lg ring-1 ring-neutral-200">
+        <div className="absolute right-0 top-full z-30 mt-2 w-72 rounded-md bg-white p-3 text-xs shadow-lg ring-1 ring-neutral-200">
           {email ? (
             <>
               <p className="text-neutral-500">Masuk sebagai</p>
@@ -120,9 +118,9 @@ export function SyncStatus() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="email@kamu.com"
-                  className="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 outline-none focus:border-blue-400"
+                  className="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 outline-none focus:border-indigo-400"
                 />
-                <button className="rounded bg-blue-500 px-2 py-1 text-white hover:bg-blue-600">
+                <button className="rounded bg-indigo-500 px-2 py-1 text-white hover:bg-indigo-600">
                   Kirim
                 </button>
               </form>

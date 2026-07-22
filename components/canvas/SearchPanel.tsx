@@ -227,7 +227,7 @@ function SearchPanelInner() {
                       onClick={() => activate(i)}
                       className={[
                         "flex w-full items-baseline gap-2 px-4 py-2 text-left",
-                        active ? "bg-blue-50" : "hover:bg-neutral-50",
+                        active ? "bg-indigo-50" : "hover:bg-neutral-50",
                       ].join(" ")}
                     >
                       {it.kind === "command" ? (

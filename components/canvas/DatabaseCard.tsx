@@ -29,7 +29,7 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
       data-element-id={element.id}
       className={[
         "group absolute cursor-grab rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
-        selected ? "ring-2 ring-blue-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
       ].join(" ")}
       style={{
         left: element.x,

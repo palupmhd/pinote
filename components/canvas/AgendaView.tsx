@@ -137,7 +137,7 @@ export function AgendaView() {
         ) : (
           <>
             <Section title="Terlewat" list={groups.overdue} tint="text-red-500" onPick={go} />
-            <Section title="Hari ini" list={groups.today} tint="text-blue-600" onPick={go} />
+            <Section title="Hari ini" list={groups.today} tint="text-indigo-600" onPick={go} />
             <Section title="Akan datang" list={groups.upcoming} onPick={go} />
             <Section title="Selesai" list={groups.done} onPick={go} />
           </>

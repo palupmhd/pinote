@@ -1,36 +1,46 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { exportBoardPng } from "@/lib/exportImage";
-import { redo, undo, useHistoryStore } from "@/lib/history";
 import { firstImageFile, importImageFile } from "@/lib/images";
 import { buildPresentationOrder } from "@/lib/presentation";
 import { toast } from "@/lib/toast";
 import { useUiStore } from "@/lib/ui";
-import { INBOX_BOARD_ID, type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
+import { type Camera, type CardElement, type ConnectorElement } from "@/lib/types";
 import { DatabasePicker } from "./DatabasePicker";
 import { TemplatePicker } from "./TemplatePicker";
+import {
+  IconBoard,
+  IconDots,
+  IconExport,
+  IconImage,
+  IconLink,
+  IconNote,
+  IconPlus,
+  IconPresent,
+  IconTable,
+  IconTask,
+} from "./icons";
 
 interface Props {
   containerRef: RefObject<HTMLDivElement | null>;
   cameraRef: RefObject<Camera>;
 }
 
-/** Konfigurasi tombol "tambah" — statik (tanpa closure yang menyentuh ref),
- *  supaya array ini tidak dibuat ulang tiap render dan tidak memicu aturan
- *  "jangan akses ref saat render". Aksinya dijalankan lewat runTool. */
-const TOOLS = [
-  { label: "Catatan", hint: "Tambah catatan" },
-  { label: "Tugas", hint: "Tambah daftar tugas" },
-  { label: "Tautan", hint: "Tambah tautan dengan pratinjau" },
-  { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)" },
-  { label: "Database", hint: "Tambah tabel bertipe (spec §8.4)" },
-  { label: "Gambar", hint: "Tambah gambar (atau tempel/seret ke kanvas)" },
-] as const;
+type ToolLabel = "Catatan" | "Tugas" | "Gambar" | "Tautan" | "Tabel" | "Papan";
+const TOOLS: { label: ToolLabel; hint: string; Icon: (p: { className?: string }) => React.ReactNode }[] = [
+  { label: "Catatan", hint: "Tambah catatan", Icon: IconNote },
+  { label: "Tugas", hint: "Tambah daftar tugas", Icon: IconTask },
+  { label: "Gambar", hint: "Tambah gambar (atau tempel/seret ke kanvas)", Icon: IconImage },
+  { label: "Tautan", hint: "Tambah tautan dengan pratinjau", Icon: IconLink },
+  { label: "Tabel", hint: "Tambah tabel bertipe (database)", Icon: IconTable },
+  { label: "Papan", hint: "Tambah papan (bisa dibuka jadi kanvas sendiri)", Icon: IconBoard },
+];
 
-/** Toolbar kiri. Elemen baru diletakkan di tengah viewport papan yang sedang
- *  dibuka (dihitung dari kamera "hidup", bukan dari state). */
+/** Toolbar utama di bawah-tengah kanvas (gaya Milanote): tombol buat berlabel +
+ *  tombol tambah utama. Elemen baru diletakkan di tengah viewport papan yang
+ *  sedang dibuka (dihitung dari kamera "hidup", bukan dari state). */
 export function Toolbar({ containerRef, cameraRef }: Props) {
   const addNote = useCanvasStore((s) => s.addNote);
   const addBoard = useCanvasStore((s) => s.addBoard);
@@ -40,25 +50,19 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const addBoardFromTemplate = useCanvasStore((s) => s.addBoardFromTemplate);
   const attachDatabase = useCanvasStore((s) => s.attachDatabase);
   const addImage = useCanvasStore((s) => s.addImage);
-  const openBoard = useCanvasStore((s) => s.openBoard);
-  const currentBoardId = useCanvasStore((s) => s.currentBoardId);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const canUndo = useHistoryStore((s) => s.canUndo);
-  const canRedo = useHistoryStore((s) => s.canRedo);
-  const toggleAgenda = useUiStore((s) => s.toggleAgenda);
-  const agendaOpen = useUiStore((s) => s.agendaOpen);
-  const openSearch = useUiStore((s) => s.openSearch);
   const startPresentation = useUiStore((s) => s.startPresentation);
 
-  const onPresent = () => {
-    const st = useCanvasStore.getState();
-    const onBoard = Object.values(st.elements).filter((e) => e.boardId === st.currentBoardId);
-    const cards = onBoard
-      .filter((e): e is CardElement => e.type !== "CONNECTOR")
-      .map((c) => ({ id: c.id, x: c.x, y: c.y }));
-    const connectors = onBoard.filter((e): e is ConnectorElement => e.type === "CONNECTOR");
-    startPresentation(buildPresentationOrder(cards, connectors));
-  };
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onOutside = (e: MouseEvent) => {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [moreOpen]);
 
   const viewportCenter = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -68,8 +72,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     return { x: (cx - cam.x) / cam.zoom, y: (cy - cam.y) / cam.zoom };
   };
 
-  // Dipanggil dari onClick (event handler) → boleh membaca ref di sini.
-  const runTool = (label: (typeof TOOLS)[number]["label"]) => {
+  const runTool = (label: ToolLabel) => {
     if (label === "Gambar") {
       fileInputRef.current?.click();
       return;
@@ -79,11 +82,23 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
     else if (label === "Tugas") addTaskList(x, y);
     else if (label === "Tautan") addLink(x, y);
     else if (label === "Papan") addBoard(x, y);
-    else if (label === "Database") addDatabase(x, y);
+    else if (label === "Tabel") addDatabase(x, y);
+  };
+
+  const onPresent = () => {
+    const st = useCanvasStore.getState();
+    const onBoard = Object.values(st.elements).filter((e) => e.boardId === st.currentBoardId);
+    const cards = onBoard
+      .filter((e): e is CardElement => e.type !== "CONNECTOR")
+      .map((c) => ({ id: c.id, x: c.x, y: c.y }));
+    const connectors = onBoard.filter((e): e is ConnectorElement => e.type === "CONNECTOR");
+    startPresentation(buildPresentationOrder(cards, connectors));
+    setMoreOpen(false);
   };
 
   const [exporting, setExporting] = useState(false);
   const onExport = async () => {
+    setMoreOpen(false);
     setExporting(true);
     const res = await exportBoardPng();
     setExporting(false);
@@ -93,7 +108,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
 
   const onPickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = firstImageFile(e.target.files);
-    e.target.value = ""; // izinkan memilih file yang sama lagi
+    e.target.value = "";
     if (!file) return;
     const img = await importImageFile(file);
     if (img) {
@@ -103,109 +118,83 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   };
 
   return (
-    <div className="pointer-events-auto absolute left-3 top-16 z-10 flex flex-col gap-1 rounded-md bg-white/90 p-1.5 shadow-sm ring-1 ring-neutral-200 backdrop-blur">
-      {TOOLS.map((t) => (
-        <div key={t.label}>
-          <button
-            onClick={() => runTool(t.label)}
-            title={t.hint}
-            className="w-full rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
-          >
-            + {t.label}
-          </button>
-          {t.label === "Database" && (
-            <DatabasePicker
-              onAttach={(dbId) => {
-                const { x, y } = viewportCenter();
-                attachDatabase(dbId, x, y);
-              }}
-            />
-          )}
-          {t.label === "Papan" && (
+    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-2xl bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur">
+      {/* Tombol tambah utama: catatan cepat di tengah kanvas. */}
+      <button
+        onClick={() => {
+          const { x, y } = viewportCenter();
+          addNote(x, y);
+        }}
+        title="Catatan cepat"
+        className="mr-0.5 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+      >
+        <IconPlus className="h-5 w-5" />
+      </button>
+
+      {TOOLS.map(({ label, hint, Icon }) => (
+        <button
+          key={label}
+          onClick={() => runTool(label)}
+          title={hint}
+          className="flex w-14 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+        >
+          <Icon className="h-5 w-5" />
+          <span className="text-[10px] font-medium">{label}</span>
+        </button>
+      ))}
+
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickImage} className="hidden" />
+
+      <div className="mx-0.5 h-8 w-px bg-neutral-200" />
+
+      {/* Overflow: aksi papan (template, panggil database, presentasi, ekspor). */}
+      <div ref={moreRef} className="relative">
+        <button
+          onClick={() => setMoreOpen((v) => !v)}
+          title="Lainnya"
+          className={[
+            "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
+            moreOpen ? "bg-neutral-100 text-neutral-900" : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900",
+          ].join(" ")}
+        >
+          <IconDots className="h-5 w-5" />
+        </button>
+
+        {moreOpen && (
+          <div className="absolute bottom-full right-0 z-20 mb-2 w-60 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5">
+            <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              Papan baru
+            </p>
             <TemplatePicker
               onPick={(tpl) => {
                 const { x, y } = viewportCenter();
                 addBoardFromTemplate(tpl, x, y);
+                setMoreOpen(false);
               }}
             />
-          )}
-        </div>
-      ))}
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={onPickImage}
-        className="hidden"
-      />
-
-      <div className="my-0.5 h-px bg-neutral-200" />
-
-      <button
-        onClick={openSearch}
-        title="Cari di semua papan (Ctrl/Cmd+K)"
-        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
-      >
-        🔎 Cari
-      </button>
-
-      <button
-        onClick={() => openBoard(INBOX_BOARD_ID)}
-        title="Inbox — tangkapan cepat (Ctrl/Cmd+I untuk menangkap dari mana saja)"
-        className={[
-          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
-          currentBoardId === INBOX_BOARD_ID ? "text-blue-600" : "text-neutral-700",
-        ].join(" ")}
-      >
-        📥 Inbox
-      </button>
-
-      <button
-        onClick={onPresent}
-        title="Presentasi — telusuri kartu mengikuti arah konektor (←/→, Esc keluar)"
-        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200"
-      >
-        ▶ Presentasi
-      </button>
-
-      <button
-        onClick={onExport}
-        disabled={exporting}
-        title="Ekspor papan ini sebagai gambar PNG"
-        className="rounded px-3 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-400"
-      >
-        {exporting ? "Mengekspor…" : "🖼 Ekspor PNG"}
-      </button>
-
-      <button
-        onClick={toggleAgenda}
-        title="Agenda — semua tugas bertenggat"
-        className={[
-          "rounded px-3 py-1.5 text-left text-sm hover:bg-neutral-100 active:bg-neutral-200",
-          agendaOpen ? "text-blue-600" : "text-neutral-700",
-        ].join(" ")}
-      >
-        🗓 Agenda
-      </button>
-
-      <div className="flex gap-1">
-        <button
-          onClick={undo}
-          disabled={!canUndo}
-          title="Urungkan (Ctrl/Cmd+Z)"
-          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
-        >
-          ↶
-        </button>
-        <button
-          onClick={redo}
-          disabled={!canRedo}
-          title="Ulangi (Ctrl/Cmd+Shift+Z)"
-          className="flex-1 rounded px-2 py-1.5 text-sm text-neutral-700 hover:bg-neutral-100 active:bg-neutral-200 disabled:pointer-events-none disabled:text-neutral-300"
-        >
-          ↷
-        </button>
+            <DatabasePicker
+              onAttach={(dbId) => {
+                const { x, y } = viewportCenter();
+                attachDatabase(dbId, x, y);
+                setMoreOpen(false);
+              }}
+            />
+            <div className="my-1 h-px bg-neutral-100" />
+            <button
+              onClick={onPresent}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+            >
+              <IconPresent className="h-4 w-4 text-neutral-500" /> Presentasi
+            </button>
+            <button
+              onClick={onExport}
+              disabled={exporting}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 disabled:pointer-events-none disabled:text-neutral-400"
+            >
+              <IconExport className="h-4 w-4 text-neutral-500" /> {exporting ? "Mengekspor…" : "Ekspor PNG"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

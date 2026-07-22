@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { todayStr } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import type { Database, DbColumn } from "@/lib/types";
@@ -61,6 +61,15 @@ export function CalendarBoard({ db }: { db: Database }) {
   const now = new Date();
   const [ym, setYm] = useState({ year: now.getFullYear(), month: now.getMonth() });
   const [openDay, setOpenDay] = useState<string | null>(null); // tanggal yang drawer-nya terbuka
+
+  // Drag baris antar tanggal (pointer-based via elementFromPoint, konsisten dg
+  // Kanban). draggedRef membedakan geser-antar-hari dari tap: tap membuka drawer,
+  // geser memindah tanggal — supaya keyboard/klik tetap jalan.
+  const [dragRow, setDragRow] = useState<string | null>(null);
+  const [dropKey, setDropKey] = useState<string | null>(null);
+  const draggedRef = useRef(false);
+  const dayKeyAt = (x: number, y: number) =>
+    document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-day-key]")?.dataset.dayKey ?? null;
 
   const byDay = dateCol ? bucketByDay(db, dateCol) : new Map<string, Database["rows"]>();
 
@@ -130,16 +139,19 @@ export function CalendarBoard({ db }: { db: Database }) {
           return (
             <div
               key={key}
+              data-day-key={key}
               className={[
-                "group min-h-[64px] border-b border-r border-neutral-100 p-1 text-xs",
-                inMonth ? "bg-white" : "bg-neutral-50/60",
+                "group min-h-[64px] border-b border-r border-neutral-100 p-1 text-xs transition-colors",
+                dragRow && dropKey === key
+                  ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300"
+                  : inMonth ? "bg-white" : "bg-neutral-50/60",
               ].join(" ")}
             >
               <div className="flex items-center justify-between">
                 <span
                   className={[
                     "px-1 tabular-nums",
-                    isToday ? "rounded-full bg-blue-500 text-white" : inMonth ? "text-neutral-500" : "text-neutral-300",
+                    isToday ? "rounded-full bg-indigo-500 text-white" : inMonth ? "text-neutral-500" : "text-neutral-300",
                   ].join(" ")}
                 >
                   {d.getDate()}
@@ -156,9 +168,40 @@ export function CalendarBoard({ db }: { db: Database }) {
                 {rows.slice(0, 3).map((r) => (
                   <button
                     key={r.id}
-                    onClick={() => setOpenDay(key)}
-                    title="Lihat / edit hari ini"
-                    className="block w-full truncate rounded bg-blue-50 px-1 py-0.5 text-left text-[11px] text-blue-700 hover:bg-blue-100"
+                    onPointerDown={(e) => {
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                      draggedRef.current = false;
+                      setDragRow(r.id);
+                    }}
+                    onPointerMove={(e) => {
+                      if (dragRow !== r.id) return;
+                      const k = dayKeyAt(e.clientX, e.clientY);
+                      setDropKey(k);
+                      if (k && k !== key) draggedRef.current = true;
+                    }}
+                    onPointerUp={(e) => {
+                      if (dragRow !== r.id) return;
+                      const k = dayKeyAt(e.clientX, e.clientY);
+                      if (k && k !== key) setCell(db.id, r.id, dateCol.id, k); // pindah tanggal
+                      setDragRow(null);
+                      setDropKey(null);
+                    }}
+                    onPointerCancel={() => {
+                      setDragRow(null);
+                      setDropKey(null);
+                    }}
+                    onClick={() => {
+                      if (draggedRef.current) {
+                        draggedRef.current = false; // geser, bukan tap → jangan buka drawer
+                        return;
+                      }
+                      setOpenDay(key);
+                    }}
+                    title="Seret untuk pindah tanggal · klik untuk lihat/edit"
+                    className={[
+                      "block w-full touch-none truncate rounded bg-indigo-50 px-1 py-0.5 text-left text-[11px] text-indigo-700 hover:bg-indigo-100",
+                      dragRow === r.id ? "cursor-grabbing opacity-60" : "cursor-grab",
+                    ].join(" ")}
                   >
                     {label(r)}
                   </button>

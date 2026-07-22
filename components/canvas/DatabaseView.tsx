@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { computeFormula, FORMULA_PRESETS } from "@/lib/formula";
 import { computeRollup } from "@/lib/rollup";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
-import type { CellValue, ColumnType, Database, DbColumn, DbRow, RollupOp } from "@/lib/types";
+import type { CellValue, ColumnType, Database, DbColumn, DbRow, FormulaPreset, RollupOp } from "@/lib/types";
 import { CalendarBoard } from "./CalendarBoard";
 import { GalleryBoard } from "./GalleryBoard";
 import { KanbanBoard } from "./KanbanBoard";
+import { SpatialBoard } from "./SpatialBoard";
 
 const TYPE_LABEL: Record<ColumnType, string> = {
   text: "Teks",
@@ -16,6 +18,7 @@ const TYPE_LABEL: Record<ColumnType, string> = {
   date: "Tanggal",
   relation: "Relasi",
   rollup: "Rollup",
+  formula: "Formula",
 };
 
 const ROLLUP_OPS: Record<RollupOp, string> = {
@@ -37,6 +40,22 @@ function RollupCell({ dbId, rowId, column }: { dbId: string; rowId: string; colu
   }
   const v = computeRollup(db, row, column, databases);
   return <span className="text-sm tabular-nums text-neutral-700">{v == null ? "—" : v}</span>;
+}
+
+/** Sel formula: nilai dihitung dari kolom lain lewat preset, baca saja (§7.1).
+ *  Subscribe ke database supaya ikut berubah saat sel sumber berubah. */
+function FormulaCell({ dbId, rowId, column }: { dbId: string; rowId: string; column: DbColumn }) {
+  const db = useCanvasStore((s) => s.databases[dbId]);
+  const row = db?.rows.find((r) => r.id === rowId);
+  if (!db || !row) return null;
+  if (!column.formulaPreset) {
+    return <span className="text-xs text-neutral-300">atur di header</span>;
+  }
+  const v = computeFormula(row, column);
+  if (v == null) return <span className="text-sm text-neutral-300">—</span>;
+  return (
+    <span className={`text-sm text-neutral-700 ${typeof v === "number" ? "tabular-nums" : ""}`}>{v}</span>
+  );
 }
 
 /** Label ringkas sebuah baris: nilai kolom teks pertama yang terisi, kalau
@@ -87,7 +106,7 @@ function RelationCell({
             key={rid}
             onClick={() => toggleRelation(dbId, rowId, column.id, rid)}
             title="Klik untuk lepas"
-            className="rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 hover:bg-red-50 hover:text-red-600"
+            className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700 hover:bg-red-50 hover:text-red-600"
           >
             {labelFor(rid)} ✕
           </button>
@@ -109,7 +128,7 @@ function RelationCell({
                   type="checkbox"
                   checked={linked.includes(r.id)}
                   onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
-                  className="h-3.5 w-3.5 accent-blue-500"
+                  className="h-3.5 w-3.5 accent-indigo-500"
                 />
                 <span className="truncate text-neutral-700">{rowLabel(target, r, i)}</span>
               </label>
@@ -142,13 +161,16 @@ function CellEditor({
   if (column.type === "rollup") {
     return <RollupCell dbId={dbId} rowId={rowId} column={column} />;
   }
+  if (column.type === "formula") {
+    return <FormulaCell dbId={dbId} rowId={rowId} column={column} />;
+  }
   if (column.type === "checkbox") {
     return (
       <input
         type="checkbox"
         checked={value === true}
         onChange={(e) => set(e.target.checked)}
-        className="h-4 w-4 cursor-pointer accent-blue-500"
+        className="h-4 w-4 cursor-pointer accent-indigo-500"
       />
     );
   }
@@ -189,16 +211,21 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   const setColumnType = useCanvasStore((s) => s.setColumnType);
   const setColumnTarget = useCanvasStore((s) => s.setColumnTarget);
   const setRollup = useCanvasStore((s) => s.setRollup);
+  const setFormula = useCanvasStore((s) => s.setFormula);
   const removeColumn = useCanvasStore((s) => s.removeColumn);
   // Kandidat database tujuan: semua database selain diri sendiri. Pilih objek
   // databases yang stabil lalu turunkan daftar via useMemo — mengembalikan array
   // baru langsung di selector memicu loop tak berujung di zustand v5.
   const databases = useCanvasStore((s) => s.databases);
+  // Termasuk database ini sendiri: relasi self-referencing sah (mis. dependensi
+  // antar-baris) dan digambar sebagai panah di tampilan Spatial. Panah kanvas
+  // utama sudah mengabaikan self-loop kartu yang sama.
   const targets = useMemo(
     () =>
-      Object.values(databases)
-        .filter((d) => d.id !== dbId)
-        .map((d) => ({ id: d.id, title: d.title })),
+      Object.values(databases).map((d) => ({
+        id: d.id,
+        title: d.id === dbId ? `${d.title} (ini sendiri)` : d.title,
+      })),
     [databases, dbId]
   );
   // Untuk konfigurasi rollup: kolom relasi database ini, & kolom angka di
@@ -212,6 +239,17 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
     const tid = rollupRelCol?.targetDatabaseId;
     return tid ? (databases[tid]?.columns.filter((c) => c.type === "number") ?? []) : [];
   }, [databases, rollupRelCol]);
+  // Kolom input yang cocok untuk preset formula terpilih (jangan pilih diri
+  // sendiri): tanggal→date, hitung angka→number, concat→apa saja.
+  const formulaCands = useMemo(() => {
+    const cols = (databases[dbId]?.columns ?? []).filter((c) => c.id !== column.id);
+    const p = column.formulaPreset;
+    if (p === "days_until" || p === "date_status") return cols.filter((c) => c.type === "date");
+    if (p === "sum" || p === "diff" || p === "product" || p === "percent")
+      return cols.filter((c) => c.type === "number");
+    return cols; // concat / belum pilih preset
+  }, [databases, dbId, column.id, column.formulaPreset]);
+  const formulaInputs = column.formulaPreset ? FORMULA_PRESETS[column.formulaPreset].inputs : 0;
 
   return (
     <div className="space-y-1">
@@ -246,7 +284,7 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
           value={column.targetDatabaseId ?? ""}
           onChange={(e) => setColumnTarget(dbId, column.id, e.target.value)}
           title="Database tujuan relasi"
-          className="w-full cursor-pointer rounded bg-blue-50 px-1 py-0.5 text-[10px] text-blue-700 outline-none"
+          className="w-full cursor-pointer rounded bg-indigo-50 px-1 py-0.5 text-[10px] text-indigo-700 outline-none"
         >
           <option value="" disabled>
             → database tujuan…
@@ -296,6 +334,49 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
           )}
         </div>
       )}
+      {column.type === "formula" && (
+        <div className="space-y-1">
+          <select
+            value={column.formulaPreset ?? ""}
+            onChange={(e) =>
+              setFormula(dbId, column.id, { formulaPreset: (e.target.value || undefined) as FormulaPreset })
+            }
+            title="Preset formula"
+            className="w-full cursor-pointer rounded bg-emerald-50 px-1 py-0.5 text-[10px] text-emerald-700 outline-none"
+          >
+            <option value="" disabled>→ pilih preset…</option>
+            {(Object.keys(FORMULA_PRESETS) as FormulaPreset[]).map((p) => (
+              <option key={p} value={p}>{FORMULA_PRESETS[p].label}</option>
+            ))}
+          </select>
+          {formulaInputs >= 1 && (
+            <select
+              value={column.formulaColA ?? ""}
+              onChange={(e) => setFormula(dbId, column.id, { formulaColA: e.target.value })}
+              title="Kolom input A"
+              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
+            >
+              <option value="" disabled>→ kolom A…</option>
+              {formulaCands.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+          {formulaInputs >= 2 && (
+            <select
+              value={column.formulaColB ?? ""}
+              onChange={(e) => setFormula(dbId, column.id, { formulaColB: e.target.value })}
+              title="Kolom input B"
+              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
+            >
+              <option value="" disabled>→ kolom B…</option>
+              {formulaCands.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -310,7 +391,14 @@ export function DatabaseView() {
   const addColumn = useCanvasStore((s) => s.addColumn);
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
+  const openRowAsBoard = useCanvasStore((s) => s.openRowAsBoard);
   const setDatabaseView = useCanvasStore((s) => s.setDatabaseView);
+
+  // Buka isi kanvas sebuah baris: bikin/buka board bersarang lalu tutup overlay
+  // ini supaya kanvas board baru kelihatan (spec §7.2, irisan tipis).
+  const openRowCanvas = (rowId: string) => {
+    if (openRowAsBoard(db!.id, rowId)) close();
+  };
 
   // Esc menutup editor (tapi tidak saat sedang mengetik di sel — biar Esc di
   // input tak sengaja menutup seluruh tabel).
@@ -354,7 +442,7 @@ export function DatabaseView() {
               digeser horizontal supaya tak menekan judul. */}
           <div className="order-3 w-full overflow-x-auto sm:order-2 sm:w-auto">
             <div className="flex w-max rounded-md bg-neutral-100 p-0.5 text-xs">
-              {(["table", "kanban", "calendar", "gallery"] as const).map((v) => (
+              {(["table", "kanban", "calendar", "gallery", "spatial"] as const).map((v) => (
                 <button
                   key={v}
                   onClick={() => setDatabaseView(db.id, v)}
@@ -363,7 +451,7 @@ export function DatabaseView() {
                     (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
                   ].join(" ")}
                 >
-                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : "Galeri"}
+                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : v === "gallery" ? "Galeri" : "Spasial"}
                 </button>
               ))}
             </div>
@@ -380,7 +468,11 @@ export function DatabaseView() {
           </div>
         ) : (db.view ?? "table") === "gallery" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
-            <GalleryBoard db={db} />
+            <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />
+          </div>
+        ) : (db.view ?? "table") === "spatial" ? (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <SpatialBoard db={db} onOpenRowCanvas={openRowCanvas} />
           </div>
         ) : (
         <>
@@ -415,11 +507,23 @@ export function DatabaseView() {
                       <CellEditor dbId={db.id} rowId={row.id} column={c} value={row.cells[c.id] ?? null} />
                     </td>
                   ))}
-                  <td className="px-2 text-center align-middle">
+                  <td className="whitespace-nowrap px-2 text-center align-middle">
+                    <button
+                      onClick={() => openRowCanvas(row.id)}
+                      title={row.boardId ? "Buka kanvas baris" : "Buka baris sebagai kanvas"}
+                      className={[
+                        "px-1",
+                        row.boardId
+                          ? "text-indigo-500 hover:text-indigo-700"
+                          : "text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100",
+                      ].join(" ")}
+                    >
+                      ⤢
+                    </button>
                     <button
                       onClick={() => removeRow(db.id, row.id)}
                       title="Hapus baris"
-                      className="text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
+                      className="px-1 text-neutral-300 opacity-0 hover:text-red-500 group-hover:opacity-100"
                     >
                       ✕
                     </button>

@@ -9,7 +9,7 @@ import { firstImageFile, importImageFile } from "@/lib/images";
 import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
-import { Breadcrumb } from "./Breadcrumb";
+import { TopBar } from "./TopBar";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
@@ -20,9 +20,9 @@ import { NoteCard } from "./NoteCard";
 import { PresentationBar } from "./PresentationBar";
 import { SearchPanel } from "./SearchPanel";
 import { ToastHost } from "./ToastHost";
-import { SyncStatus } from "./SyncStatus";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
+import { ZoomControls } from "./ZoomControls";
 import { INBOX_BOARD_ID } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
@@ -585,7 +585,7 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="relative h-dvh w-full overflow-hidden bg-neutral-100 touch-none select-none"
+      className="relative h-dvh w-full overflow-hidden bg-[#f7f6f2] touch-none select-none"
       data-canvas-bg="true"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -621,7 +621,7 @@ export function Canvas() {
             top: -GRID_EXTENT,
             width: GRID_EXTENT * 2,
             height: GRID_EXTENT * 2,
-            backgroundImage: "radial-gradient(circle, #d4d4d8 1px, transparent 1px)",
+            backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)",
             backgroundSize: `${GRID}px ${GRID}px`,
           }}
         />
@@ -653,7 +653,7 @@ export function Canvas() {
                   const wy = ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom;
                   addNote(wx, wy);
                 }}
-                className="rounded-md bg-blue-500 px-3 py-1.5 text-sm text-white hover:bg-blue-600"
+                className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm text-white hover:bg-indigo-600"
               >
                 + Catatan
               </button>
@@ -668,7 +668,7 @@ export function Canvas() {
             </div>
             <p className="text-xs leading-relaxed text-neutral-400">
               Klik dua kali di mana saja untuk catatan cepat · geser untuk geser kanvas ·
-              scroll/pinch untuk zoom · bilah kiri untuk papan, tabel & gambar
+              scroll/pinch untuk zoom · bilah bawah untuk papan, tabel & gambar
             </p>
           </div>
         </div>
@@ -678,7 +678,7 @@ export function Canvas() {
           sampai ada geseran; digambar imperatif lewat marqueeDivRef. */}
       <div
         ref={marqueeDivRef}
-        className="pointer-events-none absolute z-10 hidden rounded-sm border border-blue-400 bg-blue-400/10"
+        className="pointer-events-none absolute z-10 hidden rounded-sm border border-indigo-400 bg-indigo-400/10"
       />
 
       {/* Saat presentasi: sembunyikan semua chrome, tampilkan hanya bilah kontrol. */}
@@ -686,9 +686,9 @@ export function Canvas() {
         <PresentationBar />
       ) : (
         <>
-          <Breadcrumb />
+          <TopBar />
           <Toolbar containerRef={containerRef} cameraRef={cameraRef} />
-          <SyncStatus />
+          <ZoomControls />
           <AgendaView />
           <DatabaseView />
           <SearchPanel />
@@ -696,12 +696,7 @@ export function Canvas() {
             <Minimap geo={minimapGeo} cards={cards} viewportRef={mmViewportRef} onNavigate={panTo} />
           )}
 
-          <div
-            ref={zoomBadgeRef}
-            className="pointer-events-none absolute bottom-3 right-4 text-xs text-neutral-400"
-          >
-            100% · tersimpan otomatis (lokal)
-          </div>
+          <span ref={zoomBadgeRef} className="sr-only" />
         </>
       )}
 
