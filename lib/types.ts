@@ -18,11 +18,23 @@ export interface Board {
 // Tabel bertipe: entitas terpisah (seperti Board), dibuka lewat kartu "pintu"
 // DATABASE_REF. Baris disimpan di dalam entitas ini, bukan sebagai elemen
 // kanvas — relasi antar-baris sebagai panah menyusul di §8.6.
-export type ColumnType = "text" | "number" | "checkbox" | "date" | "relation" | "rollup";
+export type ColumnType = "text" | "number" | "checkbox" | "date" | "relation" | "rollup" | "formula";
 
 /** Agregasi kolom rollup (spec §7.1). count = jumlah baris tertaut; sisanya
  *  atas kolom angka di database tujuan relasi. */
 export type RollupOp = "count" | "sum" | "avg" | "min" | "max";
+
+/** Preset fungsi kolom formula (spec §7.1: preset, bukan DSL). Tanggal butuh 1
+ *  kolom input (colA); angka & teks butuh 2 (colA, colB). Nilai dihitung, tak
+ *  disimpan. */
+export type FormulaPreset =
+  | "days_until"
+  | "date_status"
+  | "sum"
+  | "diff"
+  | "product"
+  | "percent"
+  | "concat";
 
 export interface DbColumn {
   id: string;
@@ -37,6 +49,11 @@ export interface DbColumn {
   rollupRelationId?: string;
   rollupOp?: RollupOp;
   rollupTargetColumnId?: string;
+  /** Konfigurasi kolom "formula" (spec §7.1): preset + kolom input. Tanggal pakai
+   *  colA saja; angka/teks pakai colA & colB. Nilainya dihitung, tak disimpan. */
+  formulaPreset?: FormulaPreset;
+  formulaColA?: string;
+  formulaColB?: string;
 }
 
 /** Sel biasa = string/number/boolean/null. Sel kolom "relation" = daftar id

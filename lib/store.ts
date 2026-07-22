@@ -104,6 +104,8 @@ interface CanvasState extends Persisted {
   setColumnTarget: (dbId: string, colId: string, targetDatabaseId: string) => void;
   /** Perbarui konfigurasi kolom "rollup" (spec §7.1). */
   setRollup: (dbId: string, colId: string, patch: Partial<Pick<DbColumn, "rollupRelationId" | "rollupOp" | "rollupTargetColumnId">>) => void;
+  /** Perbarui konfigurasi kolom "formula" (spec §7.1). */
+  setFormula: (dbId: string, colId: string, patch: Partial<Pick<DbColumn, "formulaPreset" | "formulaColA" | "formulaColB">>) => void;
   removeColumn: (dbId: string, colId: string) => void;
   addRow: (dbId: string) => void;
   /** Tambah baris dengan satu sel sudah terisi — dipakai "+ baris" per kolom Kanban. */
@@ -213,6 +215,7 @@ function coerceCell(value: CellValue, type: ColumnType): CellValue | undefined {
     case "relation":
       return Array.isArray(value) ? value : undefined;
     case "rollup":
+    case "formula":
       return undefined; // kolom hitung — tak menyimpan sel
   }
 }
@@ -877,6 +880,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     })),
 
   setRollup: (dbId, colId, patch) =>
+    updateDatabase(set, dbId, (db) => ({
+      ...db,
+      columns: db.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
+    })),
+
+  setFormula: (dbId, colId, patch) =>
     updateDatabase(set, dbId, (db) => ({
       ...db,
       columns: db.columns.map((c) => (c.id === colId ? { ...c, ...patch } : c)),
