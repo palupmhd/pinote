@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Off-white hangat ala Milanote — bukan putih dingin. */
+  --background: #f7f6f2;
+  --foreground: #1f1e1c;
 }
 
 @theme inline {
@@ -10,19 +11,18 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-hand: var(--font-hand);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Aksen tulisan tangan (judul sticky, coretan "Let's make it amazing"). */
+.font-hand {
+  font-family: var(--font-hand), "Comic Sans MS", cursive;
 }
 
 /* Editor Tiptap di dalam NoteCard */

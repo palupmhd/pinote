@@ -78,7 +78,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       data-element-id={element.id}
       className={[
         "group absolute rounded-md bg-white p-3 shadow-sm transition-shadow",
-        selected ? "ring-2 ring-blue-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
       ].join(" ")}
       style={{

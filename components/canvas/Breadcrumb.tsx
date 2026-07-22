@@ -28,7 +28,7 @@ export function Breadcrumb() {
   if (!current) return null;
 
   return (
-    <div className="pointer-events-auto absolute left-3 top-3 z-10 flex max-w-[70vw] items-center gap-1 rounded-md bg-white/90 px-3 py-1.5 text-sm shadow-sm ring-1 ring-neutral-200 backdrop-blur">
+    <div className="flex min-w-0 max-w-[46vw] items-center gap-1 text-sm">
       {path.slice(0, -1).map((b) => (
         <span key={b.id} className="flex items-center gap-1">
           <button
@@ -63,7 +63,7 @@ export function Breadcrumb() {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") setDraft(null);
           }}
-          className="w-48 rounded border border-neutral-300 px-1 font-medium text-neutral-900 outline-none focus:border-blue-400"
+          className="w-48 rounded border border-neutral-300 px-1 font-medium text-neutral-900 outline-none focus:border-indigo-400"
         />
       )}
 
@@ -75,7 +75,7 @@ export function Breadcrumb() {
             title="Referensi balik: catatan yang me-mention papan ini"
             className={[
               "rounded px-1.5 py-0.5 text-xs",
-              backOpen ? "bg-blue-50 text-blue-700" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
+              backOpen ? "bg-indigo-50 text-indigo-700" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
             ].join(" ")}
           >
             ↩ {backlinks.length}

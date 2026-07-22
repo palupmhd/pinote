@@ -119,7 +119,7 @@ export function KanbanBoard({ db }: { db: Database }) {
               data-group-key={g.key}
               className={[
                 "flex w-60 shrink-0 flex-col rounded-md p-2 transition-colors",
-                dropKey === g.key && dragRow ? "bg-blue-50 ring-1 ring-blue-300" : "bg-neutral-50",
+                dropKey === g.key && dragRow ? "bg-indigo-50 ring-1 ring-indigo-300" : "bg-neutral-50",
               ].join(" ")}
             >
               <div className="mb-2 flex items-center justify-between px-1">

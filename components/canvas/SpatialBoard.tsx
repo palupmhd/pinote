@@ -177,7 +177,7 @@ export function SpatialBoard({
                   title={row.boardId ? "Buka kanvas baris" : "Buka baris sebagai kanvas"}
                   className={
                     row.boardId
-                      ? "px-1 text-blue-500 hover:text-blue-700"
+                      ? "px-1 text-indigo-500 hover:text-indigo-700"
                       : "px-1 text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100"
                   }
                 >

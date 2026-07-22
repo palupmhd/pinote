@@ -92,7 +92,7 @@ export function Minimap({ geo, cards, viewportRef, onNavigate }: Props) {
         dragging.current = false;
       }}
       title="Minimap — klik atau geser untuk berpindah"
-      className="pointer-events-auto absolute bottom-3 left-3 z-10 cursor-pointer overflow-hidden rounded-md bg-white/80 shadow-sm ring-1 ring-neutral-200 backdrop-blur"
+      className="pointer-events-auto absolute bottom-4 right-4 z-10 cursor-pointer overflow-hidden rounded-xl bg-white/90 shadow-[0_8px_30px_rgba(0,0,0,0.10)] ring-1 ring-black/5 backdrop-blur"
       style={{ width: geo.W, height: geo.H }}
     >
       {cards.map((c) => (
@@ -109,7 +109,7 @@ export function Minimap({ geo, cards, viewportRef, onNavigate }: Props) {
       ))}
       <div
         ref={viewportRef}
-        className="absolute border border-blue-500/70 bg-blue-400/10"
+        className="absolute border border-indigo-500/70 bg-indigo-400/10"
         style={{ left: 0, top: 0, width: 0, height: 0 }}
       />
     </div>
