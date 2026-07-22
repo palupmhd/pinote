@@ -38,19 +38,26 @@ function NoteCardBase({ element }: { element: NoteElement }) {
   const setEditing = useCanvasStore((s) => s.setEditing);
   const openBoard = useCanvasStore((s) => s.openBoard);
 
-  // Klik mention `board:<id>` di render statis → buka papan itu. onPointerDown
-  // capture menahan agar tak memulai drag kartu saat mengeklik tautan.
-  const mentionAt = (t: EventTarget | null) =>
-    (t as HTMLElement | null)?.closest?.('a[href^="board:"]') ?? null;
+  // Klik tautan di render statis. onPointerDown-capture menahan agar mengeklik
+  // tautan tak memulai drag kartu.
+  const linkAt = (t: EventTarget | null) =>
+    (t as HTMLElement | null)?.closest?.("a[href]") ?? null;
   const onContentPointerDown = (e: React.PointerEvent) => {
-    if (mentionAt(e.target)) e.stopPropagation();
+    if (linkAt(e.target)) e.stopPropagation();
   };
   const onContentClick = (e: React.MouseEvent) => {
-    const a = mentionAt(e.target);
+    const a = linkAt(e.target);
     if (!a) return;
     e.preventDefault();
     e.stopPropagation();
-    openBoard(a.getAttribute("href")!.slice("board:".length));
+    const href = a.getAttribute("href") ?? "";
+    if (href.startsWith("board:")) {
+      openBoard(href.slice("board:".length)); // mention → navigasi internal
+    } else if (href) {
+      // Tautan eksternal (autolink URL dari StarterKit): buka tab baru — jangan
+      // menavigasi keluar & membuang state SPA.
+      window.open(href, "_blank", "noopener,noreferrer");
+    }
   };
 
   // saat mengetik: matikan drag supaya seleksi teks tetap jalan
