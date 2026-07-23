@@ -23,11 +23,9 @@ import { ToastHost } from "./ToastHost";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
-import { INBOX_BOARD_ID } from "@/lib/types";
+import { INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 2;
 const GRID = 24;
 const GRID_EXTENT = 6000; // area grid (world units) di tiap arah dari origin
 
@@ -164,14 +162,34 @@ export function Canvas() {
     }
   }, []);
 
-  // Sinkron ref ← store saat kamera store berubah (mis. setelah hydrate atau
-  // commit gesture). Tidak berjalan selama gesture karena kita tidak menyentuh
-  // store camera saat itu. useLayoutEffect agar transform diterapkan sebelum paint.
+  // world-layer dipromosikan jadi compositor layer sendiri (willChange:
+  // "transform") supaya pan/zoom digeser GPU tanpa React — itulah yang bikin
+  // gestur mulus. Konsekuensinya: browser men-scale bitmap yang sama selama
+  // transform terus berubah tiap frame, bukan menggambar ulang teks di
+  // resolusi native (mahal per-frame) — makanya teks terlihat pecah/kabur
+  // selagi di-zoom. Begitu kamera "diam" (disimpan ke store — hanya terjadi
+  // saat gestur selesai, bukan tiap frame), lepas lalu pasang lagi hint itu
+  // (dipisah satu pembacaan layout paksa) supaya browser me-raster ulang teks
+  // pada resolusi sebenarnya: devicePixelRatio layar × zoom saat ini.
+  const sharpenAtRest = useCallback(() => {
+    const el = worldRef.current;
+    if (!el) return;
+    el.style.willChange = "auto";
+    void el.offsetHeight; // paksa reflow: pastikan toggle benar-benar dieksekusi
+    el.style.willChange = "transform";
+  }, []);
+
+  // Sinkron ref ← store saat kamera store berubah — commit gesture, klik
+  // tombol zoom/minimap, focusElement, buka papan lain, dst. Semuanya adalah
+  // titik "diam" (bukan tiap-frame), jadi juga titik yang tepat untuk
+  // menajamkan ulang teks. useLayoutEffect agar transform diterapkan sebelum
+  // paint.
   const storeCamera = useCanvasStore((s) => s.camera);
   useLayoutEffect(() => {
     cameraRef.current = storeCamera;
     applyCamera();
-  }, [storeCamera, applyCamera]);
+    sharpenAtRest();
+  }, [storeCamera, applyCamera, sharpenAtRest]);
 
   const scheduleCommit = useCallback(() => {
     if (commitTimer.current) clearTimeout(commitTimer.current);

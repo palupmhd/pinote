@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import { IconFit, IconMinus, IconPlus } from "./icons";
 
 /** Kontrol zoom di tepi kanan (gaya mockup): +, persentase (klik → 100%), −,
@@ -24,7 +25,7 @@ export function ZoomControls() {
     const cx = W / 2;
     const cy = H / 2;
     const z1 = camera.zoom;
-    const clamped = Math.min(4, Math.max(0.2, z2));
+    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z2));
     const wx = (cx - camera.x) / z1;
     const wy = (cy - camera.y) / z1;
     setCamera({ x: cx - wx * clamped, y: cy - wy * clamped, zoom: clamped });
