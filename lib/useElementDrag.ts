@@ -3,9 +3,11 @@
 import { useRef } from "react";
 import { canvasBus } from "./canvasBus";
 import { useCanvasStore } from "./store";
+import { GRID } from "./types";
 import type { CardElement } from "./types";
 
 const DRAG_THRESHOLD = 3;
+const snap = (v: number) => Math.round(v / GRID) * GRID;
 
 interface Member {
   id: string;
@@ -86,7 +88,8 @@ export function useElementDrag(element: CardElement, enabled = true) {
     if (!drag || drag.pointerId !== e.pointerId) return;
     const dx = e.clientX - drag.startClientX;
     const dy = e.clientY - drag.startClientY;
-    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    const justStarted = !drag.moved && Math.hypot(dx, dy) >= DRAG_THRESHOLD;
+    if (!drag.moved && !justStarted) return;
     drag.moved = true;
     const { zoom } = useCanvasStore.getState().camera;
     for (const m of drag.members) {
@@ -94,6 +97,10 @@ export function useElementDrag(element: CardElement, enabled = true) {
       m.curY = m.startY + dy / zoom;
       const node = m.node ?? (m.id === element.id ? rootRef.current : null);
       if (node) {
+        // "Terangkat": class ditambah sekali saat gerak melewati ambang, CSS yang
+        // mengurus transisi scale/shadow — left/top tetap ditulis instan tiap
+        // frame (tanpa transisi) supaya kartu tak lag mengikuti kursor.
+        if (justStarted) node.classList.add("is-dragging");
         node.style.left = `${m.curX}px`;
         node.style.top = `${m.curY}px`;
       }
@@ -106,6 +113,19 @@ export function useElementDrag(element: CardElement, enabled = true) {
     if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
     if (drag.moved) {
+      // Snap ke grid sekali saat dilepas (bukan tiap frame — biar tak "lengket"
+      // selagi digeser). Tulis ke DOM dulu supaya tak ada kedipan menunggu
+      // render berikutnya, baru commit ke store.
+      for (const m of drag.members) {
+        m.curX = snap(m.curX);
+        m.curY = snap(m.curY);
+        const node = m.node ?? (m.id === element.id ? rootRef.current : null);
+        if (node) {
+          node.classList.remove("is-dragging");
+          node.style.left = `${m.curX}px`;
+          node.style.top = `${m.curY}px`;
+        }
+      }
       moveMany(drag.members.map((m) => ({ id: m.id, x: m.curX, y: m.curY })));
       for (const m of drag.members) canvasBus.emitMoveEnd(m.id);
     }

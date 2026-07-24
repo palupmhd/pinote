@@ -23,10 +23,9 @@ import { ToastHost } from "./ToastHost";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
-import { INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
+import { GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
-const GRID = 24;
 const GRID_EXTENT = 6000; // area grid (world units) di tiap arah dari origin
 
 export function Canvas() {

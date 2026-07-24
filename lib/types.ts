@@ -220,3 +220,7 @@ export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
  *  yang pernah diuji (di luar batas ini, layer transform-scaled terlihat pecah). */
 export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 2;
+/** Jarak titik grid (px, world units) — juga unit pembulatan saat kartu di-snap
+ *  setelah drag (useElementDrag). Satu konstanta dipakai kedua tempat supaya
+ *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti. */
+export const GRID = 16;
