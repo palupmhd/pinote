@@ -5,7 +5,9 @@ import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { ImageElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
+import { CardHeader } from "./CardHeader";
 import { ConnectHandle } from "./ConnectHandle";
+import { IconImage } from "./icons";
 
 function ImageCardBase({ element }: { element: ImageElement }) {
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
@@ -19,7 +21,7 @@ function ImageCardBase({ element }: { element: ImageElement }) {
       ref={rootRef}
       data-element-id={element.id}
       className={[
-        "group absolute cursor-grab overflow-hidden rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
+        "group absolute cursor-grab overflow-hidden rounded-xl bg-white shadow-sm transition-shadow active:cursor-grabbing",
         selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
       ].join(" ")}
       style={{
@@ -32,6 +34,7 @@ function ImageCardBase({ element }: { element: ImageElement }) {
     >
       <ConnectHandle element={element} />
       <CardActionBar element={element} />
+      <CardHeader icon={<IconImage className="h-3.5 w-3.5" />} label="Gambar" />
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal;
           next/image tak relevan untuk gambar yang sudah tertanam & dikecilkan */}
       <img

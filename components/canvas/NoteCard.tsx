@@ -9,7 +9,9 @@ import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { NoteElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
+import { CardHeader } from "./CardHeader";
 import { ConnectHandle } from "./ConnectHandle";
+import { IconNote } from "./icons";
 
 // Editor hanya di-mount saat note sedang diedit — supaya note yang diam tidak
 // menahan instance ProseMirror (berat) dan tidak ikut re-render saat pan/zoom.
@@ -77,7 +79,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       ref={rootRef}
       data-element-id={element.id}
       className={[
-        "group absolute rounded-md bg-white p-3 shadow-sm transition-shadow",
+        "group absolute rounded-xl bg-white shadow-sm transition-shadow",
         selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
       ].join(" ")}
@@ -92,18 +94,21 @@ function NoteCardBase({ element }: { element: NoteElement }) {
     >
       {!editing && <ConnectHandle element={element} />}
       <CardActionBar element={element} />
-      {editing ? (
-        <NoteEditor id={element.id} initialHtml={html} />
-      ) : safeHtml ? (
-        <div
-          className="note-editor text-sm text-neutral-800"
-          onPointerDownCapture={onContentPointerDown}
-          onClick={onContentClick}
-          dangerouslySetInnerHTML={{ __html: safeHtml }}
-        />
-      ) : (
-        <p className="text-sm text-neutral-300">Catatan kosong</p>
-      )}
+      <CardHeader icon={<IconNote className="h-3.5 w-3.5" />} label="Catatan" />
+      <div className="px-3 pb-3">
+        {editing ? (
+          <NoteEditor id={element.id} initialHtml={html} />
+        ) : safeHtml ? (
+          <div
+            className="note-editor text-sm text-neutral-800"
+            onPointerDownCapture={onContentPointerDown}
+            onClick={onContentClick}
+            dangerouslySetInnerHTML={{ __html: safeHtml }}
+          />
+        ) : (
+          <p className="text-sm text-neutral-300">Catatan kosong</p>
+        )}
+      </div>
     </div>
   );
 }

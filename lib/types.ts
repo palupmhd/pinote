@@ -215,3 +215,12 @@ export const ROOT_BOARD_ID = "root";
  *  lewat tombol/pintasan — bukan lewat kartu di kanvas. */
 export const INBOX_BOARD_ID = "inbox";
 export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
+/** Batas zoom kanvas — satu sumber kebenaran dipakai scroll/pinch (Canvas) dan
+ *  tombol +/− (ZoomControls), supaya tak ada jalur yang bisa melewati resolusi
+ *  yang pernah diuji (di luar batas ini, layer transform-scaled terlihat pecah). */
+export const MIN_ZOOM = 0.25;
+export const MAX_ZOOM = 2;
+/** Jarak titik grid (px, world units) — juga unit pembulatan saat kartu di-snap
+ *  setelah drag (useElementDrag). Satu konstanta dipakai kedua tempat supaya
+ *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti. */
+export const GRID = 16;
