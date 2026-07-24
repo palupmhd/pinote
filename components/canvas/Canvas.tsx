@@ -26,11 +26,10 @@ import { ZoomControls } from "./ZoomControls";
 import { GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
-const GRID_EXTENT = 6000; // area grid (world units) di tiap arah dari origin
-
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const zoomBadgeRef = useRef<HTMLDivElement>(null);
   const mmViewportRef = useRef<HTMLDivElement>(null);
   const minimapGeoRef = useRef<MinimapGeo | null>(null);
@@ -143,6 +142,14 @@ export function Canvas() {
     const { x, y, zoom } = cameraRef.current;
     if (worldRef.current) {
       worldRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${zoom})`;
+    }
+    // Grid titik BUKAN anak world-layer (lihat komentar di render) — disinkron
+    // lewat background-position/-size, bukan ikut transform. Elemennya tetap
+    // seukuran viewport (murah dirender ulang), jadi selalu tajam & tak pernah
+    // ikut jadi bitmap yang di-scale.
+    if (gridRef.current) {
+      gridRef.current.style.backgroundSize = `${GRID * zoom}px ${GRID * zoom}px`;
+      gridRef.current.style.backgroundPosition = `${x}px ${y}px`;
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
@@ -621,27 +628,27 @@ export function Canvas() {
         }
       }}
     >
-      {/* Layer dunia: grid + semua elemen. Digeser/diskala lewat satu transform
-          (GPU-composited). Grid jadi anak layer ini → ikut transform, tidak
-          pernah di-repaint per frame. */}
+      {/* Grid titik: SENGAJA di luar world-layer (bukan ikut transform pan/zoom).
+          Seukuran viewport + background-position/-size disinkron imperatif di
+          applyCamera — jadi tak pernah jadi bagian dari layer raksasa yang
+          di-scale sebagai bitmap (itulah yang bikin teks pecah selagi zoom
+          aktif; lihat komentar sharpenAtRest di bawah). Murah dirender ulang
+          tiap frame karena ukurannya cuma sebesar viewport. */}
+      <div
+        ref={gridRef}
+        data-export-ignore="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)" }}
+      />
+
+      {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
+          transform (GPU-composited). */}
       <div
         id="world-layer"
         ref={worldRef}
         className="absolute left-0 top-0"
         style={{ transformOrigin: "0 0", willChange: "transform" }}
       >
-        <div
-          data-export-ignore="true"
-          className="pointer-events-none absolute"
-          style={{
-            left: -GRID_EXTENT,
-            top: -GRID_EXTENT,
-            width: GRID_EXTENT * 2,
-            height: GRID_EXTENT * 2,
-            backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)",
-            backgroundSize: `${GRID}px ${GRID}px`,
-          }}
-        />
         {/* Garis digambar sebelum kartu → selalu tampil di bawahnya */}
         {hydrated && <ConnectorLayer connectors={connectors} relations={relations} cards={cards} />}
 
