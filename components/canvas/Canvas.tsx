@@ -26,11 +26,10 @@ import { ZoomControls } from "./ZoomControls";
 import { GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 
-const GRID_EXTENT = 6000; // area grid (world units) di tiap arah dari origin
-
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const zoomBadgeRef = useRef<HTMLDivElement>(null);
   const mmViewportRef = useRef<HTMLDivElement>(null);
   const minimapGeoRef = useRef<MinimapGeo | null>(null);
@@ -144,6 +143,14 @@ export function Canvas() {
     if (worldRef.current) {
       worldRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${zoom})`;
     }
+    // Grid titik BUKAN anak world-layer (lihat komentar di render) — disinkron
+    // lewat background-position/-size, bukan ikut transform. Elemennya tetap
+    // seukuran viewport (murah dirender ulang), jadi selalu tajam & tak pernah
+    // ikut jadi bitmap yang di-scale.
+    if (gridRef.current) {
+      gridRef.current.style.backgroundSize = `${GRID * zoom}px ${GRID * zoom}px`;
+      gridRef.current.style.backgroundPosition = `${x}px ${y}px`;
+    }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
     }
@@ -161,34 +168,39 @@ export function Canvas() {
     }
   }, []);
 
-  // world-layer dipromosikan jadi compositor layer sendiri (willChange:
-  // "transform") supaya pan/zoom digeser GPU tanpa React — itulah yang bikin
-  // gestur mulus. Konsekuensinya: browser men-scale bitmap yang sama selama
-  // transform terus berubah tiap frame, bukan menggambar ulang teks di
-  // resolusi native (mahal per-frame) — makanya teks terlihat pecah/kabur
-  // selagi di-zoom. Begitu kamera "diam" (disimpan ke store — hanya terjadi
-  // saat gestur selesai, bukan tiap frame), lepas lalu pasang lagi hint itu
-  // (dipisah satu pembacaan layout paksa) supaya browser me-raster ulang teks
-  // pada resolusi sebenarnya: devicePixelRatio layar × zoom saat ini.
-  const sharpenAtRest = useCallback(() => {
+  // world-layer HANYA dipromosikan jadi compositor layer (willChange:
+  // "transform") SELAGI gestur aktif — supaya pan/zoom digeser GPU tanpa
+  // React, itulah yang bikin gestur mulus. Begitu diam, hint itu dilepas
+  // sepenuhnya supaya browser melukis normal (bukan bitmap hasil promosi yang
+  // di-scale GPU) — teks kembali tajam di resolusi asli.
+  //
+  // (Percobaan sebelumnya mencoba toggle willChange off→on lagi di titik yang
+  // sama untuk "memaksa" raster ulang — itu TIDAK bekerja: membaca offsetHeight
+  // cuma memaksa *layout*, bukan *paint*; dua tulisan style dalam tugas JS yang
+  // sama nyaris pasti digabung jadi satu commit render oleh browser, jadi state
+  // "auto"-nya tak pernah benar-benar dilukis. Desain ini menggantinya dengan
+  // ON-di-awal-gestur / OFF-di-akhir — tanpa toggle balik, tanpa tebakan soal
+  // kapan browser mem-paint.)
+  const setLive = useCallback(() => {
     const el = worldRef.current;
-    if (!el) return;
-    el.style.willChange = "auto";
-    void el.offsetHeight; // paksa reflow: pastikan toggle benar-benar dieksekusi
-    el.style.willChange = "transform";
+    if (el && el.style.willChange !== "transform") el.style.willChange = "transform";
+  }, []);
+  const settleRaster = useCallback(() => {
+    const el = worldRef.current;
+    if (el) el.style.willChange = "auto";
   }, []);
 
-  // Sinkron ref ← store saat kamera store berubah — commit gesture, klik
-  // tombol zoom/minimap, focusElement, buka papan lain, dst. Semuanya adalah
-  // titik "diam" (bukan tiap-frame), jadi juga titik yang tepat untuk
-  // menajamkan ulang teks. useLayoutEffect agar transform diterapkan sebelum
-  // paint.
+  // Sinkron ref ← store saat kamera store berubah — commit gesture (akhir
+  // wheel-zoom/pan), klik tombol zoom/minimap, focusElement, buka papan lain,
+  // dst. Semuanya titik "diam" (store hanya di-update di akhir gestur, bukan
+  // tiap frame) → titik yang tepat untuk melepas promosi compositor.
+  // useLayoutEffect agar transform diterapkan sebelum paint.
   const storeCamera = useCanvasStore((s) => s.camera);
   useLayoutEffect(() => {
     cameraRef.current = storeCamera;
     applyCamera();
-    sharpenAtRest();
-  }, [storeCamera, applyCamera, sharpenAtRest]);
+    settleRaster();
+  }, [storeCamera, applyCamera, settleRaster]);
 
   const scheduleCommit = useCallback(() => {
     if (commitTimer.current) clearTimeout(commitTimer.current);
@@ -275,12 +287,13 @@ export function Canvas() {
       } else {
         cameraRef.current = { ...cam, x: cam.x - e.deltaX, y: cam.y - e.deltaY };
       }
+      setLive();
       applyCamera();
       scheduleCommit();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [applyCamera, scheduleCommit]);
+  }, [applyCamera, scheduleCommit, setLive]);
 
   // Delete/Backspace hapus elemen terpilih (kecuali sedang mengetik); Esc batal
   useEffect(() => {
@@ -557,6 +570,7 @@ export function Canvas() {
         x: pan.camX + (e.clientX - pan.startX),
         y: pan.camY + (e.clientY - pan.startY),
       };
+      setLive();
       applyCamera(); // imperatif — tanpa re-render React
       return;
     }
@@ -621,27 +635,30 @@ export function Canvas() {
         }
       }}
     >
-      {/* Layer dunia: grid + semua elemen. Digeser/diskala lewat satu transform
-          (GPU-composited). Grid jadi anak layer ini → ikut transform, tidak
-          pernah di-repaint per frame. */}
+      {/* Grid titik: SENGAJA di luar world-layer (bukan ikut transform pan/zoom).
+          Seukuran viewport + background-position/-size disinkron imperatif di
+          applyCamera — jadi tak pernah jadi bagian dari layer raksasa yang
+          di-scale sebagai bitmap (itulah yang bikin teks pecah selagi zoom
+          aktif; lihat komentar sharpenAtRest di bawah). Murah dirender ulang
+          tiap frame karena ukurannya cuma sebesar viewport. */}
+      <div
+        ref={gridRef}
+        data-export-ignore="true"
+        className="pointer-events-none absolute inset-0"
+        style={{ backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)" }}
+      />
+
+      {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
+          transform. willChange TIDAK diset di sini — sengaja mulai "diam"
+          (dilukis normal, tajam); setLive()/settleRaster() yang mengatur
+          promosi compositor hanya selama gestur aktif (lihat komentar di
+          dekat definisinya). */}
       <div
         id="world-layer"
         ref={worldRef}
         className="absolute left-0 top-0"
-        style={{ transformOrigin: "0 0", willChange: "transform" }}
+        style={{ transformOrigin: "0 0" }}
       >
-        <div
-          data-export-ignore="true"
-          className="pointer-events-none absolute"
-          style={{
-            left: -GRID_EXTENT,
-            top: -GRID_EXTENT,
-            width: GRID_EXTENT * 2,
-            height: GRID_EXTENT * 2,
-            backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)",
-            backgroundSize: `${GRID}px ${GRID}px`,
-          }}
-        />
         {/* Garis digambar sebelum kartu → selalu tampil di bawahnya */}
         {hydrated && <ConnectorLayer connectors={connectors} relations={relations} cards={cards} />}
 

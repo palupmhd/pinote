@@ -7,11 +7,20 @@ import { useCanvasStore } from "@/lib/store";
 import type { Box, CardElement, ConnectorElement } from "@/lib/types";
 
 const FALLBACK_HEIGHT = 64;
-/** Setengah sisi kotak SVG, samakan dengan grid di Canvas. SVG WAJIB punya
- *  ukuran nyata — svg 0x0 (walau overflow:visible) tidak dilukis sama sekali.
- *  Anak-anaknya digeser +EXTENT lewat <g> supaya tetap bisa memakai koordinat
- *  world apa adanya, termasuk yang negatif. */
-const EXTENT = 6000;
+/** Setengah sisi kotak SVG. SVG WAJIB punya ukuran nyata — svg 0x0 (walau
+ *  overflow:visible) tidak dilukis sama sekali. Anak-anaknya digeser +EXTENT
+ *  lewat <g> supaya tetap bisa memakai koordinat world apa adanya, termasuk
+ *  yang negatif.
+ *
+ *  Sengaja dijaga kecil (bukan menutupi seluruh "dunia" konseptual): elemen
+ *  ini anak dari world-layer yang dipromosikan willChange:"transform" —
+ *  ukurannya menentukan seberapa besar layer itu harus dirasterisasi ulang
+ *  tiap frame selagi zoom aktif. EXTENT 6000 sebelumnya (SVG 12000×12000px)
+ *  jauh melebihi kebutuhan wajar & bikin browser terpaksa men-scale bitmap
+ *  lama alih-alih menggambar ulang teks — persis sumber teks pecah selagi
+ *  zoom. 3000 (SVG 6000×6000px) masih longgar untuk board pada umumnya,
+ *  ~4× lebih murah dirasterisasi. */
+const EXTENT = 3000;
 
 /** Panah relasi database (spec §8.6): sumber/tujuan tetap id elemen (kartu
  *  database), jadi memakai ulang jalur gambar & ikut-geser yang sama seperti
