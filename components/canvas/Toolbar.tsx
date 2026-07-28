@@ -118,7 +118,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   };
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-2xl bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur">
+    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur">
       {/* Tombol tambah utama: catatan cepat di tengah kanvas. */}
       <button
         onClick={() => {
@@ -126,7 +126,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           addNote(x, y);
         }}
         title="Catatan cepat"
-        className="mr-0.5 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+        className="mr-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
       >
         <IconPlus className="h-5 w-5" />
       </button>
@@ -136,7 +136,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           key={label}
           onClick={() => runTool(label)}
           title={hint}
-          className="flex w-14 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+          className="flex w-14 shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
         >
           <Icon className="h-5 w-5" />
           <span className="text-[10px] font-medium">{label}</span>
@@ -145,10 +145,10 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
 
       <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickImage} className="hidden" />
 
-      <div className="mx-0.5 h-8 w-px bg-neutral-200" />
+      <div className="mx-0.5 h-8 w-px shrink-0 bg-neutral-200" />
 
       {/* Overflow: aksi papan (template, panggil database, presentasi, ekspor). */}
-      <div ref={moreRef} className="relative">
+      <div ref={moreRef} className="relative shrink-0">
         <button
           onClick={() => setMoreOpen((v) => !v)}
           title="Lainnya"
