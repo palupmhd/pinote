@@ -36,6 +36,23 @@ body {
   box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.28), 0 6px 12px rgba(0, 0, 0, 0.10);
 }
 
+/* Banyak field kecil di seluruh app (sel Tabel/Kanban/Kalender/Galeri/Spatial,
+ * dst) menghapus outline browser bawaan (Tailwind `outline-none`) demi
+ * tampilan bersih, tapi kebanyakan tak pernah diberi pengganti — pengguna
+ * keyboard kehilangan indikator fokus SAMA SEKALI. Dikonfirmasi lewat
+ * computed style sungguhan (outlineStyle "none", boxShadow "none"), bukan
+ * dugaan — pelanggaran WCAG 2.4.7 (Focus Visible). Satu aturan di sini,
+ * targetnya :focus-visible (bukan :focus) supaya tak menambah cincin saat
+ * diklik mouse, hanya saat dioperasikan keyboard — dan field baru otomatis
+ * ikut aman tanpa perlu diingat tiap kali menulis outline-none. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[contenteditable="true"]:focus-visible {
+  outline: 2px solid #6366f1 !important;
+  outline-offset: 1px;
+}
+
 /* Editor Tiptap di dalam NoteCard */
 .note-editor .ProseMirror {
   outline: none;
