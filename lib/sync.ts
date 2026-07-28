@@ -201,9 +201,18 @@ export const useSyncStore = create<SyncState>((set) => ({
 
 async function fetchRemote(): Promise<{ data: Persisted; revision: number } | null> {
   if (!supabase) return null;
+  // Saring eksplisit ke user yang sedang masuk. RLS di Supabase memang sudah
+  // seharusnya menjamin ini, tapi baca tanpa filter berarti kebenaran datanya
+  // bergantung 100% pada konfigurasi server yang tak terlihat dari sini — dan
+  // maybeSingle() akan error kalau kebetulan terlihat >1 baris. push() sudah
+  // memfilter user_id; samakan supaya tak ada jalur yang lebih longgar.
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user.id;
+  if (!userId) return null;
   const { data, error } = await supabase
     .from("workspaces")
     .select("data, revision")
+    .eq("user_id", userId)
     .maybeSingle();
   if (error) {
     useSyncStore.setState({ status: "error", message: error.message });
@@ -395,11 +404,26 @@ async function push(isFirst = false) {
   useSyncStore.setState({ status: "synced", message: null });
 }
 
-/** Tandai kotor + jadwalkan kiriman tiap kali kanvas berubah. */
+/** Tandai kotor + jadwalkan kiriman tiap kali DOKUMEN berubah.
+ *
+ *  Definisi "dokumen" sengaja sama persis dengan autosave lokal di store.ts:
+ *  boards/elements/databases/currentBoardId. Sebelumnya watcher ini menandai
+ *  kotor pada SETIAP perubahan store — termasuk seleksi, mode edit, dan
+ *  pan/zoom. Efeknya bukan cuma boros tulisan & request: cuma dengan mengeklik
+ *  kartu atau menggeser kanvas, `dirty` jadi true, lalu begitu perangkat lain
+ *  menyimpan sesuatu, ingestRemoteRow menyimpulkan "dua-duanya berubah" dan
+ *  memunculkan dialog KONFLIK PALSU — padahal di sini tak ada satu pun edit. */
 export function startSyncWatcher() {
   if (!supabase) return () => {};
-  return useCanvasStore.subscribe((state) => {
+  return useCanvasStore.subscribe((state, prev) => {
     if (!state.hydrated || applyingRemote) return;
+    const docChanged =
+      state.boards !== prev.boards ||
+      state.elements !== prev.elements ||
+      state.databases !== prev.databases ||
+      state.currentBoardId !== prev.currentBoardId;
+    if (!docChanged) return;
+
     const status = useSyncStore.getState().status;
     if (status === "disabled" || status === "signed-out" || status === "conflict") return;
 

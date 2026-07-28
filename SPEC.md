@@ -59,6 +59,10 @@ Disusun dari hasil riset knowledge base Milanote + inspeksi langsung struktur DO
 
 **v3:** belum disentuh — lihat §0 di bawah.
 
+**Tes otomatis (mulai ada sejak audit):** `npm test` — runner + type-stripping bawaan Node, **tanpa dependency baru**. Mencakup modul murni & kode keamanan: `sanitizeHtml` (skema href), `urlGuard` (penjaga SSRF), `formula` (7 preset), `rollup` (5 operasi), `presentation` (urutan konektor). Sebelum ini proyek NOL tes: tiap fitur diverifikasi sekali pakai skrip Playwright sementara yang hilang bersama kontainer — itulah sebabnya regresi seperti batas zoom 400% dan `sharpenAtRest` yang tak berefek bisa lolos berkali-kali. **Kalau menyentuh modul di atas, jalankan `npm test`.** Tes baru diletakkan sebagai `lib/<modul>.test.ts`.
+
+**Catatan keamanan (jangan diulangi):** dua lubang lolos berbulan-bulan karena penjaganya ditulis sebagai *denylist* dan tak pernah diuji. (1) `sanitizeHtml` menolak `javascript:` lewat `startsWith` — dilewati dengan menyisipkan tab/LF/CR di tengah skema, karena browser mengabaikan karakter itu saat membaca skema. (2) Penjaga SSRF membandingkan `hostname === "::1"`, padahal `URL.hostname` mengembalikan IPv6 **berkurung siku**, jadi seluruh ruang IPv6 (termasuk loopback ter-map `[::ffff:127.0.0.1]`) lolos. Prinsip yang dipegang sekarang: **allowlist, bukan denylist**, dan tiap penjaga keamanan wajib punya tes yang terbukti gagal pada versi rentannya.
+
 **Catatan performa (jangan diulangi):** kanvas sempat lag berat lalu nge-hang PC karena (1) Tiptap editor di-mount di semua note sekaligus meski tidak sedang diedit, (2) NoteCard re-render tiap frame pan/zoom karena tidak di-memo, (3) SVG connector sempat `width="0" height="0"` sehingga tidak pernah dilukis browser walau path-nya valid di DOM. Ketiganya sudah diperbaiki. Prinsip yang dipegang sekarang: **posisi kamera & drag diterapkan langsung ke DOM lewat ref, bukan lewat state React**, commit ke store hanya di akhir gesture. Commit `eb6ed4c` (relations) sempat kena varian baru dari kelas bug yang sama (selector zustand mengembalikan array baru tiap render → render loop) dan sudah diperbaiki di commit yang sama.
 
 ---
