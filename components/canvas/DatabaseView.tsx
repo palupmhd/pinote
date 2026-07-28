@@ -240,14 +240,20 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
     return tid ? (databases[tid]?.columns.filter((c) => c.type === "number") ?? []) : [];
   }, [databases, rollupRelCol]);
   // Kolom input yang cocok untuk preset formula terpilih (jangan pilih diri
-  // sendiri): tanggal→date, hitung angka→number, concat→apa saja.
+  // sendiri): tanggal→date, hitung angka→number, concat→teks/angka/tanggal.
+  // Kolom TERHITUNG (formula/rollup) sengaja tak pernah ditawarkan: nilainya
+  // dihitung saat render dan tak pernah disimpan di `cells`, jadi memilihnya
+  // selalu menghasilkan sel kosong — jebakan diam yang tampak seperti bug.
   const formulaCands = useMemo(() => {
-    const cols = (databases[dbId]?.columns ?? []).filter((c) => c.id !== column.id);
+    const cols = (databases[dbId]?.columns ?? []).filter(
+      (c) => c.id !== column.id && c.type !== "formula" && c.type !== "rollup"
+    );
     const p = column.formulaPreset;
     if (p === "days_until" || p === "date_status") return cols.filter((c) => c.type === "date");
     if (p === "sum" || p === "diff" || p === "product" || p === "percent")
       return cols.filter((c) => c.type === "number");
-    return cols; // concat / belum pilih preset
+    // concat: relasi tak punya representasi teks yang berguna (array id).
+    return cols.filter((c) => c.type !== "relation");
   }, [databases, dbId, column.id, column.formulaPreset]);
   const formulaInputs = column.formulaPreset ? FORMULA_PRESETS[column.formulaPreset].inputs : 0;
 
