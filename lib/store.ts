@@ -244,6 +244,57 @@ function collectDescendants(boards: Record<string, Board>, rootId: string): Set<
   return ids;
 }
 
+/** Kaskade hapus satu papan + seluruh keturunannya + isinya (kartu, dan
+ *  database yang jadi yatim ikut terhapus rekursif). MUTATES nb/ne/nd/nc di
+ *  tempat. Dipakai bareng oleh removeElements (kartu BOARD_REF, database
+ *  yatim) dan removeRow (baris database bertaut kanvas) supaya aturannya
+ *  satu — sebelumnya removeRow punya salinan dangkal yang tak membuang
+ *  database di dalam papan yang dihapus, jadi database itu jadi hantu:
+ *  tetap ada di store selamanya, tak tersambung ke kartu mana pun, tapi
+ *  masih muncul di DatabasePicker ("↳ pakai yang ada…"). */
+function purgeBoardCascade(
+  nb: Record<string, Board>,
+  ne: Record<string, BoardElement>,
+  nd: Record<string, Database>,
+  nc: Record<string, Camera>,
+  rootBoardId: string
+): void {
+  const purgeEl = (id: string) => {
+    const el = ne[id];
+    if (!el) return;
+    delete ne[id];
+    // Kartu database = hapus tabelnya, TAPI cuma kalau tidak ada kartu pintu
+    // lain (di board mana pun) yang masih menunjuk ke database yang sama —
+    // satu database bisa dipanggil dari banyak board (spec §7.3), jadi hapus
+    // satu kartu tidak boleh menghancurkan data yang masih dipakai board lain.
+    if (el.type === "DATABASE_REF") {
+      const stillReferenced = Object.values(ne).some(
+        (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
+      );
+      if (!stillReferenced) {
+        const db = nd[el.content.databaseId];
+        for (const r of db?.rows ?? []) {
+          if (r.boardId && nb[r.boardId]) purgeBoardCascade(nb, ne, nd, nc, r.boardId);
+        }
+        delete nd[el.content.databaseId];
+      }
+    } else if (el.type === "BOARD_REF") {
+      // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
+      // supaya kartu database di dalamnya ikut membuang tabelnya).
+      purgeBoardCascade(nb, ne, nd, nc, el.content.boardId);
+    }
+  };
+
+  const doomed = collectDescendants(nb, rootBoardId);
+  for (const bid of doomed) {
+    delete nb[bid];
+    delete nc[bid];
+    for (const e of Object.values(ne)) {
+      if (e.boardId === bid) purgeEl(e.id);
+    }
+  }
+}
+
 /** Buang sekumpulan elemen dari salinan kerja, dengan kaskade:
  *  - kartu papan → papannya + seluruh keturunannya + isinya ikut hilang;
  *  - konektor yang salah satu ujungnya lenyap dipangkas di akhir.
@@ -283,15 +334,7 @@ function removeElements(
         // keturunannya + isinya, sama seperti penghapusan kartu BOARD_REF.
         const db = nd[el.content.databaseId];
         for (const r of db?.rows ?? []) {
-          if (!r.boardId || !nb[r.boardId]) continue;
-          const doomed = collectDescendants(nb, r.boardId);
-          for (const bid of doomed) {
-            delete nb[bid];
-            delete nc[bid];
-            for (const e of Object.values(ne)) {
-              if (e.boardId === bid) purge(e.id);
-            }
-          }
+          if (r.boardId && nb[r.boardId]) purgeBoardCascade(nb, ne, nd, nc, r.boardId);
         }
         delete nd[el.content.databaseId];
       }
@@ -299,14 +342,7 @@ function removeElements(
     // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
     // supaya kartu database di dalamnya ikut membuang tabelnya).
     if (el.type === "BOARD_REF") {
-      const doomed = collectDescendants(nb, el.content.boardId);
-      for (const bid of doomed) {
-        delete nb[bid];
-        delete nc[bid];
-        for (const e of Object.values(ne)) {
-          if (e.boardId === bid) purge(e.id);
-        }
-      }
+      purgeBoardCascade(nb, ne, nd, nc, el.content.boardId);
     }
   };
 
@@ -966,18 +1002,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         });
         if (changed) databases[id] = { ...d, rows };
       }
-      // Baris punya kanvas bertaut → buang board + keturunannya + isinya, supaya
-      // tak jadi data menggantung (konsisten dg penghapusan kartu BOARD_REF).
+      // Baris punya kanvas bertaut → buang board + keturunannya + isinya (dan
+      // database yang jadi yatim di dalamnya), supaya tak jadi data
+      // menggantung — sama persis kaskade yang dipakai penghapusan kartu
+      // BOARD_REF, bukan salinan dangkal yang cuma buang board+elemen tapi
+      // bocorkan database di dalamnya jadi hantu selamanya.
       if (gone?.boardId && s.boards[gone.boardId]) {
         const nb = { ...s.boards };
         const nc = { ...s.cameras };
         const ne = { ...s.elements };
-        const doomed = collectDescendants(nb, gone.boardId);
-        for (const bid of doomed) {
-          delete nb[bid];
-          delete nc[bid];
-          for (const e of Object.values(ne)) {
-            if (e.boardId === bid) delete ne[e.id];
+        purgeBoardCascade(nb, ne, databases, nc, gone.boardId);
+        for (const e of Object.values(ne)) {
+          if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
+            delete ne[e.id];
           }
         }
         return { databases, boards: nb, cameras: nc, elements: ne };
