@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { useCanvasStore } from "./store";
 import { ROOT_BOARD_ID } from "./types";
 
+function databaseIdOf(elementId: string): string {
+  const el = useCanvasStore.getState().elements[elementId];
+  assert.ok(el && el.type === "DATABASE_REF", "elemen harus kartu DATABASE_REF");
+  return el.content.databaseId;
+}
+
 /** Regresi: removeRow dulu punya kaskade "dangkal" untuk baris yang punya
  *  kanvas bertaut (dibuka via "buka baris sebagai kanvas") — board +
  *  elemennya dihapus, tapi database di DALAM board itu (kartu DATABASE_REF)
@@ -14,7 +20,7 @@ test("removeRow membuang database yatim di dalam board bertaut (bukan cuma board
   const s = useCanvasStore.getState();
 
   const outerElId = s.addDatabase(0, 0);
-  const outerDbId = useCanvasStore.getState().elements[outerElId]!.content.databaseId as string;
+  const outerDbId = databaseIdOf(outerElId);
   s.addRow(outerDbId);
   const rowId = useCanvasStore.getState().databases[outerDbId]!.rows[0]!.id;
 
@@ -23,7 +29,7 @@ test("removeRow membuang database yatim di dalam board bertaut (bukan cuma board
   assert.equal(useCanvasStore.getState().currentBoardId, boardId);
 
   const innerElId = s.addDatabase(0, 0);
-  const innerDbId = useCanvasStore.getState().elements[innerElId]!.content.databaseId as string;
+  const innerDbId = databaseIdOf(innerElId);
   assert.ok(useCanvasStore.getState().databases[innerDbId], "database dalam harus ada sebelum dihapus");
 
   s.openBoard(ROOT_BOARD_ID);
