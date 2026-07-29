@@ -25,6 +25,7 @@ import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
 import { GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
+import { clampCamera } from "@/lib/geometry";
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,6 +140,11 @@ export function Canvas() {
   useEffect(() => startHistory(), []);
 
   const applyCamera = useCallback(() => {
+    // Kiri/atas kanvas adalah batas keras (x=0/y=0 tak pernah kelihatan di
+    // luar itu, gaya Milanote) — diberlakukan di sini supaya SEMUA jalur yang
+    // menggerakkan kamera (wheel, pan pointer, tombol zoom, minimap, dst) lolos
+    // titik yang sama, tanpa kecuali.
+    cameraRef.current = clampCamera(cameraRef.current);
     const { x, y, zoom } = cameraRef.current;
     if (worldRef.current) {
       worldRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${zoom})`;
@@ -148,8 +154,13 @@ export function Canvas() {
     // seukuran viewport (murah dirender ulang), jadi selalu tajam & tak pernah
     // ikut jadi bitmap yang di-scale.
     if (gridRef.current) {
-      gridRef.current.style.backgroundSize = `${GRID * zoom}px ${GRID * zoom}px`;
-      gridRef.current.style.backgroundPosition = `${x}px ${y}px`;
+      const tile = GRID * zoom;
+      gridRef.current.style.backgroundSize = `${tile}px ${tile}px`;
+      // radial-gradient default posisinya di TENGAH tiap ubin, bukan di
+      // pojoknya — digeser setengah ubin supaya titik yang terlihat memang
+      // jatuh di kelipatan GRID (titik dunia yang sama dipakai snap saat
+      // drag), bukan di antaranya.
+      gridRef.current.style.backgroundPosition = `${x - tile / 2}px ${y - tile / 2}px`;
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
@@ -645,7 +656,7 @@ export function Canvas() {
         ref={gridRef}
         data-export-ignore="true"
         className="pointer-events-none absolute inset-0"
-        style={{ backgroundImage: "radial-gradient(circle, #d8d4c8 1px, transparent 1px)" }}
+        style={{ backgroundImage: "radial-gradient(circle, #c9c9c8 1.5px, transparent 1.5px)" }}
       />
 
       {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
