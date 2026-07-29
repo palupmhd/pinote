@@ -74,11 +74,23 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
       setMenuPos({ bottom: window.innerHeight - r.top + 8, right: window.innerWidth - r.right });
     };
     place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
+    // scroll (capture) bisa menembak berkali-kali per gestur (mis. toolbar
+    // sendiri discroll horizontal) — batasi ke sekali per frame lewat rAF,
+    // jangan hitung ulang posisi (baca layout + setState) di tiap event mentah.
+    let raf = 0;
+    const scheduled = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        place();
+      });
+    };
+    window.addEventListener("resize", scheduled);
+    window.addEventListener("scroll", scheduled, true);
     return () => {
-      window.removeEventListener("resize", place);
-      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", scheduled);
+      window.removeEventListener("scroll", scheduled, true);
+      if (raf) cancelAnimationFrame(raf);
     };
   }, [moreOpen]);
 
