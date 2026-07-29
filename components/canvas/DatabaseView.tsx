@@ -29,12 +29,14 @@ const ROLLUP_OPS: Record<RollupOp, string> = {
   max: "Maksimum",
 };
 
-/** Sel rollup: nilai dihitung dari relasi, baca saja (spec §7.1). */
-function RollupCell({ dbId, rowId, column }: { dbId: string; rowId: string; column: DbColumn }) {
+/** Sel rollup: nilai dihitung dari relasi, baca saja (spec §7.1). Terima
+ *  `row` langsung (bukan rowId) — pemanggil (baris tabel) sudah punya
+ *  objeknya di tangan lewat db.rows.map, jadi tak perlu .find() ulang yang
+ *  jadi O(N) per sel dan O(N²) untuk seluruh kolom rollup di tabel. */
+function RollupCell({ dbId, row, column }: { dbId: string; row: DbRow; column: DbColumn }) {
   const databases = useCanvasStore((s) => s.databases);
   const db = databases[dbId];
-  const row = db?.rows.find((r) => r.id === rowId);
-  if (!db || !row) return null;
+  if (!db) return null;
   if (!column.rollupRelationId) {
     return <span className="text-xs text-neutral-300">atur di header</span>;
   }
@@ -43,11 +45,11 @@ function RollupCell({ dbId, rowId, column }: { dbId: string; rowId: string; colu
 }
 
 /** Sel formula: nilai dihitung dari kolom lain lewat preset, baca saja (§7.1).
- *  Subscribe ke database supaya ikut berubah saat sel sumber berubah. */
-function FormulaCell({ dbId, rowId, column }: { dbId: string; rowId: string; column: DbColumn }) {
+ *  Subscribe ke database supaya ikut berubah saat sel sumber berubah. Terima
+ *  `row` langsung — alasan sama seperti RollupCell di atas. */
+function FormulaCell({ dbId, row, column }: { dbId: string; row: DbRow; column: DbColumn }) {
   const db = useCanvasStore((s) => s.databases[dbId]);
-  const row = db?.rows.find((r) => r.id === rowId);
-  if (!db || !row) return null;
+  if (!db) return null;
   if (!column.formulaPreset) {
     return <span className="text-xs text-neutral-300">atur di header</span>;
   }
@@ -144,11 +146,13 @@ function RelationCell({
 function CellEditor({
   dbId,
   rowId,
+  row,
   column,
   value,
 }: {
   dbId: string;
   rowId: string;
+  row: DbRow;
   column: DbColumn;
   value: CellValue;
 }) {
@@ -159,10 +163,10 @@ function CellEditor({
     return <RelationCell dbId={dbId} rowId={rowId} column={column} value={value} />;
   }
   if (column.type === "rollup") {
-    return <RollupCell dbId={dbId} rowId={rowId} column={column} />;
+    return <RollupCell dbId={dbId} row={row} column={column} />;
   }
   if (column.type === "formula") {
-    return <FormulaCell dbId={dbId} rowId={rowId} column={column} />;
+    return <FormulaCell dbId={dbId} row={row} column={column} />;
   }
   if (column.type === "checkbox") {
     return (
@@ -510,7 +514,7 @@ export function DatabaseView() {
                 <tr key={row.id} className="group border-b border-neutral-100 hover:bg-neutral-50/60">
                   {db.columns.map((c) => (
                     <td key={c.id} className="border-r border-neutral-100 px-3 py-1.5 align-middle">
-                      <CellEditor dbId={db.id} rowId={row.id} column={c} value={row.cells[c.id] ?? null} />
+                      <CellEditor dbId={db.id} rowId={row.id} row={row} column={c} value={row.cells[c.id] ?? null} />
                     </td>
                   ))}
                   <td className="whitespace-nowrap px-2 text-center align-middle">
