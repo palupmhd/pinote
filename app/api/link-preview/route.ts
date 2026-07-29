@@ -1,21 +1,8 @@
 import { NextResponse } from "next/server";
+import { isBlockedHost } from "@/lib/urlGuard";
 
 const TIMEOUT_MS = 6000;
 const MAX_BYTES = 512 * 1024; // cukup untuk <head>; jangan tarik halaman raksasa
-
-/** Route ini mengambil URL dari sisi server, jadi bisa dipakai untuk mengintip
- *  jaringan internal (SSRF). Tolak apa pun yang bukan http(s) publik.
- *  Catatan: cek berbasis hostname tidak kebal DNS rebinding — cukup untuk alat
- *  pribadi, perlu diperketat kalau nanti dibuka untuk umum. */
-function isBlockedHost(hostname: string): boolean {
-  const h = hostname.toLowerCase();
-  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".internal")) return true;
-  if (h === "::1" || h === "0.0.0.0") return true;
-  if (/^127\./.test(h) || /^10\./.test(h) || /^192\.168\./.test(h)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
-  if (/^169\.254\./.test(h)) return true; // metadata cloud
-  return false;
-}
 
 const pick = (html: string, patterns: RegExp[]): string | null => {
   for (const re of patterns) {

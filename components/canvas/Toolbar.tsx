@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { useCanvasStore } from "@/lib/store";
 import { exportBoardPng } from "@/lib/exportImage";
 import { firstImageFile, importImageFile } from "@/lib/images";
@@ -54,11 +55,50 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   const startPresentation = useUiStore((s) => s.startPresentation);
 
   const [moreOpen, setMoreOpen] = useState(false);
-  const moreRef = useRef<HTMLDivElement>(null);
+  const moreBtnRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  // Posisi menu dihitung manual (bukan CSS absolute) karena toolbar induk
+  // punya overflow-x-auto (untuk scroll horizontal di layar sempit) — itu
+  // otomatis membuat overflow-y jadi "auto" juga (kuirk spec CSS: satu sumbu
+  // non-visible memaksa sumbu lain jadi non-visible), sehingga popup yang
+  // harusnya melayang DI ATAS toolbar malah terpotong & tak bisa diklik
+  // (elementFromPoint jatuh ke kanvas di baliknya). Di-portal ke document.body
+  // dengan posisi fixed supaya lolos dari clipping itu sepenuhnya.
+  const [menuPos, setMenuPos] = useState<{ bottom: number; right: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!moreOpen) return;
+    const place = () => {
+      const r = moreBtnRef.current?.getBoundingClientRect();
+      if (!r) return;
+      setMenuPos({ bottom: window.innerHeight - r.top + 8, right: window.innerWidth - r.right });
+    };
+    place();
+    // scroll (capture) bisa menembak berkali-kali per gestur (mis. toolbar
+    // sendiri discroll horizontal) — batasi ke sekali per frame lewat rAF,
+    // jangan hitung ulang posisi (baca layout + setState) di tiap event mentah.
+    let raf = 0;
+    const scheduled = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        place();
+      });
+    };
+    window.addEventListener("resize", scheduled);
+    window.addEventListener("scroll", scheduled, true);
+    return () => {
+      window.removeEventListener("resize", scheduled);
+      window.removeEventListener("scroll", scheduled, true);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [moreOpen]);
+
   useEffect(() => {
     if (!moreOpen) return;
     const onOutside = (e: MouseEvent) => {
-      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+      const t = e.target as Node;
+      if (!moreBtnRef.current?.contains(t) && !menuPanelRef.current?.contains(t)) setMoreOpen(false);
     };
     document.addEventListener("pointerdown", onOutside);
     return () => document.removeEventListener("pointerdown", onOutside);
@@ -118,7 +158,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
   };
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-2xl bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur">
+    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-10 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 items-center gap-1 overflow-x-auto rounded-2xl bg-white/95 p-1.5 shadow-[0_8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/5 backdrop-blur">
       {/* Tombol tambah utama: catatan cepat di tengah kanvas. */}
       <button
         onClick={() => {
@@ -126,7 +166,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           addNote(x, y);
         }}
         title="Catatan cepat"
-        className="mr-0.5 flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+        className="mr-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
       >
         <IconPlus className="h-5 w-5" />
       </button>
@@ -136,7 +176,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           key={label}
           onClick={() => runTool(label)}
           title={hint}
-          className="flex w-14 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+          className="flex w-14 shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
         >
           <Icon className="h-5 w-5" />
           <span className="text-[10px] font-medium">{label}</span>
@@ -145,11 +185,12 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
 
       <input ref={fileInputRef} type="file" accept="image/*" onChange={onPickImage} className="hidden" />
 
-      <div className="mx-0.5 h-8 w-px bg-neutral-200" />
+      <div className="mx-0.5 h-8 w-px shrink-0 bg-neutral-200" />
 
       {/* Overflow: aksi papan (template, panggil database, presentasi, ekspor). */}
-      <div ref={moreRef} className="relative">
+      <div className="relative shrink-0">
         <button
+          ref={moreBtnRef}
           onClick={() => setMoreOpen((v) => !v)}
           title="Lainnya"
           className={[
@@ -160,41 +201,48 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           <IconDots className="h-5 w-5" />
         </button>
 
-        {moreOpen && (
-          <div className="absolute bottom-full right-0 z-20 mb-2 w-60 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5">
-            <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
-              Papan baru
-            </p>
-            <TemplatePicker
-              onPick={(tpl) => {
-                const { x, y } = viewportCenter();
-                addBoardFromTemplate(tpl, x, y);
-                setMoreOpen(false);
-              }}
-            />
-            <DatabasePicker
-              onAttach={(dbId) => {
-                const { x, y } = viewportCenter();
-                attachDatabase(dbId, x, y);
-                setMoreOpen(false);
-              }}
-            />
-            <div className="my-1 h-px bg-neutral-100" />
-            <button
-              onClick={onPresent}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+        {moreOpen &&
+          menuPos &&
+          createPortal(
+            <div
+              ref={menuPanelRef}
+              style={{ position: "fixed", bottom: menuPos.bottom, right: menuPos.right }}
+              className="z-30 w-60 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5"
             >
-              <IconPresent className="h-4 w-4 text-neutral-500" /> Presentasi
-            </button>
-            <button
-              onClick={onExport}
-              disabled={exporting}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 disabled:pointer-events-none disabled:text-neutral-400"
-            >
-              <IconExport className="h-4 w-4 text-neutral-500" /> {exporting ? "Mengekspor…" : "Ekspor PNG"}
-            </button>
-          </div>
-        )}
+              <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                Papan baru
+              </p>
+              <TemplatePicker
+                onPick={(tpl) => {
+                  const { x, y } = viewportCenter();
+                  addBoardFromTemplate(tpl, x, y);
+                  setMoreOpen(false);
+                }}
+              />
+              <DatabasePicker
+                onAttach={(dbId) => {
+                  const { x, y } = viewportCenter();
+                  attachDatabase(dbId, x, y);
+                  setMoreOpen(false);
+                }}
+              />
+              <div className="my-1 h-px bg-neutral-100" />
+              <button
+                onClick={onPresent}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+              >
+                <IconPresent className="h-4 w-4 text-neutral-500" /> Presentasi
+              </button>
+              <button
+                onClick={onExport}
+                disabled={exporting}
+                className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100 disabled:pointer-events-none disabled:text-neutral-400"
+              >
+                <IconExport className="h-4 w-4 text-neutral-500" /> {exporting ? "Mengekspor…" : "Ekspor PNG"}
+              </button>
+            </div>,
+            document.body
+          )}
       </div>
     </div>
   );

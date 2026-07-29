@@ -244,6 +244,71 @@ function collectDescendants(boards: Record<string, Board>, rootId: string): Set<
   return ids;
 }
 
+/** Hapus satu elemen beserta entitas yang cuma "dimiliki" olehnya (database
+ *  yang jadi yatim, papan bertaut). MUTATES nb/ne/nd/nc di tempat. Satu-
+ *  satunya tempat aturan kaskade-per-elemen ditulis — dipakai baik oleh
+ *  removeElements (hapus langsung) maupun purgeBoardCascade (elemen di
+ *  dalam papan yang ikut terhapus), supaya keduanya tak pernah bisa
+ *  bercabang aturan. */
+function purgeElementCascade(
+  nb: Record<string, Board>,
+  ne: Record<string, BoardElement>,
+  nd: Record<string, Database>,
+  nc: Record<string, Camera>,
+  id: string
+): void {
+  const el = ne[id];
+  if (!el) return;
+  delete ne[id];
+  // Kartu database = hapus tabelnya, TAPI cuma kalau tidak ada kartu pintu
+  // lain (di board mana pun) yang masih menunjuk ke database yang sama —
+  // satu database bisa dipanggil dari banyak board (spec §7.3), jadi hapus
+  // satu kartu tidak boleh menghancurkan data yang masih dipakai board lain.
+  if (el.type === "DATABASE_REF") {
+    const stillReferenced = Object.values(ne).some(
+      (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
+    );
+    if (!stillReferenced) {
+      // Board kanvas bertaut milik tiap baris ikut yatim → buang board +
+      // keturunannya + isinya, sama seperti penghapusan kartu BOARD_REF.
+      const db = nd[el.content.databaseId];
+      for (const r of db?.rows ?? []) {
+        if (r.boardId && nb[r.boardId]) purgeBoardCascade(nb, ne, nd, nc, r.boardId);
+      }
+      delete nd[el.content.databaseId];
+    }
+  } else if (el.type === "BOARD_REF") {
+    // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
+    // supaya kartu database di dalamnya ikut membuang tabelnya).
+    purgeBoardCascade(nb, ne, nd, nc, el.content.boardId);
+  }
+}
+
+/** Kaskade hapus satu papan + seluruh keturunannya + isinya (kartu, dan
+ *  database yang jadi yatim ikut terhapus rekursif). MUTATES nb/ne/nd/nc di
+ *  tempat. Dipakai bareng oleh removeElements (kartu BOARD_REF, database
+ *  yatim) dan removeRow (baris database bertaut kanvas) supaya aturannya
+ *  satu — sebelumnya removeRow punya salinan dangkal yang tak membuang
+ *  database di dalam papan yang dihapus, jadi database itu jadi hantu:
+ *  tetap ada di store selamanya, tak tersambung ke kartu mana pun, tapi
+ *  masih muncul di DatabasePicker ("↳ pakai yang ada…"). */
+function purgeBoardCascade(
+  nb: Record<string, Board>,
+  ne: Record<string, BoardElement>,
+  nd: Record<string, Database>,
+  nc: Record<string, Camera>,
+  rootBoardId: string
+): void {
+  const doomed = collectDescendants(nb, rootBoardId);
+  for (const bid of doomed) {
+    delete nb[bid];
+    delete nc[bid];
+    for (const e of Object.values(ne)) {
+      if (e.boardId === bid) purgeElementCascade(nb, ne, nd, nc, e.id);
+    }
+  }
+}
+
 /** Buang sekumpulan elemen dari salinan kerja, dengan kaskade:
  *  - kartu papan → papannya + seluruh keturunannya + isinya ikut hilang;
  *  - konektor yang salah satu ujungnya lenyap dipangkas di akhir.
@@ -265,52 +330,7 @@ function removeElements(
   const nd = { ...databases };
   const nc = { ...cameras };
 
-  // Hapus satu elemen beserta entitas yang cuma "dimiliki" olehnya.
-  const purge = (id: string) => {
-    const el = ne[id];
-    if (!el) return;
-    delete ne[id];
-    // Kartu database = hapus tabelnya, TAPI cuma kalau tidak ada kartu pintu
-    // lain (di board mana pun) yang masih menunjuk ke database yang sama —
-    // satu database bisa dipanggil dari banyak board (spec §7.3), jadi hapus
-    // satu kartu tidak boleh menghancurkan data yang masih dipakai board lain.
-    if (el.type === "DATABASE_REF") {
-      const stillReferenced = Object.values(ne).some(
-        (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
-      );
-      if (!stillReferenced) {
-        // Board kanvas bertaut milik tiap baris ikut yatim → buang board +
-        // keturunannya + isinya, sama seperti penghapusan kartu BOARD_REF.
-        const db = nd[el.content.databaseId];
-        for (const r of db?.rows ?? []) {
-          if (!r.boardId || !nb[r.boardId]) continue;
-          const doomed = collectDescendants(nb, r.boardId);
-          for (const bid of doomed) {
-            delete nb[bid];
-            delete nc[bid];
-            for (const e of Object.values(ne)) {
-              if (e.boardId === bid) purge(e.id);
-            }
-          }
-        }
-        delete nd[el.content.databaseId];
-      }
-    }
-    // Kartu papan = hapus papan + seluruh keturunannya + isinya (rekursif,
-    // supaya kartu database di dalamnya ikut membuang tabelnya).
-    if (el.type === "BOARD_REF") {
-      const doomed = collectDescendants(nb, el.content.boardId);
-      for (const bid of doomed) {
-        delete nb[bid];
-        delete nc[bid];
-        for (const e of Object.values(ne)) {
-          if (e.boardId === bid) purge(e.id);
-        }
-      }
-    }
-  };
-
-  for (const id of ids) purge(id);
+  for (const id of ids) purgeElementCascade(nb, ne, nd, nc, id);
 
   for (const e of Object.values(ne)) {
     if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
@@ -966,18 +986,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         });
         if (changed) databases[id] = { ...d, rows };
       }
-      // Baris punya kanvas bertaut → buang board + keturunannya + isinya, supaya
-      // tak jadi data menggantung (konsisten dg penghapusan kartu BOARD_REF).
+      // Baris punya kanvas bertaut → buang board + keturunannya + isinya (dan
+      // database yang jadi yatim di dalamnya), supaya tak jadi data
+      // menggantung — sama persis kaskade yang dipakai penghapusan kartu
+      // BOARD_REF, bukan salinan dangkal yang cuma buang board+elemen tapi
+      // bocorkan database di dalamnya jadi hantu selamanya.
       if (gone?.boardId && s.boards[gone.boardId]) {
         const nb = { ...s.boards };
         const nc = { ...s.cameras };
         const ne = { ...s.elements };
-        const doomed = collectDescendants(nb, gone.boardId);
-        for (const bid of doomed) {
-          delete nb[bid];
-          delete nc[bid];
-          for (const e of Object.values(ne)) {
-            if (e.boardId === bid) delete ne[e.id];
+        purgeBoardCascade(nb, ne, databases, nc, gone.boardId);
+        for (const e of Object.values(ne)) {
+          if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
+            delete ne[e.id];
           }
         }
         return { databases, boards: nb, cameras: nc, elements: ne };
@@ -1267,28 +1288,44 @@ export function breadcrumbPath(
 // localStorage karena data URL gambar menembus batas ~5MB-nya; IndexedDB juga
 // menyimpan objek langsung tanpa biaya JSON.stringify.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let lastDocRefs: Pick<CanvasState, "boards" | "elements" | "databases" | "currentBoardId"> | null =
-  null;
-useCanvasStore.subscribe((state) => {
+// true kalau ADA perubahan dokumen yang menunggu di dalam jendela debounce
+// yang sedang berjalan saat ini — bukan cuma milik event PALING BARU. Tanpa
+// ini: subscribe di bawah jalan di SETIAP perubahan state (termasuk seleksi
+// & mode edit yang tak pernah disimpan), dan tiap kali jalan me-reset ulang
+// timer pakai delay event ITU SAJA. Jadi urutan wajar "ketik → klik-luar"
+// (doc berubah, lalu editingId berubah) membuat event kedua (bukan-dokumen)
+// menimpa timer 400ms dengan 1500ms — dan kalau user terus berinteraksi
+// (klik pilih kartu lain dst) sebelum 1500ms habis, penyimpanan tertunda
+// terus-menerus tanpa batas. Kalau tab ditutup di tengah itu, perubahan
+// belum sempat masuk IndexedDB — persis skenario yang audit offline-queue
+// ini seharusnya mencegah.
+let docSavePending = false;
+// subscribe(state, prev) — bentuk dua-argumen bawaan zustand, sama seperti
+// startSyncWatcher di sync.ts — supaya tak perlu bookkeeping ref sebelumnya
+// secara manual.
+useCanvasStore.subscribe((state, prev) => {
   if (!state.hydrated) return;
-  // Perubahan dokumen vs cuma kamera (pan/zoom). Kamera ikut disimpan supaya
-  // viewport pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar)
-  // tiap geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
+  // Perubahan dokumen vs cuma kamera (pan/zoom) vs bukan-keduanya (seleksi,
+  // mode edit — tak pernah disimpan). Kamera ikut disimpan supaya viewport
+  // pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar) tiap
+  // geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
   const docChanged =
-    !lastDocRefs ||
-    lastDocRefs.boards !== state.boards ||
-    lastDocRefs.elements !== state.elements ||
-    lastDocRefs.databases !== state.databases ||
-    lastDocRefs.currentBoardId !== state.currentBoardId;
-  lastDocRefs = {
-    boards: state.boards,
-    elements: state.elements,
-    databases: state.databases,
-    currentBoardId: state.currentBoardId,
-  };
+    state.boards !== prev.boards ||
+    state.elements !== prev.elements ||
+    state.databases !== prev.databases ||
+    state.currentBoardId !== prev.currentBoardId;
+  const cameraChanged = state.cameras !== prev.cameras;
+
+  if (!docChanged && !cameraChanged) return; // seleksi/mode-edit: tak perlu disimpan, jangan sentuh timer
+
+  docSavePending = docSavePending || docChanged;
   if (saveTimer) clearTimeout(saveTimer);
+  // Sekali dijadwalkan sebagai fast-flush (ada doc change tertunda), jangan
+  // pernah mundur ke delay lambat lagi cuma karena event kamera menimpa giliran.
+  const delay = docSavePending ? 400 : 1500;
   saveTimer = setTimeout(() => {
+    docSavePending = false;
     // Simpan gagal (mis. kuota) tidak boleh mengganggu interaksi.
     void idbSet(IDB_WORKSPACE_KEY, snapshot(state)).catch(() => {});
-  }, docChanged ? 400 : 1500);
+  }, delay);
 });
