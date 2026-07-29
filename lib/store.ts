@@ -1304,28 +1304,52 @@ export function breadcrumbPath(
 // localStorage karena data URL gambar menembus batas ~5MB-nya; IndexedDB juga
 // menyimpan objek langsung tanpa biaya JSON.stringify.
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+// true kalau ADA perubahan dokumen yang menunggu di dalam jendela debounce
+// yang sedang berjalan saat ini — bukan cuma milik event PALING BARU. Tanpa
+// ini: subscribe di bawah jalan di SETIAP perubahan state (termasuk seleksi
+// & mode edit yang tak pernah disimpan), dan tiap kali jalan me-reset ulang
+// timer pakai delay event ITU SAJA. Jadi urutan wajar "ketik → klik-luar"
+// (doc berubah, lalu editingId berubah) membuat event kedua (bukan-dokumen)
+// menimpa timer 400ms dengan 1500ms — dan kalau user terus berinteraksi
+// (klik pilih kartu lain dst) sebelum 1500ms habis, penyimpanan tertunda
+// terus-menerus tanpa batas. Kalau tab ditutup di tengah itu, perubahan
+// belum sempat masuk IndexedDB — persis skenario yang audit offline-queue
+// ini seharusnya mencegah.
+let docSavePending = false;
 let lastDocRefs: Pick<CanvasState, "boards" | "elements" | "databases" | "currentBoardId"> | null =
   null;
+let lastCameras: CanvasState["cameras"] | null = null;
 useCanvasStore.subscribe((state) => {
   if (!state.hydrated) return;
-  // Perubahan dokumen vs cuma kamera (pan/zoom). Kamera ikut disimpan supaya
-  // viewport pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar)
-  // tiap geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
+  // Perubahan dokumen vs cuma kamera (pan/zoom) vs bukan-keduanya (seleksi,
+  // mode edit — tak pernah disimpan). Kamera ikut disimpan supaya viewport
+  // pulih, tapi menulis ulang seluruh blob (termasuk data URL gambar) tiap
+  // geser itu boros — beri debounce lebih panjang untuk perubahan kamera saja.
   const docChanged =
     !lastDocRefs ||
     lastDocRefs.boards !== state.boards ||
     lastDocRefs.elements !== state.elements ||
     lastDocRefs.databases !== state.databases ||
     lastDocRefs.currentBoardId !== state.currentBoardId;
+  const cameraChanged = lastCameras !== state.cameras;
   lastDocRefs = {
     boards: state.boards,
     elements: state.elements,
     databases: state.databases,
     currentBoardId: state.currentBoardId,
   };
+  lastCameras = state.cameras;
+
+  if (!docChanged && !cameraChanged) return; // seleksi/mode-edit: tak perlu disimpan, jangan sentuh timer
+
+  docSavePending = docSavePending || docChanged;
   if (saveTimer) clearTimeout(saveTimer);
+  // Sekali dijadwalkan sebagai fast-flush (ada doc change tertunda), jangan
+  // pernah mundur ke delay lambat lagi cuma karena event kamera menimpa giliran.
+  const delay = docSavePending ? 400 : 1500;
   saveTimer = setTimeout(() => {
+    docSavePending = false;
     // Simpan gagal (mis. kuota) tidak boleh mengganggu interaksi.
     void idbSet(IDB_WORKSPACE_KEY, snapshot(state)).catch(() => {});
-  }, docChanged ? 400 : 1500);
+  }, delay);
 });
