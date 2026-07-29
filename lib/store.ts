@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { clampCamera } from "./geometry";
 import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
@@ -433,7 +434,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }),
 
   setCamera: (camera) =>
-    set((s) => ({ camera, cameras: { ...s.cameras, [s.currentBoardId]: camera } })),
+    set((s) => {
+      const clamped = clampCamera(camera);
+      return { camera: clamped, cameras: { ...s.cameras, [s.currentBoardId]: clamped } };
+    }),
 
   addNote: (worldX, worldY) => {
     const id = crypto.randomUUID();
@@ -1071,6 +1075,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const el = elements[u.id];
         if (!el || el.type === "CONNECTOR") continue;
         elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
+      }
+
+      // Kiri/atas papan ini adalah tepi keras (x=0/y=0) — kalau geseran barusan
+      // mendorong sebuah kartu ke koordinat negatif, jangan tolak/potong
+      // kartunya. Geser SEMUA kartu papan ini sejumlah overflow-nya (kamera
+      // TIDAK ikut dikompensasi): itu justru yang membuat pergeserannya
+      // terlihat — semua kartu lain ikut "kedorong" menjauh dari tepi,
+      // memberi ruang, alih-alih diam-diam menormalkan koordinat tanpa efek
+      // kelihatan sama sekali.
+      let minX = Infinity;
+      let minY = Infinity;
+      for (const el of Object.values(elements)) {
+        if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
+        if (el.x < minX) minX = el.x;
+        if (el.y < minY) minY = el.y;
+      }
+      const shiftX = minX < 0 ? -minX : 0;
+      const shiftY = minY < 0 ? -minY : 0;
+      if (shiftX === 0 && shiftY === 0) return { elements };
+
+      for (const el of Object.values(elements)) {
+        if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
+        elements[el.id] = { ...el, x: el.x + shiftX, y: el.y + shiftY };
       }
       return { elements };
     }),

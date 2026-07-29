@@ -1,8 +1,18 @@
-import type { Box } from "./types";
+import type { Box, Camera } from "./types";
 
 export interface Point {
   x: number;
   y: number;
+}
+
+/** Kiri/atas kanvas adalah tepi keras: dunia di bawah x=0 atau y=0 tak pernah
+ *  boleh kelihatan (gaya "halaman" Milanote, bukan bidang tak-berhingga ke
+ *  segala arah). Pada zoom berapa pun, titik dunia (0,0) ada di layar pada
+ *  posisi `camera.{x,y}` — jadi supaya sisi kiri/atas viewport tak pernah
+ *  menunjukkan koordinat negatif, `camera.x`/`camera.y` tak boleh lebih dari
+ *  0. Kanan/bawah tetap tak terbatas (biarkan tumbuh mengikuti kartu). */
+export function clampCamera(cam: Camera): Camera {
+  return { ...cam, x: Math.min(cam.x, 0), y: Math.min(cam.y, 0) };
 }
 
 export const boxCenter = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });

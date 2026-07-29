@@ -223,4 +223,4 @@ export const MAX_ZOOM = 2;
 /** Jarak titik grid (px, world units) — juga unit pembulatan saat kartu di-snap
  *  setelah drag (useElementDrag). Satu konstanta dipakai kedua tempat supaya
  *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti. */
-export const GRID = 16;
+export const GRID = 24;
