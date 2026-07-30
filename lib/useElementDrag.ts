@@ -2,12 +2,12 @@
 
 import { useRef } from "react";
 import { canvasBus } from "./canvasBus";
+import { snapToGrid } from "./geometry";
 import { useCanvasStore } from "./store";
-import { GRID } from "./types";
 import type { CardElement } from "./types";
 
 const DRAG_THRESHOLD = 3;
-const snap = (v: number) => Math.round(v / GRID) * GRID;
+const snap = snapToGrid;
 
 interface Member {
   id: string;

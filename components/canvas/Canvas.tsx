@@ -11,6 +11,7 @@ import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { TopBar } from "./TopBar";
 import { ConnectorLayer } from "./ConnectorLayer";
+import { ConnectorPopover } from "./ConnectorPopover";
 import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
 import { ImageCard } from "./ImageCard";
@@ -657,10 +658,11 @@ export function Canvas() {
         data-export-ignore="true"
         className="pointer-events-none absolute inset-0"
         // Alpha (bukan hex flat) supaya dot "nyaru" ke warna kanvas apa pun,
-        // bukan cuma cocok kebetulan dengan satu bg tertentu — kontras rendah
-        // (masih kelihatan) tapi tidak mencolok, sejalan dgn grid yang kini
-        // lebih rapat (GRID=10).
-        style={{ backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.15) 1px, transparent 1px)" }}
+        // bukan cuma cocok kebetulan dengan satu bg tertentu. Radius & alpha
+        // sengaja kecil (bukan "0.5px" dari CSS, itu di-round jadi 1px oleh
+        // sebagian browser) — dot hampir tak kasat mata dari jauh, baru
+        // kelihatan kalau diperhatikan, sejalan dgn grid yang rapat (GRID=10).
+        style={{ backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.09) 0.75px, transparent 0.75px)" }}
       />
 
       {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
@@ -741,6 +743,7 @@ export function Canvas() {
           <AgendaView />
           <DatabaseView />
           <SearchPanel />
+          <ConnectorPopover />
           {minimapGeo && (
             <Minimap geo={minimapGeo} cards={cards} viewportRef={mmViewportRef} onNavigate={panTo} />
           )}
