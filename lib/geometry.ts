@@ -1,4 +1,4 @@
-import { GRID } from "./types";
+import { CANVAS_MARGIN, GRID } from "./types";
 import type { Box, Camera } from "./types";
 
 export interface Point {
@@ -7,17 +7,22 @@ export interface Point {
 }
 
 /** Bulatkan ke kelipatan GRID terdekat — satu fungsi dipakai drag (posisi) DAN
- *  resize (lebar) supaya keduanya konsisten menempel ke titik dot yang sama. */
+ *  resize (lebar/tinggi) supaya semuanya konsisten menempel ke titik dot yang
+ *  sama. */
 export const snapToGrid = (v: number): number => Math.round(v / GRID) * GRID;
 
-/** Kiri/atas kanvas adalah tepi keras: dunia di bawah x=0 atau y=0 tak pernah
- *  boleh kelihatan (gaya "halaman" Milanote, bukan bidang tak-berhingga ke
- *  segala arah). Pada zoom berapa pun, titik dunia (0,0) ada di layar pada
- *  posisi `camera.{x,y}` — jadi supaya sisi kiri/atas viewport tak pernah
- *  menunjukkan koordinat negatif, `camera.x`/`camera.y` tak boleh lebih dari
- *  0. Kanan/bawah tetap tak terbatas (biarkan tumbuh mengikuti kartu). */
+/** Kiri/atas kanvas adalah tepi keras: dunia di bawah `CANVAS_MARGIN` (world
+ *  x/y) tak pernah boleh kelihatan (gaya "halaman" Milanote, bukan bidang
+ *  tak-berhingga ke segala arah — lihat juga normalisasi papan di
+ *  store.ts:moveMany yang menegakkan batas yang sama dari sisi kartu).
+ *  Pada zoom berapa pun, titik dunia (CANVAS_MARGIN, CANVAS_MARGIN) ada di
+ *  layar pada posisi `camera.{x,y} + CANVAS_MARGIN*zoom` — jadi supaya sisi
+ *  kiri/atas viewport tak pernah menunjukkan koordinat di bawah batas itu,
+ *  `camera.x`/`camera.y` tak boleh lebih dari `-CANVAS_MARGIN*zoom`.
+ *  Kanan/bawah tetap tak terbatas (biarkan tumbuh mengikuti kartu). */
 export function clampCamera(cam: Camera): Camera {
-  return { ...cam, x: Math.min(cam.x, 0), y: Math.min(cam.y, 0) };
+  const limit = -CANVAS_MARGIN * cam.zoom;
+  return { ...cam, x: Math.min(cam.x, limit), y: Math.min(cam.y, limit) };
 }
 
 export const boxCenter = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });

@@ -5,6 +5,7 @@ import { clampCamera } from "./geometry";
 import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
+  CANVAS_MARGIN,
   DEFAULT_CAMERA,
   INBOX_BOARD_ID,
   ROOT_BOARD_ID,
@@ -27,7 +28,7 @@ import {
 const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
 const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
-const NOTE_WIDTH = 240; // kelipatan GRID (20) — biar tepi kanan Note juga jatuh pas di dot
+const NOTE_WIDTH = 240; // kelipatan GRID — biar tepi kanan Note juga jatuh pas di dot
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 const LINK_WIDTH = 240;
@@ -136,9 +137,11 @@ interface CanvasState extends Persisted {
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
   moveMany: (updates: { id: string; x: number; y: number }[]) => void;
-  /** Ubah lebar kartu (resize handle) — width sudah dibulatkan ke grid oleh
-   *  pemanggil (useElementResize) sebelum sampai sini. */
-  resizeElement: (id: string, width: number) => void;
+  /** Ubah ukuran kartu (resize handle) — width/height sudah dibulatkan ke
+   *  grid oleh pemanggil (ResizeHandle) sebelum sampai sini. Patch parsial:
+   *  dioper berdua sekalian (drag pojok kanan-bawah mengubah lebar & tinggi
+   *  bersamaan). */
+  resizeElement: (id: string, patch: { width?: number; height?: number }) => void;
   updateContent: (id: string, html: string) => void;
   removeElement: (id: string) => void;
   /** Hapus banyak elemen sekaligus (group delete), dengan kaskade yang sama. */
@@ -1086,12 +1089,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       };
     }),
 
-  resizeElement: (id, width) =>
+  resizeElement: (id, patch) =>
     set((s) => {
       const el = s.elements[id];
       if (!el || el.type === "CONNECTOR") return s;
       return {
-        elements: { ...s.elements, [id]: { ...el, width, updatedAt: Date.now() } },
+        elements: { ...s.elements, [id]: { ...el, ...patch, updatedAt: Date.now() } },
       };
     }),
 
@@ -1105,15 +1108,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
       }
 
-      // Kiri/atas papan ini SELALU mepet pas ke kartu paling kiri/atas yang
-      // ADA SEKARANG — bukan cuma tepi yang pernah didorong lalu diam di situ
-      // selamanya. Dua arah: kalau geseran mendorong kartu ke negatif, papan
-      // "melebar" (lihat komentar lama di bawah); tapi kalau kartu yang
-      // TADINYA di tepi itu ditarik menjauh (menyisakan celah), papan ikut
-      // "menyusut" balik — batasnya dihitung ULANG dari nol tiap commit, bukan
-      // cuma dibandingkan dengan batas lama. Kamera TIDAK ikut dikompensasi
-      // (itu justru yang membuat pergeserannya kelihatan — kartu lain ikut
-      // kedorong/ketarik, bukan diam-diam menormalkan koordinat tanpa efek).
+      // Kiri/atas papan ini SELALU mepet pas ke CANVAS_MARGIN (batas yang sama
+      // ditegakkan clampCamera saat pan — lihat geometry.ts) dari kartu paling
+      // kiri/atas yang ADA SEKARANG, bukan cuma tepi yang pernah didorong lalu
+      // diam di situ selamanya. Dua arah: kalau geseran mendorong kartu makin
+      // dekat/lewat batas, papan "melebar" (lihat komentar lama di bawah);
+      // tapi kalau kartu yang TADINYA di batas itu ditarik menjauh (menyisakan
+      // celah), papan ikut "menyusut" balik — batasnya dihitung ULANG dari
+      // CANVAS_MARGIN tiap commit, bukan cuma dibandingkan dengan batas lama.
+      // Kamera TIDAK ikut dikompensasi (itu justru yang membuat pergeserannya
+      // kelihatan — kartu lain ikut kedorong/ketarik, bukan diam-diam
+      // menormalkan koordinat tanpa efek).
       let minX = Infinity;
       let minY = Infinity;
       for (const el of Object.values(elements)) {
@@ -1123,8 +1128,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
       if (!Number.isFinite(minX)) return { elements }; // papan tak (lagi) punya kartu
 
-      const shiftX = -minX;
-      const shiftY = -minY;
+      const shiftX = CANVAS_MARGIN - minX;
+      const shiftY = CANVAS_MARGIN - minY;
       if (shiftX === 0 && shiftY === 0) return { elements };
 
       for (const el of Object.values(elements)) {

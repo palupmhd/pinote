@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { BoardRefElement } from "@/lib/types";
@@ -15,6 +15,7 @@ function BoardCardBase({ element, count }: { element: BoardRefElement; count: nu
   const openBoard = useCanvasStore((s) => s.openBoard);
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -39,9 +40,9 @@ function BoardCardBase({ element, count }: { element: BoardRefElement; count: nu
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
-      <ResizeHandle element={element} rootRef={rootRef} />
+      <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
       <CardActionBar element={element} />
-      <div className="p-3">
+      <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
         <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
         <p className="mt-0.5 text-xs text-neutral-400">
           {count === 0 ? "Kosong" : `${count} item`} · klik dua kali untuk buka

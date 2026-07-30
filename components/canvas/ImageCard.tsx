@@ -26,11 +26,15 @@ function ImageCardBase({ element }: { element: ImageElement }) {
         left: element.x,
         top: element.y,
         width: element.width,
+        height: element.height,
         zIndex: element.zIndex,
       }}
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      {/* Tanpa contentRef — root ini SENDIRI target tinggi resize (sudah
+          overflow-hidden buat rounded corner, jadi aman dijadikan bingkai
+          crop juga, beda dari kartu teks yang butuh wrapper overflow-y). */}
       <ResizeHandle element={element} rootRef={rootRef} />
       <CardActionBar element={element} />
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal;
@@ -41,10 +45,18 @@ function ImageCardBase({ element }: { element: ImageElement }) {
         // supaya tidak dilewati screen reader. (Caption yang bisa diedit: nanti.)
         alt="Gambar terlampir"
         draggable={false}
-        // aspect-ratio (bukan height terhitung React) — supaya saat resize
-        // handle menulis width langsung ke DOM (nol re-render), tinggi gambar
-        // ikut menyesuaikan otomatis lewat CSS, bukan menunggu commit+re-render.
-        style={{ width: "100%", aspectRatio: `${naturalWidth} / ${naturalHeight}`, display: "block" }}
+        // Belum pernah di-resize tinggi (element.height unset): aspect-ratio
+        // asli, tinggi ikut lebar otomatis lewat CSS (nol re-render pas
+        // resize lebar). Sudah pernah (element.height diset): isi penuh
+        // bingkai yang kini tingginya independen, di-crop via object-cover
+        // (bukan digepengkan) — supaya foto tak distorsi saat lebar & tinggi
+        // diubah dengan rasio berbeda dari aslinya.
+        style={{
+          width: "100%",
+          height: element.height ? "100%" : undefined,
+          aspectRatio: element.height ? undefined : `${naturalWidth} / ${naturalHeight}`,
+          display: "block",
+        }}
         className="select-none bg-neutral-100 object-cover"
       />
     </div>
