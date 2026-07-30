@@ -228,3 +228,6 @@ export const MAX_ZOOM = 2;
  *  bukan cuma pojok kiri-atasnya — sekaligus grid yang terlihat jadi lebih
  *  rapat (halus, bukan jarang). */
 export const GRID = 10;
+/** Lebar minimum kartu saat di-resize lewat handle (12×GRID) — biar tak ada
+ *  kartu yang di-resize sampai lebih sempit dari isinya sendiri. */
+export const MIN_CARD_WIDTH = 120;

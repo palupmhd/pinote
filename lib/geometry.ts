@@ -1,9 +1,14 @@
+import { GRID } from "./types";
 import type { Box, Camera } from "./types";
 
 export interface Point {
   x: number;
   y: number;
 }
+
+/** Bulatkan ke kelipatan GRID terdekat — satu fungsi dipakai drag (posisi) DAN
+ *  resize (lebar) supaya keduanya konsisten menempel ke titik dot yang sama. */
+export const snapToGrid = (v: number): number => Math.round(v / GRID) * GRID;
 
 /** Kiri/atas kanvas adalah tepi keras: dunia di bawah x=0 atau y=0 tak pernah
  *  boleh kelihatan (gaya "halaman" Milanote, bukan bidang tak-berhingga ke

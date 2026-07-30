@@ -129,6 +129,9 @@ interface CanvasState extends Persisted {
   /** Geser banyak elemen sekaligus dalam satu update — dipakai group drag,
    *  supaya jadi satu langkah undo & satu kiriman sync, bukan N. */
   moveMany: (updates: { id: string; x: number; y: number }[]) => void;
+  /** Ubah lebar kartu (resize handle) — width sudah dibulatkan ke grid oleh
+   *  pemanggil (useElementResize) sebelum sampai sini. */
+  resizeElement: (id: string, width: number) => void;
   updateContent: (id: string, html: string) => void;
   removeElement: (id: string) => void;
   /** Hapus banyak elemen sekaligus (group delete), dengan kaskade yang sama. */
@@ -1064,6 +1067,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (!el || el.type === "CONNECTOR") return s; // konektor tak punya posisi sendiri
       return {
         elements: { ...s.elements, [id]: { ...el, x, y, updatedAt: Date.now() } },
+      };
+    }),
+
+  resizeElement: (id, width) =>
+    set((s) => {
+      const el = s.elements[id];
+      if (!el || el.type === "CONNECTOR") return s;
+      return {
+        elements: { ...s.elements, [id]: { ...el, width, updatedAt: Date.now() } },
       };
     }),
 

@@ -5,9 +5,8 @@ import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { LinkElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
-import { CardHeader } from "./CardHeader";
 import { ConnectHandle } from "./ConnectHandle";
-import { IconLink } from "./icons";
+import { ResizeHandle } from "./ResizeHandle";
 
 function LinkCardBase({ element }: { element: LinkElement }) {
   const selected = useCanvasStore((s) => s.selectedIds.includes(element.id));
@@ -35,7 +34,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
       ref={rootRef}
       data-element-id={element.id}
       className={[
-        "group absolute cursor-grab overflow-hidden rounded-xl bg-white shadow-sm transition-shadow active:cursor-grabbing",
+        "group absolute cursor-grab overflow-hidden rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
         selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
       ].join(" ")}
       style={{
@@ -47,8 +46,8 @@ function LinkCardBase({ element }: { element: LinkElement }) {
       {...dragHandlers}
     >
       <ConnectHandle element={element} />
+      <ResizeHandle element={element} rootRef={rootRef} />
       <CardActionBar element={element} />
-      <CardHeader icon={<IconLink className="h-3.5 w-3.5" />} label="Tautan" />
 
       {showForm ? (
         <form

@@ -6,9 +6,8 @@ import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import type { TaskItem, TaskListElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
-import { CardHeader } from "./CardHeader";
 import { ConnectHandle } from "./ConnectHandle";
-import { IconTask } from "./icons";
+import { ResizeHandle } from "./ResizeHandle";
 
 /** Kontrol tenggat mungil per item: label terlihat (tanggal atau ikon) dengan
  *  input date native transparan menutupinya. Input-nya nyata (bisa di-Tab,
@@ -131,7 +130,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       ref={rootRef}
       data-element-id={element.id}
       className={[
-        "group absolute rounded-xl bg-white shadow-sm transition-shadow",
+        "group absolute rounded-md bg-white shadow-sm transition-shadow",
         selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
       ].join(" ")}
@@ -145,10 +144,10 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       onDoubleClick={onDoubleClick}
     >
       {!editing && <ConnectHandle element={element} />}
+      {!editing && <ResizeHandle element={element} rootRef={rootRef} />}
       <CardActionBar element={element} />
-      <CardHeader icon={<IconTask className="h-3.5 w-3.5" />} label="Tugas" />
 
-      <div className="px-3 pb-3">
+      <div className="p-3">
         <div className="mb-1.5 flex items-baseline gap-2">
           {editing ? (
             <input
