@@ -144,29 +144,36 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
       style={{ left: -EXTENT, top: -EXTENT, width: EXTENT * 2, height: EXTENT * 2 }}
     >
       <defs>
+        {/* Dart bertakik (bukan segitiga rata) — belakangnya sedikit cekung
+            (titik 3,5) supaya tampilannya lebih tirus/rapi, bukan segitiga
+            tumpul. refX digeser dikit ke 8.5 (dari 9) biar tak overshoot
+            terlalu jauh dari ujung kurva. markerUnits default "strokeWidth"
+            (tak diset eksplisit) — ukuran otomatis ikut tebal garis, jadi
+            konektor yang sedang dipilih (strokeWidth lebih besar) dapat
+            kepala panah yang proporsional juga, bukan ukuran tetap. */}
         <marker
           id="conn-arrow"
           viewBox="0 0 10 10"
-          refX="9"
+          refX="8.5"
           refY="5"
-          markerWidth="6"
-          markerHeight="6"
+          markerWidth="7"
+          markerHeight="7"
           orient="auto-start-reverse"
         >
           {/* context-stroke: ikut warna `stroke` path pemakainya (per-konektor,
               lihat CONNECTOR_COLORS) — bukan warna tetap seperti sebelumnya. */}
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
+          <path d="M 0 0 L 10 5 L 0 10 L 3.2 5 z" fill="context-stroke" />
         </marker>
         <marker
           id="rel-arrow"
           viewBox="0 0 10 10"
-          refX="9"
+          refX="8.5"
           refY="5"
-          markerWidth="6"
-          markerHeight="6"
+          markerWidth="7"
+          markerHeight="7"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#818cf8" />
+          <path d="M 0 0 L 10 5 L 0 10 L 3.2 5 z" fill="#818cf8" />
         </marker>
       </defs>
 

@@ -59,10 +59,26 @@ export function connectorMidpoint(source: Box, target: Box): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-/** Lengkungan horizontal-dulu: terbaca sebagai alur, bukan garis kaku. */
+/** Lengkungan S yang mengikuti sumbu yang lebih dominan (horizontal ATAU
+ *  vertikal), bukan selalu horizontal-dulu seperti sebelumnya. Versi lama
+ *  memaksa lengkung horizontal bahkan untuk pasangan kartu yang hubungannya
+ *  jelas lebih vertikal (atas-bawah) — akibatnya kepala panah nempel di
+ *  ujung kurva yang condong ke samping, bukan tegak lurus ke arah kartu
+ *  tujuan, kelihatan "aneh". Sekarang arah lengkungnya ikut sumbu mana yang
+ *  jaraknya lebih jauh (`edgePoint` juga sudah memilih tepi keluar radial
+ *  berdasar arah yang sama, jadi keduanya selalu sepakat). Lantai `pull`
+ *  juga diturunkan (28→16) supaya kartu yang berdekatan tak dapat lengkungan
+ *  besar yang tak perlu untuk jarak sedekat itu. */
 export function curveBetween(a: Point, b: Point): string {
-  const dx = Math.abs(b.x - a.x);
-  const pull = Math.max(28, Math.min(dx * 0.5, 120));
-  const dir = b.x >= a.x ? 1 : -1;
-  return `M ${a.x} ${a.y} C ${a.x + pull * dir} ${a.y}, ${b.x - pull * dir} ${b.y}, ${b.x} ${b.y}`;
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const horizontal = Math.abs(dx) >= Math.abs(dy);
+  const dist = horizontal ? Math.abs(dx) : Math.abs(dy);
+  const pull = Math.max(16, Math.min(dist * 0.5, 120));
+  if (horizontal) {
+    const dir = dx >= 0 ? 1 : -1;
+    return `M ${a.x} ${a.y} C ${a.x + pull * dir} ${a.y}, ${b.x - pull * dir} ${b.y}, ${b.x} ${b.y}`;
+  }
+  const dir = dy >= 0 ? 1 : -1;
+  return `M ${a.x} ${a.y} C ${a.x} ${a.y + pull * dir}, ${b.x} ${b.y - pull * dir}, ${b.x} ${b.y}`;
 }
