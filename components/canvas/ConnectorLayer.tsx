@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
-import { connectorPath, curveBetween, type Point } from "@/lib/geometry";
+import { connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
-import type { Box, CardElement, ConnectorElement } from "@/lib/types";
+import { useUiStore } from "@/lib/ui";
+import { CONNECTOR_COLORS, type Box, type CardElement, type ConnectorElement } from "@/lib/types";
 
 const FALLBACK_HEIGHT = 64;
 /** Setengah sisi kotak SVG. SVG WAJIB punya ukuran nyata — svg 0x0 (walau
@@ -40,10 +41,13 @@ interface Props {
 export function ConnectorLayer({ connectors, relations, cards }: Props) {
   const pathRefs = useRef(new Map<string, SVGPathElement | null>());
   const relPathRefs = useRef(new Map<string, SVGPathElement | null>());
+  const labelRefs = useRef(new Map<string, SVGTextElement | null>());
   const ghostRef = useRef<SVGPathElement>(null);
   // posisi sementara saat kartu sedang digeser (store belum di-update)
   const livePos = useRef(new Map<string, Point>());
   const removeConnector = useCanvasStore((s) => s.removeElement);
+  const editingConnectorId = useUiStore((s) => s.editingConnectorId);
+  const setEditingConnector = useUiStore((s) => s.setEditingConnector);
 
   // Cermin props terbaru untuk redraw imperatif (dipanggil dari canvasBus,
   // di luar render). Disetel di layout-effect, bukan saat render, supaya tidak
@@ -85,7 +89,15 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
         const s = byId.get(srcId);
         const t = byId.get(tgtId);
         if (!path || !s || !t) return;
-        path.setAttribute("d", connectorPath(boxOf(s), boxOf(t)));
+        const sBox = boxOf(s);
+        const tBox = boxOf(t);
+        path.setAttribute("d", connectorPath(sBox, tBox));
+        const label = labelRefs.current.get(id);
+        if (label) {
+          const mid = connectorMidpoint(sBox, tBox);
+          label.setAttribute("x", String(mid.x));
+          label.setAttribute("y", String(mid.y));
+        }
       };
       for (const c of connectorsRef.current) drawInto(pathRefs.current, c.id, c.sourceElementId, c.targetElementId);
       for (const r of relationsRef.current) drawInto(relPathRefs.current, r.id, r.sourceElementId, r.targetElementId);
@@ -138,7 +150,9 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
           markerHeight="6"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#a1a1aa" />
+          {/* context-stroke: ikut warna `stroke` path pemakainya (per-konektor,
+              lihat CONNECTOR_COLORS) — bukan warna tetap seperti sebelumnya. */}
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
         </marker>
         <marker
           id="rel-arrow"
@@ -172,26 +186,49 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
           />
         ))}
 
-        {connectors.map((c) => (
-          <path
-            key={c.id}
-            ref={(el) => {
-              pathRefs.current.set(c.id, el);
-            }}
-            fill="none"
-            stroke="#a1a1aa"
-            strokeWidth={2}
-            markerEnd="url(#conn-arrow)"
-            className="pointer-events-auto cursor-pointer hover:stroke-red-400"
-            style={{ strokeLinecap: "round" }}
-            onDoubleClick={(e) => {
-              e.stopPropagation();
-              removeConnector(c.id); // klik dua kali garis = hapus
-            }}
-          >
-            <title>Klik dua kali untuk hapus garis</title>
-          </path>
-        ))}
+        {connectors.map((c) => {
+          const color = CONNECTOR_COLORS[c.color ?? "gray"];
+          return (
+            <g key={c.id}>
+              <path
+                ref={(el) => {
+                  pathRefs.current.set(c.id, el);
+                }}
+                fill="none"
+                stroke={color}
+                strokeWidth={editingConnectorId === c.id ? 2.5 : 2}
+                strokeDasharray={c.style === "dashed" ? "6 5" : undefined}
+                markerEnd="url(#conn-arrow)"
+                className="pointer-events-auto cursor-pointer transition-opacity hover:opacity-60"
+                style={{ strokeLinecap: "round" }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingConnector(c.id); // klik = buka popover label/warna/gaya
+                }}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  removeConnector(c.id); // klik dua kali garis = hapus
+                }}
+              >
+                <title>Klik untuk label/warna · klik dua kali untuk hapus</title>
+              </path>
+              {c.label && (
+                <text
+                  ref={(el) => {
+                    labelRefs.current.set(c.id, el);
+                  }}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill={color}
+                  className="pointer-events-none select-none text-[11px] font-medium"
+                  style={{ paintOrder: "stroke", stroke: "#f7f6f2", strokeWidth: 5 }}
+                >
+                  {c.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
 
         <path
           ref={ghostRef}

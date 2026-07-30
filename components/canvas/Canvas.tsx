@@ -11,6 +11,7 @@ import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { TopBar } from "./TopBar";
 import { ConnectorLayer } from "./ConnectorLayer";
+import { ConnectorPopover } from "./ConnectorPopover";
 import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
 import { ImageCard } from "./ImageCard";
@@ -742,6 +743,7 @@ export function Canvas() {
           <AgendaView />
           <DatabaseView />
           <SearchPanel />
+          <ConnectorPopover />
           {minimapGeo && (
             <Minimap geo={minimapGeo} cards={cards} viewportRef={mmViewportRef} onNavigate={panTo} />
           )}

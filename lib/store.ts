@@ -15,6 +15,7 @@ import {
   type CellValue,
   type ClipboardPayload,
   type ColumnType,
+  type ConnectorElement,
   type Database,
   type DatabaseView,
   type DbColumn,
@@ -88,6 +89,12 @@ interface CanvasState extends Persisted {
   addImage: (worldX: number, worldY: number, img: { src: string; naturalWidth: number; naturalHeight: number }) => string;
   resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
+  /** Ubah label/warna/gaya garis konektor (dipakai popover mini saat konektor
+   *  dipilih). Patch parsial — cuma field yang dioper yang berubah. */
+  updateConnector: (
+    id: string,
+    patch: Partial<Pick<ConnectorElement, "label" | "color" | "style">>
+  ) => void;
   setTaskListTitle: (id: string, title: string) => void;
   addTaskItem: (id: string, afterItemId?: string) => string | null;
   setTaskText: (id: string, itemId: string, text: string) => void;
@@ -842,6 +849,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }));
     return id;
   },
+
+  updateConnector: (id, patch) =>
+    set((s) => {
+      const el = s.elements[id];
+      if (!el || el.type !== "CONNECTOR") return s;
+      return {
+        elements: { ...s.elements, [id]: { ...el, ...patch, updatedAt: Date.now() } },
+      };
+    }),
 
   openBoard: (boardId) =>
     set((s) => {

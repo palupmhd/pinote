@@ -17,6 +17,11 @@ export const useUiStore = create<{
   searchOpen: boolean;
   openSearch: () => void;
   closeSearch: () => void;
+  /** id konektor yang popover mini-nya (label/warna/gaya) sedang terbuka, atau
+   *  null. State sesaat murni — isi konektor sendiri (label/color/style)
+   *  tersimpan di canvas store, ini cuma "yang mana lagi terbuka". */
+  editingConnectorId: string | null;
+  setEditingConnector: (id: string | null) => void;
   /** Presentation Mode (spec §9.2): jalur cerita mengikuti urutan Connector. */
   presenting: boolean;
   presentOrder: string[];
@@ -35,6 +40,8 @@ export const useUiStore = create<{
   searchOpen: false,
   openSearch: () => set({ searchOpen: true }),
   closeSearch: () => set({ searchOpen: false }),
+  editingConnectorId: null,
+  setEditingConnector: (id) => set({ editingConnectorId: id }),
   presenting: false,
   presentOrder: [],
   presentIndex: 0,

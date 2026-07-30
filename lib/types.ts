@@ -158,6 +158,19 @@ export interface LinkElement extends BaseElement {
   };
 }
 
+/** Palet warna konektor — preset tertutup (bukan color picker bebas) supaya
+ *  tetap konsisten dengan garis desain "calm/minimalis" (lihat SPEC.md §0). */
+export type ConnectorColor = "gray" | "red" | "blue" | "green" | "purple" | "amber";
+export type ConnectorStyle = "solid" | "dashed";
+export const CONNECTOR_COLORS: Record<ConnectorColor, string> = {
+  gray: "#a1a1aa",
+  red: "#f87171",
+  blue: "#60a5fa",
+  green: "#34d399",
+  purple: "#a78bfa",
+  amber: "#f59e0b",
+};
+
 /** Garis penghubung antar elemen.
  *
  *  Sengaja GENERIK: source/target cuma ID elemen, tanpa asumsi tipe apa pun.
@@ -165,7 +178,11 @@ export interface LinkElement extends BaseElement {
  *  panah (spec §8.6) dengan memakai ulang mekanisme ini — bukan bikin yang
  *  baru. Jangan pernah di-hardcode ke tipe elemen tertentu.
  *
- *  Tidak punya x/y/width: posisinya diturunkan dari kedua ujungnya. */
+ *  Tidak punya x/y/width: posisinya diturunkan dari kedua ujungnya.
+ *
+ *  label/color/style opsional (undefined = default abu-abu solid tanpa
+ *  label) — konektor lama yang tersimpan sebelum field ini ada tetap valid
+ *  tanpa migrasi. */
 export interface ConnectorElement {
   id: string;
   boardId: string;
@@ -174,6 +191,9 @@ export interface ConnectorElement {
   targetElementId: string;
   zIndex: number;
   updatedAt: number;
+  label?: string;
+  color?: ConnectorColor;
+  style?: ConnectorStyle;
 }
 
 /** Elemen yang punya posisi & bisa digeser di kanvas. */

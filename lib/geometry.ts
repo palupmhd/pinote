@@ -24,7 +24,7 @@ export const boxCenter = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 
 
 /** Titik keluar garis dari pusat kotak menuju arah tertentu — supaya ujung
  *  panah berhenti di tepi kartu, bukan tertimbun di bawahnya. */
-function edgePoint(b: Box, toward: Point): Point {
+export function edgePoint(b: Box, toward: Point): Point {
   const c = boxCenter(b);
   const dx = toward.x - c.x;
   const dy = toward.y - c.y;
@@ -43,6 +43,15 @@ export function connectorPath(source: Box, target: Box): string {
   const a = edgePoint(source, boxCenter(target));
   const b = edgePoint(target, boxCenter(source));
   return curveBetween(a, b);
+}
+
+/** Titik tengah antara kedua tepi kartu — tempat label/popover konektor
+ *  diletakkan. Titik tengah lurus antara a/b (bukan titik tengah kurva
+ *  bezier itu sendiri), cukup dekat untuk label & jauh lebih murah dihitung. */
+export function connectorMidpoint(source: Box, target: Box): Point {
+  const a = edgePoint(source, boxCenter(target));
+  const b = edgePoint(target, boxCenter(source));
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 /** Lengkungan horizontal-dulu: terbaca sebagai alur, bukan garis kaku. */
