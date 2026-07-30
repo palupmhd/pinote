@@ -43,11 +43,36 @@ export function edgePoint(b: Box, toward: Point): Point {
   return { x: c.x + dx * s, y: c.y + dy * s };
 }
 
-/** Kurva bezier dari tepi kartu sumber ke tepi kartu tujuan. */
+const normalize = (dx: number, dy: number): Point => {
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: dx / len, y: dy / len };
+};
+
+/** Kurva bezier dari tepi kartu sumber ke tepi kartu tujuan.
+ *
+ *  Titik kontrol ditarik SEPANJANG arah keluar alami masing-masing kartu
+ *  (vektor dari pusat kotak ke titik tepinya, `edgePoint`, diperpanjang
+ *  keluar) — bukan dipaksa horizontal-dulu atau vertikal-dulu berdasar
+ *  sumbu mana yang dominan (percobaan sebelumnya). Versi sumbu-dominan itu
+ *  memaksa titik kontrol berbagi koordinat X/Y PERSIS dengan titik ujungnya;
+ *  begitu ada selisih horizontal DAN vertikal yang sama-sama berarti (bukan
+ *  murni satu sumbu), kurvanya harus berbelok tajam di tengah buat
+ *  mengejar selisih itu — muncul sebagai kaitan/hook yang janggal, kepala
+ *  panahnya kelihatan miring bukan tegak ke arah kartu tujuan. Menarik
+ *  kontrol sepanjang arah keluar alami (bukan sumbu tetap) menghindari
+ *  belokan tajam itu untuk sudut berapa pun antara dua kartu. */
 export function connectorPath(source: Box, target: Box): string {
-  const a = edgePoint(source, boxCenter(target));
-  const b = edgePoint(target, boxCenter(source));
-  return curveBetween(a, b);
+  const sc = boxCenter(source);
+  const tc = boxCenter(target);
+  const a = edgePoint(source, tc);
+  const b = edgePoint(target, sc);
+  const dist = Math.hypot(b.x - a.x, b.y - a.y);
+  const pull = Math.max(16, Math.min(dist * 0.4, 100));
+  const dirA = normalize(a.x - sc.x, a.y - sc.y);
+  const dirB = normalize(b.x - tc.x, b.y - tc.y);
+  const c1 = { x: a.x + dirA.x * pull, y: a.y + dirA.y * pull };
+  const c2 = { x: b.x + dirB.x * pull, y: b.y + dirB.y * pull };
+  return `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`;
 }
 
 /** Titik tengah antara kedua tepi kartu — tempat label/popover konektor
@@ -59,26 +84,14 @@ export function connectorMidpoint(source: Box, target: Box): Point {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-/** Lengkungan S yang mengikuti sumbu yang lebih dominan (horizontal ATAU
- *  vertikal), bukan selalu horizontal-dulu seperti sebelumnya. Versi lama
- *  memaksa lengkung horizontal bahkan untuk pasangan kartu yang hubungannya
- *  jelas lebih vertikal (atas-bawah) — akibatnya kepala panah nempel di
- *  ujung kurva yang condong ke samping, bukan tegak lurus ke arah kartu
- *  tujuan, kelihatan "aneh". Sekarang arah lengkungnya ikut sumbu mana yang
- *  jaraknya lebih jauh (`edgePoint` juga sudah memilih tepi keluar radial
- *  berdasar arah yang sama, jadi keduanya selalu sepakat). Lantai `pull`
- *  juga diturunkan (28→16) supaya kartu yang berdekatan tak dapat lengkungan
- *  besar yang tak perlu untuk jarak sedekat itu. */
+/** Lengkungan horizontal-dulu antar dua TITIK polos (bukan kotak) — dipakai
+ *  garis bayangan (ghost) saat menarik konektor baru, sisi tujuannya cuma
+ *  kursor mentah tanpa kotak/arah keluar alami untuk ditarik sepanjangnya.
+ *  Konektor sungguhan (kartu-ke-kartu) pakai `connectorPath` di atas, yang
+ *  menarik kontrolnya sepanjang arah keluar tiap kotak, bukan fungsi ini. */
 export function curveBetween(a: Point, b: Point): string {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const horizontal = Math.abs(dx) >= Math.abs(dy);
-  const dist = horizontal ? Math.abs(dx) : Math.abs(dy);
-  const pull = Math.max(16, Math.min(dist * 0.5, 120));
-  if (horizontal) {
-    const dir = dx >= 0 ? 1 : -1;
-    return `M ${a.x} ${a.y} C ${a.x + pull * dir} ${a.y}, ${b.x - pull * dir} ${b.y}, ${b.x} ${b.y}`;
-  }
-  const dir = dy >= 0 ? 1 : -1;
-  return `M ${a.x} ${a.y} C ${a.x} ${a.y + pull * dir}, ${b.x} ${b.y - pull * dir}, ${b.x} ${b.y}`;
+  const dx = Math.abs(b.x - a.x);
+  const pull = Math.max(16, Math.min(dx * 0.5, 120));
+  const dir = b.x >= a.x ? 1 : -1;
+  return `M ${a.x} ${a.y} C ${a.x + pull * dir} ${a.y}, ${b.x - pull * dir} ${b.y}, ${b.x} ${b.y}`;
 }
