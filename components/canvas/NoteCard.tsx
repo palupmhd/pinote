@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { BoardMention } from "@/lib/mentionSuggestion";
@@ -63,6 +63,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
 
   // saat mengetik: matikan drag supaya seleksi teks tetap jalan
   const { rootRef, dragHandlers } = useElementDrag(element, !editing);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -92,9 +93,13 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       onDoubleClick={onDoubleClick}
     >
       {!editing && <ConnectHandle element={element} />}
-      {!editing && <ResizeHandle element={element} rootRef={rootRef} />}
+      {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
       <CardActionBar element={element} />
-      <div className="px-3 pb-3 pt-3">
+      <div
+        ref={contentRef}
+        className="overflow-y-auto px-3 pb-3 pt-3"
+        style={{ height: element.height }}
+      >
         {editing ? (
           <NoteEditor id={element.id} initialHtml={html} />
         ) : safeHtml ? (

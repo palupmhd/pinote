@@ -63,6 +63,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
   // Drag dimatikan selagi editing (konsisten dg NoteCard) — supaya seleksi
   // teks di dalam input tak dianggap awal sebuah geseran.
   const { rootRef, dragHandlers } = useElementDrag(element, !editing);
+  const contentRef = useRef<HTMLDivElement>(null);
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
   const titleRef = useRef<HTMLInputElement>(null);
 
@@ -144,10 +145,10 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       onDoubleClick={onDoubleClick}
     >
       {!editing && <ConnectHandle element={element} />}
-      {!editing && <ResizeHandle element={element} rootRef={rootRef} />}
+      {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
       <CardActionBar element={element} />
 
-      <div className="p-3">
+      <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
         <div className="mb-1.5 flex items-baseline gap-2">
           {editing ? (
             <input

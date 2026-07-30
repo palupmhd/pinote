@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { useElementDrag } from "@/lib/useElementDrag";
@@ -18,6 +18,7 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
   const openDatabase = useUiStore((s) => s.openDatabase);
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -42,9 +43,9 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
       onDoubleClick={onDoubleClick}
     >
       <ConnectHandle element={element} />
-      <ResizeHandle element={element} rootRef={rootRef} />
+      <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
       <CardActionBar element={element} />
-      <div className="p-3">
+      <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
         <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
         <p className="mt-0.5 text-xs text-neutral-400">
           {rows} baris · {cols} kolom · klik dua kali untuk buka

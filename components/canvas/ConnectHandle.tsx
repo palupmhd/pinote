@@ -69,6 +69,9 @@ export function ConnectHandle({ element }: { element: CardElement }) {
   };
 
   return (
+    // Area klik sengaja lebih besar (h-7 w-7 ≈ 28px) dari dot yang terlihat
+    // (h-4 w-4 ≈ 16px, span dalam) — dot mungil gampang meleset diklik;
+    // pusatnya dijaga sama supaya posisinya tak kelihatan geser.
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -76,7 +79,9 @@ export function ConnectHandle({ element }: { element: CardElement }) {
       onPointerCancel={onCancel}
       onLostPointerCapture={onCancel}
       title="Tarik ke elemen lain untuk menghubungkan"
-      className="absolute -right-2.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-white bg-indigo-400 opacity-0 shadow transition-opacity group-hover:opacity-100"
-    />
+      className="absolute -right-4 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 cursor-crosshair items-center justify-center"
+    >
+      <span className="h-4 w-4 rounded-full border-2 border-white bg-indigo-400 opacity-0 shadow transition-opacity group-hover:opacity-100" />
+    </div>
   );
 }

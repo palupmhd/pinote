@@ -40,6 +40,7 @@ interface Props {
 
 export function ConnectorLayer({ connectors, relations, cards }: Props) {
   const pathRefs = useRef(new Map<string, SVGPathElement | null>());
+  const hitRefs = useRef(new Map<string, SVGPathElement | null>());
   const relPathRefs = useRef(new Map<string, SVGPathElement | null>());
   const labelRefs = useRef(new Map<string, SVGTextElement | null>());
   const ghostRef = useRef<SVGPathElement>(null);
@@ -91,7 +92,9 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
         if (!path || !s || !t) return;
         const sBox = boxOf(s);
         const tBox = boxOf(t);
-        path.setAttribute("d", connectorPath(sBox, tBox));
+        const d = connectorPath(sBox, tBox);
+        path.setAttribute("d", d);
+        hitRefs.current.get(id)?.setAttribute("d", d); // hit-area lebar ikut bentuk yang sama
         const label = labelRefs.current.get(id);
         if (label) {
           const mid = connectorMidpoint(sBox, tBox);
@@ -189,18 +192,20 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
         {connectors.map((c) => {
           const color = CONNECTOR_COLORS[c.color ?? "gray"];
           return (
-            <g key={c.id}>
+            <g key={c.id} className="group">
+              {/* Hit-area tak kasat mata JAUH lebih tebal (20px) daripada
+                  garis yang terlihat (2px) — kurva bezier tipis dulu susah
+                  diklik presisi. Ini yang menangkap klik/dobel-klik/hover;
+                  garis visual di bawahnya cuma dekoratif (pointer-events-none)
+                  tapi ikut bereaksi lewat group-hover. */}
               <path
                 ref={(el) => {
-                  pathRefs.current.set(c.id, el);
+                  hitRefs.current.set(c.id, el);
                 }}
                 fill="none"
-                stroke={color}
-                strokeWidth={editingConnectorId === c.id ? 2.5 : 2}
-                strokeDasharray={c.style === "dashed" ? "6 5" : undefined}
-                markerEnd="url(#conn-arrow)"
-                className="pointer-events-auto cursor-pointer transition-opacity hover:opacity-60"
-                style={{ strokeLinecap: "round" }}
+                stroke="transparent"
+                strokeWidth={20}
+                className="pointer-events-auto cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
                   setEditingConnector(c.id); // klik = buka popover label/warna/gaya
@@ -212,6 +217,18 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
               >
                 <title>Klik untuk label/warna · klik dua kali untuk hapus</title>
               </path>
+              <path
+                ref={(el) => {
+                  pathRefs.current.set(c.id, el);
+                }}
+                fill="none"
+                stroke={color}
+                strokeWidth={editingConnectorId === c.id ? 2.5 : 2}
+                strokeDasharray={c.style === "dashed" ? "6 5" : undefined}
+                markerEnd="url(#conn-arrow)"
+                className="pointer-events-none transition-opacity group-hover:opacity-60"
+                style={{ strokeLinecap: "round" }}
+              />
               {c.label && (
                 <text
                   ref={(el) => {
