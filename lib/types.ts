@@ -222,5 +222,8 @@ export const MIN_ZOOM = 0.25;
 export const MAX_ZOOM = 2;
 /** Jarak titik grid (px, world units) — juga unit pembulatan saat kartu di-snap
  *  setelah drag (useElementDrag). Satu konstanta dipakai kedua tempat supaya
- *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti. */
-export const GRID = 24;
+ *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti.
+ *  20 dipilih karena hampir semua lebar kartu bawaan (lib/store.ts) sudah
+ *  kelipatan bersihnya — jadi tepi KANAN kartu ikut jatuh pas di garis dot,
+ *  bukan cuma pojok kiri-atasnya. */
+export const GRID = 20;

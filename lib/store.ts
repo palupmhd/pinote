@@ -26,7 +26,7 @@ import {
 const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
 const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
-const NOTE_WIDTH = 248;
+const NOTE_WIDTH = 240; // kelipatan GRID (20) — biar tepi kanan Note juga jatuh pas di dot
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 const LINK_WIDTH = 240;
