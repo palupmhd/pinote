@@ -1100,6 +1100,36 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   moveMany: (updates) =>
     set((s) => {
+      // Baca kondisi SEBELUM update diterapkan — dipakai untuk membedakan
+      // "kartu yang tadinya menempel pas di batas itu sendiri yang digeser"
+      // dari "kartu lain yang digeser, kebetulan papannya belum pernah
+      // mepet ke batas". Bug yang dilaporkan pemilik: versi lama menganggap
+      // SETIAP selisih antara kartu-paling-kiri-atas dan CANVAS_MARGIN
+      // sebagai sesuatu yang harus "diperbaiki" tiap commit — jadi geser
+      // kartu MANAPUN di papan yang belum pernah mepet ke batas (biasa,
+      // kartu baru lewat addNote dsb tak selalu lahir pas di margin) selalu
+      // menarik seluruh papan ke batas, walau kartu itu tak ada urusan sama
+      // batasnya sama sekali.
+      let oldMinX = Infinity;
+      let oldMinY = Infinity;
+      for (const el of Object.values(s.elements)) {
+        if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
+        if (el.x < oldMinX) oldMinX = el.x;
+        if (el.y < oldMinY) oldMinY = el.y;
+      }
+      const draggedWasAtLeftEdge =
+        oldMinX === CANVAS_MARGIN &&
+        updates.some((u) => {
+          const el = s.elements[u.id];
+          return el && el.type !== "CONNECTOR" && el.x === oldMinX;
+        });
+      const draggedWasAtTopEdge =
+        oldMinY === CANVAS_MARGIN &&
+        updates.some((u) => {
+          const el = s.elements[u.id];
+          return el && el.type !== "CONNECTOR" && el.y === oldMinY;
+        });
+
       const elements = { ...s.elements };
       const now = Date.now();
       for (const u of updates) {
@@ -1108,17 +1138,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
       }
 
-      // Kiri/atas papan ini SELALU mepet pas ke CANVAS_MARGIN (batas yang sama
-      // ditegakkan clampCamera saat pan — lihat geometry.ts) dari kartu paling
-      // kiri/atas yang ADA SEKARANG, bukan cuma tepi yang pernah didorong lalu
-      // diam di situ selamanya. Dua arah: kalau geseran mendorong kartu makin
-      // dekat/lewat batas, papan "melebar" (lihat komentar lama di bawah);
-      // tapi kalau kartu yang TADINYA di batas itu ditarik menjauh (menyisakan
-      // celah), papan ikut "menyusut" balik — batasnya dihitung ULANG dari
-      // CANVAS_MARGIN tiap commit, bukan cuma dibandingkan dengan batas lama.
-      // Kamera TIDAK ikut dikompensasi (itu justru yang membuat pergeserannya
-      // kelihatan — kartu lain ikut kedorong/ketarik, bukan diam-diam
-      // menormalkan koordinat tanpa efek).
       let minX = Infinity;
       let minY = Infinity;
       for (const el of Object.values(elements)) {
@@ -1128,10 +1147,26 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
       if (!Number.isFinite(minX)) return { elements }; // papan tak (lagi) punya kartu
 
-      const shiftX = CANVAS_MARGIN - minX;
-      const shiftY = CANVAS_MARGIN - minY;
+      // Kiri/atas papan ini tak boleh melewati CANVAS_MARGIN (batas yang sama
+      // ditegakkan clampCamera saat pan — lihat geometry.ts). Extend: kalau
+      // geseran barusan mendorong SEBUAH kartu ke bawah batas, paksa seluruh
+      // papan digeser supaya batas tetap tegak — ini berlaku SELALU, tak
+      // peduli kartu mana yang digeser. Shrink: papan cuma "menyusut" balik
+      // kalau kartu yang TADINYA menempel pas di batas itu SENDIRI yang
+      // ditarik menjauh (menyisakan celah) — bukan tiap kali ada selisih.
+      let shiftX = 0;
+      if (minX < CANVAS_MARGIN) shiftX = CANVAS_MARGIN - minX;
+      else if (minX > CANVAS_MARGIN && draggedWasAtLeftEdge) shiftX = CANVAS_MARGIN - minX;
+
+      let shiftY = 0;
+      if (minY < CANVAS_MARGIN) shiftY = CANVAS_MARGIN - minY;
+      else if (minY > CANVAS_MARGIN && draggedWasAtTopEdge) shiftY = CANVAS_MARGIN - minY;
+
       if (shiftX === 0 && shiftY === 0) return { elements };
 
+      // Kamera TIDAK ikut dikompensasi (itu justru yang membuat pergeserannya
+      // kelihatan — kartu lain ikut kedorong/ketarik, bukan diam-diam
+      // menormalkan koordinat tanpa efek).
       for (const el of Object.values(elements)) {
         if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
         elements[el.id] = { ...el, x: el.x + shiftX, y: el.y + shiftY };

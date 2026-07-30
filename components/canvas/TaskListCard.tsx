@@ -4,6 +4,7 @@ import { memo, useEffect, useRef } from "react";
 import { daysFromToday, formatShort } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
+import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
 import type { TaskItem, TaskListElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -64,6 +65,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
   // teks di dalam input tak dianggap awal sebuah geseran.
   const { rootRef, dragHandlers } = useElementDrag(element, !editing);
   const contentRef = useRef<HTMLDivElement>(null);
+  useSnapAutoHeight(contentRef, element.height === undefined);
   const inputRefs = useRef(new Map<string, HTMLInputElement | null>());
   const titleRef = useRef<HTMLInputElement>(null);
 

@@ -15,7 +15,6 @@ export function CardActionBar({ element }: { element: CardElement }) {
     (s) => s.selectedIds.length === 1 && s.selectedIds[0] === element.id
   );
   const editingThis = useCanvasStore((s) => s.editingId === element.id);
-  const setEditing = useCanvasStore((s) => s.setEditing);
   const openBoard = useCanvasStore((s) => s.openBoard);
   const removeElement = useCanvasStore((s) => s.removeElement);
   const openDatabase = useUiStore((s) => s.openDatabase);
@@ -27,11 +26,13 @@ export function CardActionBar({ element }: { element: CardElement }) {
     toast("Kartu dihapus", { actionLabel: "Urungkan", onAction: undo });
   };
 
-  // Aksi utama per tipe (selain hapus, yang selalu ada).
+  // Aksi utama per tipe (selain hapus, yang selalu ada). Sengaja TAK ADA
+  // aksi "mulai edit teks" di sini (Note dulu punya tombol ✎ satu-klik) —
+  // edit teks HARUS lewat dobel-klik, klik tunggal cuma boleh memilih kartu.
+  // Tombol "↗" di bawah beda kelas: itu navigasi (buka papan/tabel/tautan),
+  // bukan mulai mengedit teks, jadi klik tunggal tetap wajar untuk itu.
   let primary: { label: string; title: string; onClick: () => void } | null = null;
-  if (element.type === "NOTE") {
-    primary = { label: "✎", title: "Edit catatan", onClick: () => setEditing(element.id) };
-  } else if (element.type === "BOARD_REF") {
+  if (element.type === "BOARD_REF") {
     primary = { label: "↗", title: "Buka papan", onClick: () => openBoard(element.content.boardId) };
   } else if (element.type === "DATABASE_REF") {
     primary = { label: "↗", title: "Buka tabel", onClick: () => openDatabase(element.content.databaseId) };

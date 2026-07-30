@@ -3,6 +3,7 @@
 import { memo, useRef, useState } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
+import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
 import type { LinkElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -13,6 +14,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
   const resolveLink = useCanvasStore((s) => s.resolveLink);
   const { rootRef, dragHandlers } = useElementDrag(element);
   const contentRef = useRef<HTMLDivElement>(null);
+  useSnapAutoHeight(contentRef, element.height === undefined);
 
   const { url, title, description, image, siteName, state } = element.content;
   const [draft, setDraft] = useState(url);
