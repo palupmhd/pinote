@@ -26,7 +26,7 @@ import {
 const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
 const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
-const NOTE_WIDTH = 248;
+const NOTE_WIDTH = 240; // kelipatan GRID (20) — biar tepi kanan Note juga jatuh pas di dot
 const BOARD_CARD_WIDTH = 200;
 const TASK_LIST_WIDTH = 260;
 const LINK_WIDTH = 240;
@@ -1077,13 +1077,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
       }
 
-      // Kiri/atas papan ini adalah tepi keras (x=0/y=0) — kalau geseran barusan
-      // mendorong sebuah kartu ke koordinat negatif, jangan tolak/potong
-      // kartunya. Geser SEMUA kartu papan ini sejumlah overflow-nya (kamera
-      // TIDAK ikut dikompensasi): itu justru yang membuat pergeserannya
-      // terlihat — semua kartu lain ikut "kedorong" menjauh dari tepi,
-      // memberi ruang, alih-alih diam-diam menormalkan koordinat tanpa efek
-      // kelihatan sama sekali.
+      // Kiri/atas papan ini SELALU mepet pas ke kartu paling kiri/atas yang
+      // ADA SEKARANG — bukan cuma tepi yang pernah didorong lalu diam di situ
+      // selamanya. Dua arah: kalau geseran mendorong kartu ke negatif, papan
+      // "melebar" (lihat komentar lama di bawah); tapi kalau kartu yang
+      // TADINYA di tepi itu ditarik menjauh (menyisakan celah), papan ikut
+      // "menyusut" balik — batasnya dihitung ULANG dari nol tiap commit, bukan
+      // cuma dibandingkan dengan batas lama. Kamera TIDAK ikut dikompensasi
+      // (itu justru yang membuat pergeserannya kelihatan — kartu lain ikut
+      // kedorong/ketarik, bukan diam-diam menormalkan koordinat tanpa efek).
       let minX = Infinity;
       let minY = Infinity;
       for (const el of Object.values(elements)) {
@@ -1091,8 +1093,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         if (el.x < minX) minX = el.x;
         if (el.y < minY) minY = el.y;
       }
-      const shiftX = minX < 0 ? -minX : 0;
-      const shiftY = minY < 0 ? -minY : 0;
+      if (!Number.isFinite(minX)) return { elements }; // papan tak (lagi) punya kartu
+
+      const shiftX = -minX;
+      const shiftY = -minY;
       if (shiftX === 0 && shiftY === 0) return { elements };
 
       for (const el of Object.values(elements)) {

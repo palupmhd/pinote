@@ -127,6 +127,26 @@ export function useElementDrag(element: CardElement, enabled = true) {
         }
       }
       moveMany(drag.members.map((m) => ({ id: m.id, x: m.curX, y: m.curY })));
+
+      // moveMany bisa menormalkan ULANG posisi (batas kiri/atas papan — lihat
+      // komentar di store.ts) jadi BEDA dari m.curX/curY yang barusan ditulis
+      // di atas. Kalau nilai final itu KEBETULAN sama dengan nilai yang
+      // React sudah pernah render sebelumnya (mis. balik lagi ke 0,0), React
+      // akan MELEWATI penulisan DOM itu (dibandingkan per-nilai, bukan per
+      // referensi objek) — style yang barusan kita tulis manual di atas jadi
+      // nyangkut salah, tak pernah dikoreksi. Baca ulang posisi otoritatif
+      // dari store lalu paksa tulis ke DOM supaya tampilan tak pernah bohong,
+      // apa pun yang React putuskan untuk di-skip.
+      const fresh = useCanvasStore.getState().elements;
+      for (const m of drag.members) {
+        const el = fresh[m.id];
+        if (!el || el.type === "CONNECTOR") continue;
+        const node = m.node ?? (m.id === element.id ? rootRef.current : null);
+        if (node) {
+          node.style.left = `${el.x}px`;
+          node.style.top = `${el.y}px`;
+        }
+      }
       for (const m of drag.members) canvasBus.emitMoveEnd(m.id);
     }
   };

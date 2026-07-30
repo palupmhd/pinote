@@ -218,9 +218,13 @@ export const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
 /** Batas zoom kanvas — satu sumber kebenaran dipakai scroll/pinch (Canvas) dan
  *  tombol +/− (ZoomControls), supaya tak ada jalur yang bisa melewati resolusi
  *  yang pernah diuji (di luar batas ini, layer transform-scaled terlihat pecah). */
-export const MIN_ZOOM = 0.25;
+export const MIN_ZOOM = 0.5;
 export const MAX_ZOOM = 2;
 /** Jarak titik grid (px, world units) — juga unit pembulatan saat kartu di-snap
  *  setelah drag (useElementDrag). Satu konstanta dipakai kedua tempat supaya
- *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti. */
-export const GRID = 24;
+ *  titik yang terlihat memang menandai posisi tempat kartu akan berhenti.
+ *  10 dipilih karena membagi rata SEMUA lebar kartu bawaan (lib/store.ts:
+ *  200/260/240/220) — jadi tepi KANAN kartu ikut jatuh pas di garis dot,
+ *  bukan cuma pojok kiri-atasnya — sekaligus grid yang terlihat jadi lebih
+ *  rapat (halus, bukan jarang). */
+export const GRID = 10;
