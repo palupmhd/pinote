@@ -3,6 +3,7 @@
 import { memo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
+import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
 import type { BoardRefElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -16,6 +17,7 @@ function BoardCardBase({ element, count }: { element: BoardRefElement; count: nu
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
   const contentRef = useRef<HTMLDivElement>(null);
+  useSnapAutoHeight(contentRef, element.height === undefined);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();

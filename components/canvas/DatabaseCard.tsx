@@ -4,6 +4,7 @@ import { memo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { useElementDrag } from "@/lib/useElementDrag";
+import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
 import type { DatabaseRefElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -19,6 +20,7 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
 
   const { rootRef, wasDragged, dragHandlers } = useElementDrag(element);
   const contentRef = useRef<HTMLDivElement>(null);
+  useSnapAutoHeight(contentRef, element.height === undefined);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();

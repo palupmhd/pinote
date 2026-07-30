@@ -7,6 +7,7 @@ import { BoardMention } from "@/lib/mentionSuggestion";
 import { sanitizeHtml } from "@/lib/sanitizeHtml";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
+import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
 import type { NoteElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -64,6 +65,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
   // saat mengetik: matikan drag supaya seleksi teks tetap jalan
   const { rootRef, dragHandlers } = useElementDrag(element, !editing);
   const contentRef = useRef<HTMLDivElement>(null);
+  useSnapAutoHeight(contentRef, element.height === undefined);
 
   const onDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
