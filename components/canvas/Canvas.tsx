@@ -656,7 +656,11 @@ export function Canvas() {
         ref={gridRef}
         data-export-ignore="true"
         className="pointer-events-none absolute inset-0"
-        style={{ backgroundImage: "radial-gradient(circle, #c9c9c8 1.5px, transparent 1.5px)" }}
+        // Alpha (bukan hex flat) supaya dot "nyaru" ke warna kanvas apa pun,
+        // bukan cuma cocok kebetulan dengan satu bg tertentu — kontras rendah
+        // (masih kelihatan) tapi tidak mencolok, sejalan dgn grid yang kini
+        // lebih rapat (GRID=10).
+        style={{ backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.15) 1px, transparent 1px)" }}
       />
 
       {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
