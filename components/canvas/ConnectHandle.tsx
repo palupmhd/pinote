@@ -81,7 +81,7 @@ export function ConnectHandle({ element }: { element: CardElement }) {
       title="Tarik ke elemen lain untuk menghubungkan"
       className="absolute -right-4 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 cursor-crosshair items-center justify-center"
     >
-      <span className="h-4 w-4 rounded-full border-2 border-white bg-indigo-400 opacity-0 shadow transition-opacity group-hover:opacity-100" />
+      <span className="h-4 w-4 rounded-full border-2 border-white bg-forest-400 opacity-0 shadow transition-opacity group-hover:opacity-100" />
     </div>
   );
 }

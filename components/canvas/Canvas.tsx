@@ -68,6 +68,7 @@ export function Canvas() {
   const presentPrev = useUiStore((s) => s.presentPrev);
   const exitPresentation = useUiStore((s) => s.exitPresentation);
   const openSearch = useUiStore((s) => s.openSearch);
+  const showGrid = useUiStore((s) => s.showGrid);
   const preCamRef = useRef<Camera | null>(null);
   const wasPresenting = useRef(false);
   const select = useCanvasStore((s) => s.select);
@@ -657,12 +658,23 @@ export function Canvas() {
         ref={gridRef}
         data-export-ignore="true"
         className="pointer-events-none absolute inset-0"
+        // Mati secara default (gaya toggle "Gridlines" Excel — lihat tombol
+        // grid di ZoomControls) supaya tak mengganggu mata; saat dinyalakan
+        // alpha-nya dinaikkan cukup supaya jelas terlihat tanpa terasa keras.
         // Alpha (bukan hex flat) supaya dot "nyaru" ke warna kanvas apa pun,
-        // bukan cuma cocok kebetulan dengan satu bg tertentu. Radius & alpha
-        // sengaja kecil (bukan "0.5px" dari CSS, itu di-round jadi 1px oleh
-        // sebagian browser) — dot hampir tak kasat mata dari jauh, baru
-        // kelihatan kalau diperhatikan, sejalan dgn grid yang rapat (GRID=10).
-        style={{ backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.09) 0.75px, transparent 0.75px)" }}
+        // bukan cuma cocok kebetulan dengan satu bg tertentu. Radius sengaja
+        // kecil (bukan "0.5px" dari CSS, itu di-round jadi 1px oleh sebagian
+        // browser). Ukuran dot TETAP dalam px layar (tidak ikut scale zoom) —
+        // cuma jarak antar dot (backgroundSize di applyCamera) yang mengikuti
+        // zoom. Ini aman di seluruh rentang MIN_ZOOM..MAX_ZOOM (0.5x-2x): jarak
+        // ubin jadi 5px (paling rapat, zoom out) sampai 20px (paling renggang,
+        // zoom in) — dot sekecil ini tak pernah menyatu jadi kabut abu-abu
+        // atau membesar jadi bulatan mencolok di kedua ujung rentang itu.
+        style={{
+          backgroundImage: showGrid
+            ? "radial-gradient(circle, rgba(0,0,0,0.16) 0.9px, transparent 0.9px)"
+            : "none",
+        }}
       />
 
       {/* Layer dunia: semua elemen (kartu + garis). Digeser/diskala lewat satu
@@ -704,7 +716,7 @@ export function Canvas() {
                   const wy = ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom;
                   addNote(wx, wy);
                 }}
-                className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm text-white hover:bg-indigo-600"
+                className="rounded-md bg-forest-700 px-3 py-1.5 text-sm text-white hover:bg-forest-800"
               >
                 + Catatan
               </button>
@@ -729,7 +741,7 @@ export function Canvas() {
           sampai ada geseran; digambar imperatif lewat marqueeDivRef. */}
       <div
         ref={marqueeDivRef}
-        className="pointer-events-none absolute z-10 hidden rounded-sm border border-indigo-400 bg-indigo-400/10"
+        className="pointer-events-none absolute z-10 hidden rounded-sm border border-forest-400 bg-forest-400/10"
       />
 
       {/* Saat presentasi: sembunyikan semua chrome, tampilkan hanya bilah kontrol. */}

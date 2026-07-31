@@ -118,9 +118,9 @@ export function SyncStatus() {
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="email@kamu.com"
-                  className="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 outline-none focus:border-indigo-400"
+                  className="min-w-0 flex-1 rounded border border-neutral-300 px-2 py-1 outline-none focus:border-forest-400"
                 />
-                <button className="rounded bg-indigo-500 px-2 py-1 text-white hover:bg-indigo-600">
+                <button className="rounded bg-forest-700 px-2 py-1 text-white hover:bg-forest-800">
                   Kirim
                 </button>
               </form>

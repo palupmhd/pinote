@@ -132,11 +132,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
     <div
       ref={rootRef}
       data-element-id={element.id}
-      className={[
-        "group absolute rounded-md bg-white shadow-sm transition-shadow",
-        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
-        editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
-      ].join(" ")}
+      className={["group absolute", editing ? "cursor-text" : "cursor-grab active:cursor-grabbing"].join(" ")}
       style={{
         left: element.x,
         top: element.y,
@@ -146,6 +142,12 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       {...dragHandlers}
       onDoubleClick={onDoubleClick}
     >
+      <div
+        className={[
+          "relative m-0.5 rounded-md bg-white shadow-sm transition-shadow",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        ].join(" ")}
+      >
       {!editing && <ConnectHandle element={element} />}
       {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
       <CardActionBar element={element} />
@@ -179,7 +181,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
                 type="checkbox"
                 checked={item.done}
                 onChange={() => toggleTask(element.id, item.id)}
-                className="mt-[3px] h-3.5 w-3.5 shrink-0 cursor-pointer accent-indigo-500"
+                className="mt-[3px] h-3.5 w-3.5 shrink-0 cursor-pointer accent-forest-600"
               />
               {editing ? (
                 <input
@@ -221,6 +223,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
             + Tambah tugas
           </button>
         )}
+      </div>
       </div>
     </div>
   );

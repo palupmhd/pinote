@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { useUiStore } from "@/lib/ui";
 import { MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
-import { IconFit, IconMinus, IconPlus } from "./icons";
+import { IconFit, IconGridDots, IconMinus, IconPlus } from "./icons";
 
 /** Kontrol zoom di tepi kanan (gaya mockup): +, persentase (klik → 100%), −,
  *  dan tombol layar penuh. Zoom berpusat di tengah viewport. Persentase ikut
@@ -11,6 +12,8 @@ import { IconFit, IconMinus, IconPlus } from "./icons";
 export function ZoomControls() {
   const camera = useCanvasStore((s) => s.camera);
   const setCamera = useCanvasStore((s) => s.setCamera);
+  const showGrid = useUiStore((s) => s.showGrid);
+  const toggleGrid = useUiStore((s) => s.toggleGrid);
   const [isFull, setIsFull] = useState(false);
 
   useEffect(() => {
@@ -58,6 +61,20 @@ export function ZoomControls() {
         className="flex h-8 w-8 items-center justify-center rounded-lg text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
       >
         <IconMinus className="h-5 w-5" />
+      </button>
+      <span className="my-0.5 h-px w-5 bg-neutral-200" />
+      <button
+        onClick={toggleGrid}
+        title={showGrid ? "Sembunyikan titik grid" : "Tampilkan titik grid"}
+        aria-pressed={showGrid}
+        className={[
+          "flex h-8 w-8 items-center justify-center rounded-lg",
+          showGrid
+            ? "bg-forest-50 text-forest-700"
+            : "text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900",
+        ].join(" ")}
+      >
+        <IconGridDots className="h-5 w-5" />
       </button>
       <span className="my-0.5 h-px w-5 bg-neutral-200" />
       <button

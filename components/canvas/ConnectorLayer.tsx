@@ -169,13 +169,13 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
           markerHeight="6"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#818cf8" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#66b797" />
         </marker>
       </defs>
 
       {/* Geser origin ke tengah kotak → anak-anaknya tetap pakai koordinat world */}
       <g transform={`translate(${EXTENT} ${EXTENT})`}>
-        {/* Panah relasi database (§8.6): ungu putus-putus, tidak interaktif —
+        {/* Panah relasi database (§8.6): hijau forest putus-putus, tidak interaktif —
             diturunkan dari data, dihapus dengan melepas tautannya di tabel. */}
         {relations.map((r) => (
           <path
@@ -184,7 +184,7 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
               relPathRefs.current.set(r.id, el);
             }}
             fill="none"
-            stroke="#818cf8"
+            stroke="#66b797"
             strokeWidth={1.5}
             strokeDasharray="5 4"
             markerEnd="url(#rel-arrow)"

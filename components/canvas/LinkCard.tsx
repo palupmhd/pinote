@@ -36,10 +36,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
     <div
       ref={rootRef}
       data-element-id={element.id}
-      className={[
-        "group absolute cursor-grab overflow-hidden rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
-        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
-      ].join(" ")}
+      className="group absolute cursor-grab active:cursor-grabbing"
       style={{
         left: element.x,
         top: element.y,
@@ -48,6 +45,12 @@ function LinkCardBase({ element }: { element: LinkElement }) {
       }}
       {...dragHandlers}
     >
+      <div
+        className={[
+          "relative m-0.5 overflow-hidden rounded-md bg-white shadow-sm transition-shadow",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        ].join(" ")}
+      >
       <ConnectHandle element={element} />
       <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
       <CardActionBar element={element} />
@@ -105,7 +108,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 onPointerDown={stop}
-                className="mt-1.5 block truncate text-xs text-indigo-500 hover:underline"
+                className="mt-1.5 block truncate text-xs text-forest-600 hover:underline"
               >
                 {siteName ?? host}
               </a>
@@ -135,6 +138,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   );

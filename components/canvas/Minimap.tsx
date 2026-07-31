@@ -109,7 +109,7 @@ export function Minimap({ geo, cards, viewportRef, onNavigate }: Props) {
       ))}
       <div
         ref={viewportRef}
-        className="absolute border border-indigo-500/70 bg-indigo-400/10"
+        className="absolute border border-forest-500/70 bg-forest-400/10"
         style={{ left: 0, top: 0, width: 0, height: 0 }}
       />
     </div>

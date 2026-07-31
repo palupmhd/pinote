@@ -2,6 +2,18 @@
 
 import { create } from "zustand";
 
+const SHOW_GRID_KEY = "swanote:showGrid";
+
+// Preferensi tampilan murni per-perangkat (bukan data workspace) — disimpan
+// langsung ke localStorage, TIDAK lewat store kanvas/IndexedDB, supaya
+// menyalakan/mematikan titik grid tak pernah dianggap "perubahan workspace"
+// yang memicu autosave/sync (sama alasannya dengan kenapa store ini sendiri
+// dipisah dari canvas store — lihat komentar di bawah).
+const readShowGrid = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem(SHOW_GRID_KEY) === "1";
+};
+
 /** State UI sesaat (tidak ikut disimpan/di-sync): mis. panel Agenda terbuka.
  *  Dipisah dari store kanvas supaya membuka panel tidak menandai workspace
  *  "kotor" dan memicu autosave/sync. */
@@ -9,6 +21,11 @@ export const useUiStore = create<{
   agendaOpen: boolean;
   setAgenda: (v: boolean) => void;
   toggleAgenda: () => void;
+  /** Titik grid kanvas: gaya "Gridlines" Excel — mati secara default (tak
+   *  mengganggu mata), bisa dinyalakan lewat kontrol zoom. Diingat per
+   *  perangkat lewat localStorage (lihat readShowGrid). */
+  showGrid: boolean;
+  toggleGrid: () => void;
   /** id database yang tabelnya sedang dibuka (overlay editor), atau null. */
   openDatabaseId: string | null;
   openDatabase: (id: string) => void;
@@ -34,6 +51,13 @@ export const useUiStore = create<{
   agendaOpen: false,
   setAgenda: (v) => set({ agendaOpen: v }),
   toggleAgenda: () => set((s) => ({ agendaOpen: !s.agendaOpen })),
+  showGrid: readShowGrid(),
+  toggleGrid: () =>
+    set((s) => {
+      const next = !s.showGrid;
+      window.localStorage.setItem(SHOW_GRID_KEY, next ? "1" : "0");
+      return { showGrid: next };
+    }),
   openDatabaseId: null,
   openDatabase: (id) => set({ openDatabaseId: id }),
   closeDatabase: () => set({ openDatabaseId: null }),
