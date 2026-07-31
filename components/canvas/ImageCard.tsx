@@ -4,6 +4,7 @@ import { memo, useRef } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
+import { CARD_GUTTER } from "@/lib/types";
 import type { ImageElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -28,7 +29,7 @@ function ImageCardBase({ element }: { element: ImageElement }) {
       style={{
         left: element.x,
         top: element.y,
-        width: element.width,
+        width: element.width + CARD_GUTTER * 2,
         // Tinggi root SENGAJA tidak diset di sini — root cuma kotak posisi,
         // tingginya otomatis mengikuti bingkai crop di bawah (yang bermargin)
         // persis seperti kartu teks lain (auto-height dari konten + margin).
@@ -43,7 +44,7 @@ function ImageCardBase({ element }: { element: ImageElement }) {
         ref={contentRef}
         className={[
           "relative m-0.5 overflow-hidden rounded-md bg-white shadow-sm transition-shadow",
-          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "hover:shadow-md",
         ].join(" ")}
         style={{ height: element.height }}
       >

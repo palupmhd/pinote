@@ -45,8 +45,16 @@ body {
 
 /* Kartu kanvas (dipasang lewat useElementDrag): "terangkat" selagi digeser —
  * transform/shadow bertransisi halus, left/top TIDAK ikut (ditulis instan
- * tiap frame supaya kartu tak lag mengikuti kursor). */
+ * tiap frame supaya kartu tak lag mengikuti kursor).
+ *
+ * border-radius di sini SENGAJA disamakan dengan `rounded-md` permukaan
+ * visual di dalamnya (lihat NoteCard dkk) — elemen `[data-element-id]`
+ * sendiri (kotak posisi, sejak fix gutter-grid) tak berbackground/rounded,
+ * jadi box-shadow "terangkat" tanpa ini digambar sebagai kotak siku-siku
+ * TAJAM di belakang kartu yang sudut visualnya membulat — muncul sebagai
+ * "sudut siku transparan" di tiap pojok selagi kartu diangkat/digeser. */
 [data-element-id] {
+  border-radius: 0.375rem;
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
 [data-element-id].is-dragging {

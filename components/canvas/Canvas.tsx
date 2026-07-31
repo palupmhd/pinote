@@ -26,7 +26,7 @@ import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
 import { CARD_GUTTER, GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
-import { clampCamera } from "@/lib/geometry";
+import { boxCenter, cardVisualBox, clampCamera } from "@/lib/geometry";
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -157,18 +157,20 @@ export function Canvas() {
     // ikut jadi bitmap yang di-scale.
     if (gridRef.current) {
       const tile = GRID * zoom;
-      gridRef.current.style.backgroundSize = `${tile}px ${tile}px`;
+      const halfTile = tile / 2;
+      gridRef.current.style.backgroundSize = `${tile}px ${tile}px, ${halfTile}px ${halfTile}px`;
       // radial-gradient default posisinya di TENGAH tiap ubin, bukan di
       // pojoknya — digeser setengah ubin supaya titik yang terlihat memang
       // jatuh di kelipatan GRID (titik dunia yang sama dipakai snap saat
-      // drag), bukan di antaranya. Ditambah CARD_GUTTER*zoom supaya fase
-      // dot mengikuti tepi PERMUKAAN kartu yang terlihat (2px lebih ke
-      // dalam dari kotak posisi kelipatan-grid-nya, gara-gara margin `m-0.5`
-      // — lihat CARD_GUTTER di lib/types.ts) — tanpa ini dot selalu jatuh
-      // di kotak posisi yang tak kasat mata, meleset dari tepi kartu yang
-      // sungguh dilihat pengguna.
+      // drag), bukan di antaranya. Layer kedua menambah dot minor di tengah
+      // jarak itu (GRID/2) dengan opacity lebih rendah, supaya grid terasa
+      // lebih rapat tanpa mengubah snap 10px. Ditambah CARD_GUTTER*zoom supaya
+      // fase dot mengikuti tepi PERMUKAAN kartu yang terlihat (2px lebih ke
+      // dalam dari kotak posisi kelipatan-grid-nya, gara-gara margin `m-0.5`).
       const gutter = CARD_GUTTER * zoom;
-      gridRef.current.style.backgroundPosition = `${x - tile / 2 + gutter}px ${y - tile / 2 + gutter}px`;
+      gridRef.current.style.backgroundPosition =
+        `${x - tile / 2 + gutter}px ${y - tile / 2 + gutter}px, ` +
+        `${x - halfTile / 2 + gutter}px ${y - halfTile / 2 + gutter}px`;
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
@@ -480,12 +482,13 @@ export function Canvas() {
     const W = rect?.width ?? window.innerWidth;
     const H = rect?.height ?? window.innerHeight;
     const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
-    const ch = node?.offsetHeight ?? 120;
-    const cw = el.width;
+    // Kotak permukaan yang SUNGGUH terlihat (bukan kotak posisi mentah, yang
+    // sengaja lebih besar 2×CARD_GUTTER) — tanpa ini kartu sedikit bias ke
+    // kiri-atas & fit-nya tak sepenuhnya mengikuti tepi yang kelihatan.
+    const box = cardVisualBox(el, node, 120);
+    const { x: wx, y: wy } = boxCenter(box);
     // Pas-kan kartu ke ~2/3 viewport, dijepit ke rentang zoom kanvas.
-    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(W / (cw * 1.5), H / (ch * 1.6))));
-    const wx = el.x + cw / 2;
-    const wy = el.y + ch / 2;
+    const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(W / (box.w * 1.5), H / (box.h * 1.6))));
     setCamera({ x: W / 2 - wx * zoom, y: H / 2 - wy * zoom, zoom });
   }, [presenting, presentIndex, presentOrder, setCamera]);
 
@@ -547,8 +550,12 @@ export function Canvas() {
       if (el.boardId !== st.currentBoardId || el.type === "CONNECTOR") continue;
       const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
       const h = node?.offsetHeight ?? 64;
+      // Lebar diukur dari DOM (bukan el.width mentah) — root SENGAJA lebih
+      // lebar dari el.width sejak fix gutter-grid (lihat CARD_GUTTER), sama
+      // seperti tinggi yang sudah lebih dulu diukur dari DOM di atas.
+      const w = node?.offsetWidth ?? el.width;
       // AABB overlap antara marquee dan kotak kartu.
-      if (el.x < wx2 && el.x + el.width > wx1 && el.y < wy2 && el.y + h > wy1) {
+      if (el.x < wx2 && el.x + w > wx1 && el.y < wy2 && el.y + h > wy1) {
         hits.push(el.id);
       }
     }
@@ -664,21 +671,16 @@ export function Canvas() {
         ref={gridRef}
         data-export-ignore="true"
         className="pointer-events-none absolute inset-0"
-        // Mati secara default (gaya toggle "Gridlines" Excel — lihat tombol
-        // grid di ZoomControls) supaya tak mengganggu mata; saat dinyalakan
-        // alpha-nya dinaikkan cukup supaya jelas terlihat tanpa terasa keras.
-        // Alpha (bukan hex flat) supaya dot "nyaru" ke warna kanvas apa pun,
-        // bukan cuma cocok kebetulan dengan satu bg tertentu. Radius sengaja
-        // kecil (bukan "0.5px" dari CSS, itu di-round jadi 1px oleh sebagian
-        // browser). Ukuran dot TETAP dalam px layar (tidak ikut scale zoom) —
-        // cuma jarak antar dot (backgroundSize di applyCamera) yang mengikuti
-        // zoom. Ini aman di seluruh rentang MIN_ZOOM..MAX_ZOOM (0.5x-2x): jarak
-        // ubin jadi 5px (paling rapat, zoom out) sampai 20px (paling renggang,
-        // zoom in) — dot sekecil ini tak pernah menyatu jadi kabut abu-abu
-        // atau membesar jadi bulatan mencolok di kedua ujung rentang itu.
+        // Mati secara default. Saat dinyalakan, ada dot mayor di GRID dan dot
+        // minor di GRID/2; minor sengaja lebih transparan supaya kerapatan naik
+        // tanpa terasa seperti noise. Ukuran dot tetap dalam px layar, hanya
+        // jarak antar dot yang mengikuti zoom lewat applyCamera.
         style={{
           backgroundImage: showGrid
-            ? "radial-gradient(circle, rgba(0,0,0,0.16) 0.9px, transparent 0.9px)"
+            ? [
+                "radial-gradient(circle, rgba(0,0,0,0.075) 0.72px, transparent 0.72px)",
+                "radial-gradient(circle, rgba(0,0,0,0.032) 0.58px, transparent 0.58px)",
+              ].join(", ")
             : "none",
         }}
       />

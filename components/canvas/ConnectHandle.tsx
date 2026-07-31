@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
-import { boxCenter } from "@/lib/geometry";
+import { boxCenter, cardVisualBox } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import type { CardElement } from "@/lib/types";
 
@@ -27,12 +27,7 @@ export function ConnectHandle({ element }: { element: CardElement }) {
 
   const sourcePoint = () => {
     const node = document.querySelector<HTMLElement>(`[data-element-id="${element.id}"]`);
-    return boxCenter({
-      x: element.x,
-      y: element.y,
-      w: element.width,
-      h: node?.offsetHeight ?? FALLBACK_HEIGHT,
-    });
+    return boxCenter(cardVisualBox(element, node, FALLBACK_HEIGHT));
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
