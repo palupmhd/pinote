@@ -253,6 +253,13 @@ export const MAX_ZOOM = 2;
  *  bukan cuma pojok kiri-atasnya — sekaligus grid yang terlihat jadi lebih
  *  rapat (halus, bukan jarang). */
 export const GRID = 10;
+/** Jeda visual (margin) antara kotak posisi kartu (dipakai drag/resize/
+ *  konektor) dan permukaan putihnya yang sungguh terlihat — lihat `m-0.5`
+ *  di tiap komponen kartu (NoteCard, TaskListCard, dst). HARUS sinkron
+ *  dengan angka itu: dipakai Canvas.tsx buat menggeser fase titik grid
+ *  supaya dot jatuh pas di tepi permukaan yang terlihat, bukan di tepi
+ *  kotak posisi yang tak kasat mata (yang 2px lebih besar tiap sisi). */
+export const CARD_GUTTER = 2;
 /** Lebar minimum kartu saat di-resize lewat handle (12×GRID) — biar tak ada
  *  kartu yang di-resize sampai lebih sempit dari isinya sendiri. */
 export const MIN_CARD_WIDTH = 120;
