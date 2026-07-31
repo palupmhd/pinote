@@ -628,7 +628,7 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="relative h-dvh w-full overflow-hidden bg-[#f7f6f2] touch-none select-none"
+      className="relative h-dvh w-full overflow-hidden bg-[#f6f6f7] touch-none select-none"
       data-canvas-bg="true"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
