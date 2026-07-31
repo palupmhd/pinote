@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
-import { connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
+import { cardVisualBox, connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { CONNECTOR_COLORS, type Box, type CardElement, type ConnectorElement } from "@/lib/types";
@@ -64,16 +64,14 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
   }, [cards, connectors, relations]);
 
   /** Tinggi kartu tidak ada di data model (tinggi mengikuti isi), jadi diukur
-   *  dari DOM. Lebar & posisi dari store, ditimpa posisi live saat digeser. */
+   *  dari DOM. Lebar & posisi dari store, ditimpa posisi live saat digeser.
+   *  cardVisualBox mengoreksi x/y/h ke permukaan yang SUNGGUH terlihat (bukan
+   *  kotak posisi mentah, yang sengaja lebih besar 2×CARD_GUTTER) — tanpa
+   *  ini ujung/tengah konektor meleset dari tepi kartu yang kelihatan. */
   const boxOf = useCallback((el: CardElement): Box => {
     const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
     const live = livePos.current.get(el.id);
-    return {
-      x: live?.x ?? el.x,
-      y: live?.y ?? el.y,
-      w: el.width,
-      h: node?.offsetHeight ?? FALLBACK_HEIGHT,
-    };
+    return cardVisualBox({ x: live?.x ?? el.x, y: live?.y ?? el.y, width: el.width }, node, FALLBACK_HEIGHT);
   }, []);
 
   const redraw = useCallback(

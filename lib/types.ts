@@ -266,9 +266,9 @@ export const MIN_CARD_WIDTH = 120;
 /** Tinggi minimum kartu saat di-resize (6×GRID) — lebih longgar dari lebar
  *  karena beberapa kartu (mis. Note kosong) wajar pendek. */
 export const MIN_CARD_HEIGHT = 60;
-/** Buffer dari tepi dunia sungguhan (x=0/y=0) ke batas yang benar-benar
- *  ditegakkan — permintaan pemilik supaya batasnya "di dot ke-7", bukan
- *  dot pertama (dot ke-0 = world 0, jadi dot ke-7 = 7×GRID). Dipakai
- *  `clampCamera` (pan) & normalisasi papan (`moveMany`) — SATU angka, dua
- *  tempat, supaya keduanya selalu sepakat soal di mana batas itu berada. */
+/** Buffer dari tepi dunia sungguhan (x=0/y=0) ke batas kiri/atas yang
+ *  ditegakkan — permintaan pemilik supaya batasnya "di dot ke-7", bukan dot
+ *  pertama (dot ke-0 = world 0, jadi dot ke-7 = 7×GRID). Dipakai `clampCamera`
+ *  untuk pan kamera dan `moveMany` hanya untuk mencegah kartu melewati batas
+ *  itu; ruang kosong di kiri/atas kartu tetap sah. */
 export const CANVAS_MARGIN = 7 * GRID;

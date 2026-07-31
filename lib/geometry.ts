@@ -1,4 +1,4 @@
-import { CANVAS_MARGIN, GRID } from "./types";
+import { CANVAS_MARGIN, CARD_GUTTER, GRID } from "./types";
 import type { Box, Camera } from "./types";
 
 export interface Point {
@@ -6,15 +6,17 @@ export interface Point {
   y: number;
 }
 
-/** Bulatkan ke kelipatan GRID terdekat — satu fungsi dipakai drag (posisi) DAN
- *  resize (lebar/tinggi) supaya semuanya konsisten menempel ke titik dot yang
- *  sama. */
-export const snapToGrid = (v: number): number => Math.round(v / GRID) * GRID;
+/** Bulatkan ke kelipatan `step` terdekat (default GRID) — satu fungsi dipakai
+ *  drag (posisi, selalu kelipatan GRID penuh) DAN resize (lebar/tinggi, bisa
+ *  diminta kelipatan GRID/2 supaya ikut menempel ke dot minor di tengah grid
+ *  mayor — lihat pemanggilan di ResizeHandle.tsx). */
+export const snapToGrid = (v: number, step: number = GRID): number => Math.round(v / step) * step;
 
 /** Kiri/atas kanvas adalah tepi keras: dunia di bawah `CANVAS_MARGIN` (world
  *  x/y) tak pernah boleh kelihatan (gaya "halaman" Milanote, bukan bidang
- *  tak-berhingga ke segala arah — lihat juga normalisasi papan di
- *  store.ts:moveMany yang menegakkan batas yang sama dari sisi kartu).
+ *  tak-berhingga ke segala arah). `moveMany` memakai batas yang sama hanya
+ *  untuk mencegah kartu masuk melewati margin, bukan untuk menempelkan kartu
+ *  paling kiri/atas ke tepi layar.
  *  Pada zoom berapa pun, titik dunia (CANVAS_MARGIN, CANVAS_MARGIN) ada di
  *  layar pada posisi `camera.{x,y} + CANVAS_MARGIN*zoom` — jadi supaya sisi
  *  kiri/atas viewport tak pernah menunjukkan koordinat di bawah batas itu,
@@ -26,6 +28,25 @@ export function clampCamera(cam: Camera): Camera {
 }
 
 export const boxCenter = (b: Box): Point => ({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+
+/** Kotak yang SUNGGUH terlihat (permukaan bermargin) dari sebuah kartu, bukan
+ *  kotak posisi mentahnya (yang sejak fix gutter-grid sengaja lebih besar
+ *  `2×CARD_GUTTER` dari elemen — lihat CARD_GUTTER di lib/types.ts). Dipakai
+ *  di mana pun garis/titik konektor atau kamera perlu menunjuk ke tepi kartu
+ *  yang pengguna benar-benar lihat, bukan kotak posisi yang tak kasat mata.
+ *
+ *  `w` dari elemen (sudah otomatis pas dengan lebar permukaan — lihat
+ *  komentar di NoteCard dkk). `h` diukur dari tinggi OUTER yang dirender
+ *  (elemen tak punya field tinggi tetap saat auto-height), dikurangi
+ *  2×CARD_GUTTER supaya jadi tinggi permukaan yang sungguh terlihat. */
+export function cardVisualBox(
+  el: { x: number; y: number; width: number },
+  outerNode: HTMLElement | null,
+  fallbackVisualHeight: number
+): Box {
+  const h = outerNode ? outerNode.offsetHeight - CARD_GUTTER * 2 : fallbackVisualHeight;
+  return { x: el.x + CARD_GUTTER, y: el.y + CARD_GUTTER, w: el.width, h };
+}
 
 /** Titik keluar garis dari pusat kotak menuju arah tertentu — supaya ujung
  *  panah berhenti di tepi kartu, bukan tertimbun di bawahnya. */

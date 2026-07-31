@@ -5,6 +5,7 @@ import { daysFromToday, formatShort } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
 import { useElementDrag } from "@/lib/useElementDrag";
 import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
+import { CARD_GUTTER } from "@/lib/types";
 import type { TaskItem, TaskListElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -136,7 +137,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       style={{
         left: element.x,
         top: element.y,
-        width: element.width,
+        width: element.width + CARD_GUTTER * 2,
         zIndex: element.zIndex,
       }}
       {...dragHandlers}
@@ -145,7 +146,7 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
       <div
         className={[
           "relative m-0.5 rounded-md bg-white shadow-sm transition-shadow",
-          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "hover:shadow-md",
         ].join(" ")}
       >
       {!editing && <ConnectHandle element={element} />}

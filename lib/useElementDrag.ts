@@ -4,10 +4,14 @@ import { useRef } from "react";
 import { canvasBus } from "./canvasBus";
 import { snapToGrid } from "./geometry";
 import { useCanvasStore } from "./store";
+import { GRID } from "./types";
 import type { CardElement } from "./types";
 
 const DRAG_THRESHOLD = 3;
-const snap = snapToGrid;
+// GRID/2: posisi kartu juga boleh berhenti di dot minor (di tengah grid
+// mayor), sama seperti resize (lihat ResizeHandle.tsx) — bukan cuma
+// kelipatan GRID penuh.
+const snap = (v: number) => snapToGrid(v, GRID / 2);
 
 interface Member {
   id: string;
