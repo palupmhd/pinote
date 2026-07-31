@@ -241,7 +241,7 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
                   dominantBaseline="middle"
                   fill={color}
                   className="pointer-events-none select-none text-[11px] font-medium"
-                  style={{ paintOrder: "stroke", stroke: "#f7f6f2", strokeWidth: 5 }}
+                  style={{ paintOrder: "stroke", stroke: "#f6f6f7", strokeWidth: 5 }}
                 >
                   {c.label}
                 </text>

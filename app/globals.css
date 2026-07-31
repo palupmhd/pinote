@@ -1,9 +1,12 @@
 @import "tailwindcss";
 
 :root {
-  /* Off-white hangat ala Milanote — bukan putih dingin. */
-  --background: #f7f6f2;
-  --foreground: #1f1e1c;
+  /* Netral dingin (bukan off-white hangat ala Milanote yang dipakai
+     sebelumnya) — dipilih pemilik setelah membandingkan opsi warna kanvas
+     langsung (lihat SPEC.md). Border kartu (`ring-neutral-200`) sudah
+     otomatis cocok temperatur-nya tanpa perlu diubah. */
+  --background: #f6f6f7;
+  --foreground: #18181b;
 }
 
 @theme inline {
