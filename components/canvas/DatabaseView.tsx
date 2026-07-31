@@ -108,7 +108,7 @@ function RelationCell({
             key={rid}
             onClick={() => toggleRelation(dbId, rowId, column.id, rid)}
             title="Klik untuk lepas"
-            className="rounded bg-indigo-50 px-1.5 py-0.5 text-xs text-indigo-700 hover:bg-red-50 hover:text-red-600"
+            className="rounded bg-forest-50 px-1.5 py-0.5 text-xs text-forest-800 hover:bg-red-50 hover:text-red-600"
           >
             {labelFor(rid)} ✕
           </button>
@@ -130,7 +130,7 @@ function RelationCell({
                   type="checkbox"
                   checked={linked.includes(r.id)}
                   onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
-                  className="h-3.5 w-3.5 accent-indigo-500"
+                  className="h-3.5 w-3.5 accent-forest-600"
                 />
                 <span className="truncate text-neutral-700">{rowLabel(target, r, i)}</span>
               </label>
@@ -174,7 +174,7 @@ function CellEditor({
         type="checkbox"
         checked={value === true}
         onChange={(e) => set(e.target.checked)}
-        className="h-4 w-4 cursor-pointer accent-indigo-500"
+        className="h-4 w-4 cursor-pointer accent-forest-600"
       />
     );
   }
@@ -294,7 +294,7 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
           value={column.targetDatabaseId ?? ""}
           onChange={(e) => setColumnTarget(dbId, column.id, e.target.value)}
           title="Database tujuan relasi"
-          className="w-full cursor-pointer rounded bg-indigo-50 px-1 py-0.5 text-[10px] text-indigo-700 outline-none"
+          className="w-full cursor-pointer rounded bg-forest-50 px-1 py-0.5 text-[10px] text-forest-800 outline-none"
         >
           <option value="" disabled>
             → database tujuan…
@@ -524,7 +524,7 @@ export function DatabaseView() {
                       className={[
                         "px-1",
                         row.boardId
-                          ? "text-indigo-500 hover:text-indigo-700"
+                          ? "text-forest-600 hover:text-forest-800"
                           : "text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100",
                       ].join(" ")}
                     >

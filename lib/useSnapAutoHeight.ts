@@ -43,7 +43,7 @@ export function useSnapAutoHeight(ref: RefObject<HTMLElement | null>, enabled: b
       basePad.current = parseFloat(getComputedStyle(el).paddingBottom) || 0;
     }
 
-    const ro = new ResizeObserver(() => {
+    const apply = () => {
       const natural = el.offsetHeight - appliedExtra.current;
       const rounded = Math.ceil(natural / GRID) * GRID;
       const extra = rounded - natural;
@@ -51,7 +51,18 @@ export function useSnapAutoHeight(ref: RefObject<HTMLElement | null>, enabled: b
         appliedExtra.current = extra;
         el.style.paddingBottom = `${(basePad.current ?? 0) + extra}px`;
       }
-    });
+    };
+
+    // ResizeObserver TIDAK bisa diandalkan memicu callback pertamanya sendiri
+    // di semua browser buat elemen yang ukurannya sudah stabil sejak mount
+    // (diverifikasi langsung: observer baru pada elemen diam tidak pernah
+    // terpanggil) — tanpa baris ini, kartu yang tak pernah berubah ukuran
+    // sesudah mount (kasus paling umum: kartu baru langsung diisi lalu diam)
+    // tak pernah dibulatkan sama sekali. Panggil sekali di sini buat baseline,
+    // observer di bawah cuma menyusul perubahan SETELAHNYA (mengetik, dst).
+    apply();
+
+    const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
   }, [ref, enabled]);

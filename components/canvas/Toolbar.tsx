@@ -166,7 +166,7 @@ export function Toolbar({ containerRef, cameraRef }: Props) {
           addNote(x, y);
         }}
         title="Catatan cepat"
-        className="mr-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-700"
+        className="mr-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-forest-800 text-white shadow-sm transition-colors hover:bg-forest-900"
       >
         <IconPlus className="h-5 w-5" />
       </button>

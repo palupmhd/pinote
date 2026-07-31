@@ -143,7 +143,7 @@ export function CalendarBoard({ db }: { db: Database }) {
               className={[
                 "group min-h-[64px] border-b border-r border-neutral-100 p-1 text-xs transition-colors",
                 dragRow && dropKey === key
-                  ? "bg-indigo-50 ring-1 ring-inset ring-indigo-300"
+                  ? "bg-forest-50 ring-1 ring-inset ring-forest-300"
                   : inMonth ? "bg-white" : "bg-neutral-50/60",
               ].join(" ")}
             >
@@ -151,7 +151,7 @@ export function CalendarBoard({ db }: { db: Database }) {
                 <span
                   className={[
                     "px-1 tabular-nums",
-                    isToday ? "rounded-full bg-indigo-500 text-white" : inMonth ? "text-neutral-500" : "text-neutral-300",
+                    isToday ? "rounded-full bg-forest-800 text-white" : inMonth ? "text-neutral-500" : "text-neutral-300",
                   ].join(" ")}
                 >
                   {d.getDate()}
@@ -199,7 +199,7 @@ export function CalendarBoard({ db }: { db: Database }) {
                     }}
                     title="Seret untuk pindah tanggal · klik untuk lihat/edit"
                     className={[
-                      "block w-full touch-none truncate rounded bg-indigo-50 px-1 py-0.5 text-left text-[11px] text-indigo-700 hover:bg-indigo-100",
+                      "block w-full touch-none truncate rounded bg-forest-50 px-1 py-0.5 text-left text-[11px] text-forest-800 hover:bg-forest-100",
                       dragRow === r.id ? "cursor-grabbing opacity-60" : "cursor-grab",
                     ].join(" ")}
                   >

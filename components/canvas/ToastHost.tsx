@@ -25,7 +25,7 @@ export function ToastHost() {
                 t.onAction?.();
                 dismiss(t.id);
               }}
-              className="rounded px-1.5 py-0.5 text-xs font-medium text-indigo-300 hover:bg-white/10 hover:text-indigo-200"
+              className="rounded px-1.5 py-0.5 text-xs font-medium text-forest-300 hover:bg-white/10 hover:text-forest-200"
             >
               {t.actionLabel}
             </button>

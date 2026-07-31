@@ -31,7 +31,7 @@ function BarButton({
         disabled
           ? "text-neutral-300"
           : active
-            ? "bg-indigo-50 text-indigo-600"
+            ? "bg-forest-50 text-forest-700"
             : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900",
       ].join(" ")}
     >
@@ -62,7 +62,7 @@ export function TopBar() {
     <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-center gap-2 px-3 py-2.5 sm:flex-nowrap sm:gap-3">
       {/* Kiri: workspace + breadcrumb */}
       <div className="pointer-events-auto order-1 flex min-w-0 items-center gap-2 rounded-xl bg-white/90 py-1 pl-1.5 pr-2.5 shadow-sm ring-1 ring-black/5 backdrop-blur">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-indigo-600 text-[11px] font-bold text-white">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-forest-800 text-[11px] font-bold text-white">
           S
         </span>
         <Breadcrumb />

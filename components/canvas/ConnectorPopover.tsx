@@ -80,7 +80,7 @@ export function ConnectorPopover() {
         value={connector.label ?? ""}
         onChange={(e) => updateConnector(connector.id, { label: e.target.value })}
         placeholder="Label garis…"
-        className="w-40 rounded border border-neutral-200 px-2 py-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-300 focus:border-indigo-300"
+        className="w-40 rounded border border-neutral-200 px-2 py-1 text-xs text-neutral-800 outline-none placeholder:text-neutral-300 focus:border-forest-300"
       />
       <div className="flex items-center gap-1">
         {colors.map((c) => (

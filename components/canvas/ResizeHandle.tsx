@@ -101,7 +101,7 @@ export function ResizeHandle({
       onPointerCancel={onCancel}
       onLostPointerCapture={onCancel}
       title="Tarik untuk ubah ukuran"
-      className="absolute -right-1 -bottom-1 z-10 h-3.5 w-3.5 cursor-nwse-resize touch-none rounded-sm border-2 border-white bg-indigo-400 opacity-0 shadow transition-opacity group-hover:opacity-100"
+      className="absolute -right-1 -bottom-1 z-10 h-3.5 w-3.5 cursor-nwse-resize touch-none rounded-sm border-2 border-white bg-forest-400 opacity-0 shadow transition-opacity group-hover:opacity-100"
     />
   );
 }

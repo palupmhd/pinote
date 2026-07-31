@@ -31,10 +31,7 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
     <div
       ref={rootRef}
       data-element-id={element.id}
-      className={[
-        "group absolute cursor-grab rounded-md bg-white shadow-sm transition-shadow active:cursor-grabbing",
-        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
-      ].join(" ")}
+      className="group absolute cursor-grab active:cursor-grabbing"
       style={{
         left: element.x,
         top: element.y,
@@ -44,14 +41,21 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
       {...dragHandlers}
       onDoubleClick={onDoubleClick}
     >
-      <ConnectHandle element={element} />
-      <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
-      <CardActionBar element={element} />
-      <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
-        <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
-        <p className="mt-0.5 text-xs text-neutral-400">
-          {rows} baris · {cols} kolom · klik dua kali untuk buka
-        </p>
+      <div
+        className={[
+          "relative m-0.5 rounded-md bg-white shadow-sm transition-shadow",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        ].join(" ")}
+      >
+        <ConnectHandle element={element} />
+        <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
+        <CardActionBar element={element} />
+        <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
+          <p className="truncate text-sm font-medium text-neutral-800">{title}</p>
+          <p className="mt-0.5 text-xs text-neutral-400">
+            {rows} baris · {cols} kolom · klik dua kali untuk buka
+          </p>
+        </div>
       </div>
     </div>
   );

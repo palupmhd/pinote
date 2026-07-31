@@ -63,7 +63,7 @@ export function Breadcrumb() {
             if (e.key === "Enter") e.currentTarget.blur();
             if (e.key === "Escape") setDraft(null);
           }}
-          className="w-48 rounded border border-neutral-300 px-1 font-medium text-neutral-900 outline-none focus:border-indigo-400"
+          className="w-48 rounded border border-neutral-300 px-1 font-medium text-neutral-900 outline-none focus:border-forest-400"
         />
       )}
 
@@ -75,7 +75,7 @@ export function Breadcrumb() {
             title="Referensi balik: catatan yang me-mention papan ini"
             className={[
               "rounded px-1.5 py-0.5 text-xs",
-              backOpen ? "bg-indigo-50 text-indigo-700" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
+              backOpen ? "bg-forest-50 text-forest-800" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
             ].join(" ")}
           >
             ↩ {backlinks.length}

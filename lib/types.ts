@@ -172,7 +172,7 @@ export const CONNECTOR_COLORS: Record<ConnectorColor, string> = {
   red: "#f87171",
   blue: "#60a5fa",
   green: "#34d399",
-  purple: "#a78bfa",
+  purple: "#469b79",
   amber: "#f59e0b",
 };
 

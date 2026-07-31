@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { clampCamera } from "./geometry";
+import { clampCamera, snapToGrid } from "./geometry";
 import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
@@ -768,9 +768,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   addImage: (worldX, worldY, img) => {
     const id = crypto.randomUUID();
-    // Lebar kartu = lebar asli dijepit ke rentang wajar; tinggi ikut rasio saat
-    // render. Pusatkan kartu di titik jatuh/tempel.
-    const width = Math.min(IMAGE_MAX_WIDTH, Math.max(IMAGE_MIN_WIDTH, img.naturalWidth));
+    // Lebar kartu = lebar asli dijepit ke rentang wajar, dibulatkan ke
+    // kelipatan GRID (kartu lain semua kelipatan grid — foto jangan jadi
+    // pengecualian). Tinggi ikut rasio saat render, tak disimpan di sini;
+    // hanya dipakai untuk memusatkan kartu di titik jatuh/tempel.
+    const width = snapToGrid(
+      Math.min(IMAGE_MAX_WIDTH, Math.max(IMAGE_MIN_WIDTH, img.naturalWidth))
+    );
     const height = (width * img.naturalHeight) / img.naturalWidth;
     set((s) => ({
       elements: {

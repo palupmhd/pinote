@@ -15,6 +15,21 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-hand: var(--font-hand);
+
+  /* Aksen "dark forest" (basis #1A2E26 di step 800), pengganti indigo/ungu
+     yang dipakai sebelumnya untuk semua state interaktif (tombol, ring
+     seleksi, badge, fokus, dst). */
+  --color-forest-50: #f2f8f5;
+  --color-forest-100: #e1efea;
+  --color-forest-200: #c2e0d4;
+  --color-forest-300: #99cdb8;
+  --color-forest-400: #66b797;
+  --color-forest-500: #469b79;
+  --color-forest-600: #366d57;
+  --color-forest-700: #27493c;
+  --color-forest-800: #1a2e26;
+  --color-forest-900: #101e18;
+  --color-forest-950: #09110e;
 }
 
 body {
@@ -52,7 +67,7 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 [contenteditable="true"]:focus-visible {
-  outline: 2px solid #6366f1 !important;
+  outline: 2px solid #469b79 !important;
   outline-offset: 1px;
 }
 
@@ -101,8 +116,8 @@ textarea:focus-visible,
 /* Mention board (spec §9.3): tautan `board:<id>` di dalam Note. */
 .note-editor a[href^="board:"],
 .note-editor a.mention {
-  color: #4f46e5;
-  background: #eef2ff;
+  color: #1a2e26;
+  background: #f2f8f5;
   border-radius: 4px;
   padding: 0 0.2em;
   font-weight: 500;
@@ -140,8 +155,8 @@ textarea:focus-visible,
   white-space: nowrap;
 }
 .mention-item.is-active {
-  background: #eef2ff;
-  color: #4338ca;
+  background: #f2f8f5;
+  color: #101e18;
 }
 .mention-empty {
   color: #a1a1aa;

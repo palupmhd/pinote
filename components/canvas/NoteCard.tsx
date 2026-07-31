@@ -80,11 +80,7 @@ function NoteCardBase({ element }: { element: NoteElement }) {
     <div
       ref={rootRef}
       data-element-id={element.id}
-      className={[
-        "group absolute rounded-md bg-white shadow-sm transition-shadow",
-        selected ? "ring-2 ring-indigo-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
-        editing ? "cursor-text" : "cursor-grab active:cursor-grabbing",
-      ].join(" ")}
+      className={["group absolute", editing ? "cursor-text" : "cursor-grab active:cursor-grabbing"].join(" ")}
       style={{
         left: element.x,
         top: element.y,
@@ -94,26 +90,37 @@ function NoteCardBase({ element }: { element: NoteElement }) {
       {...dragHandlers}
       onDoubleClick={onDoubleClick}
     >
-      {!editing && <ConnectHandle element={element} />}
-      {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
-      <CardActionBar element={element} />
+      {/* Permukaan visual sengaja dibungkus dengan margin (m-0.5) supaya kartu
+          bersebelahan selalu punya jeda terlihat — kotak posisi di div luar
+          (dipakai drag/resize/konektor) tetap persis element.width/height,
+          cuma permukaannya yang menyusut ke dalam. */}
       <div
-        ref={contentRef}
-        className="overflow-y-auto px-3 pb-3 pt-3"
-        style={{ height: element.height }}
+        className={[
+          "relative m-0.5 rounded-md bg-white shadow-sm transition-shadow",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
+        ].join(" ")}
       >
-        {editing ? (
-          <NoteEditor id={element.id} initialHtml={html} />
-        ) : safeHtml ? (
-          <div
-            className="note-editor text-sm text-neutral-800"
-            onPointerDownCapture={onContentPointerDown}
-            onClick={onContentClick}
-            dangerouslySetInnerHTML={{ __html: safeHtml }}
-          />
-        ) : (
-          <p className="text-sm text-neutral-300">Catatan kosong</p>
-        )}
+        {!editing && <ConnectHandle element={element} />}
+        {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
+        <CardActionBar element={element} />
+        <div
+          ref={contentRef}
+          className="overflow-y-auto px-3 pb-3 pt-3"
+          style={{ height: element.height }}
+        >
+          {editing ? (
+            <NoteEditor id={element.id} initialHtml={html} />
+          ) : safeHtml ? (
+            <div
+              className="note-editor text-sm text-neutral-800"
+              onPointerDownCapture={onContentPointerDown}
+              onClick={onContentClick}
+              dangerouslySetInnerHTML={{ __html: safeHtml }}
+            />
+          ) : (
+            <p className="text-sm text-neutral-300">Catatan kosong</p>
+          )}
+        </div>
       </div>
     </div>
   );
