@@ -24,7 +24,7 @@ import { ToastHost } from "./ToastHost";
 import { TaskListCard } from "./TaskListCard";
 import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
-import { GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
+import { CARD_GUTTER, GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
 import { clampCamera } from "@/lib/geometry";
 
@@ -161,8 +161,14 @@ export function Canvas() {
       // radial-gradient default posisinya di TENGAH tiap ubin, bukan di
       // pojoknya — digeser setengah ubin supaya titik yang terlihat memang
       // jatuh di kelipatan GRID (titik dunia yang sama dipakai snap saat
-      // drag), bukan di antaranya.
-      gridRef.current.style.backgroundPosition = `${x - tile / 2}px ${y - tile / 2}px`;
+      // drag), bukan di antaranya. Ditambah CARD_GUTTER*zoom supaya fase
+      // dot mengikuti tepi PERMUKAAN kartu yang terlihat (2px lebih ke
+      // dalam dari kotak posisi kelipatan-grid-nya, gara-gara margin `m-0.5`
+      // — lihat CARD_GUTTER di lib/types.ts) — tanpa ini dot selalu jatuh
+      // di kotak posisi yang tak kasat mata, meleset dari tepi kartu yang
+      // sungguh dilihat pengguna.
+      const gutter = CARD_GUTTER * zoom;
+      gridRef.current.style.backgroundPosition = `${x - tile / 2 + gutter}px ${y - tile / 2 + gutter}px`;
     }
     if (zoomBadgeRef.current) {
       zoomBadgeRef.current.textContent = `${Math.round(zoom * 100)}% · tersimpan otomatis (lokal)`;
