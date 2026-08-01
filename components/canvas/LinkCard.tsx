@@ -49,7 +49,7 @@ function LinkCardBase({ element }: { element: LinkElement }) {
       <div
         className={[
           "relative m-0.5 overflow-hidden rounded-md bg-white shadow-sm transition-shadow",
-          selected ? "ring-2 ring-forest-400 shadow-md" : "hover:shadow-md",
+          selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         ].join(" ")}
       >
       <ConnectHandle element={element} />

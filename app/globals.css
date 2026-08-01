@@ -44,7 +44,9 @@ body {
 }
 
 /* Kartu kanvas (dipasang lewat useElementDrag): "terangkat" selagi digeser —
- * transform/shadow bertransisi halus, left/top TIDAK ikut (ditulis instan
+ * cuma shadow yang bertransisi halus (SENGAJA tanpa scale — sempat ada, tapi
+ * kartu membesar 2% bikin tepinya kelihatan gak pas sama posisi sungguhan
+ * selagi diseret, dilaporkan pemilik), left/top TIDAK ikut (ditulis instan
  * tiap frame supaya kartu tak lag mengikuti kursor).
  *
  * border-radius di sini SENGAJA disamakan dengan `rounded-md` permukaan
@@ -55,10 +57,9 @@ body {
  * "sudut siku transparan" di tiap pojok selagi kartu diangkat/digeser. */
 [data-element-id] {
   border-radius: 0.375rem;
-  transition: transform 140ms ease, box-shadow 140ms ease;
+  transition: box-shadow 140ms ease;
 }
 [data-element-id].is-dragging {
-  transform: scale(1.02);
   box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.28), 0 6px 12px rgba(0, 0, 0, 0.10);
 }
 

@@ -1,11 +1,10 @@
 "use client";
 
 import { create } from "zustand";
-import { clampCamera, snapToGrid } from "./geometry";
+import { boardMinCorner, clampCamera, snapToGrid } from "./geometry";
 import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
-  CANVAS_MARGIN,
   DEFAULT_CAMERA,
   INBOX_BOARD_ID,
   ROOT_BOARD_ID,
@@ -448,7 +447,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setCamera: (camera) =>
     set((s) => {
-      const clamped = clampCamera(camera);
+      const clamped = clampCamera(camera, boardMinCorner(s.elements, s.currentBoardId));
       return { camera: clamped, cameras: { ...s.cameras, [s.currentBoardId]: clamped } };
     }),
 
@@ -1102,6 +1101,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       };
     }),
 
+  // Kartu TIDAK PERNAH digeser paksa demi menegakkan CANVAS_MARGIN — versi
+  // lama (extend) memaksa SELURUH papan bergeser tiap kali satu kartu
+  // melewati margin, termasuk kartu lain yang sama sekali tak disentuh
+  // (bug nyata: kartu "diam di tengah" ikut terlempar jauh gara-gara kartu
+  // lain ditarik ke pojok — dilaporkan pemilik). Kartu SELALU persis di
+  // posisi yang diberikan. Batas kiri/atas sekarang murni urusan kamera
+  // (`clampCamera`/`boardMinCorner` di geometry.ts, dipanggil dari
+  // `setCamera` di bawah) — pan boleh melonggar mengikuti kartu yang
+  // melewati CANVAS_MARGIN, tapi tak ada kartu MANAPUN yang posisinya
+  // pernah diubah oleh mekanisme ini.
   moveMany: (updates) =>
     set((s) => {
       const elements = { ...s.elements };
@@ -1110,37 +1119,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const el = elements[u.id];
         if (!el || el.type === "CONNECTOR") continue;
         elements[u.id] = { ...el, x: u.x, y: u.y, updatedAt: now };
-      }
-
-      let minX = Infinity;
-      let minY = Infinity;
-      for (const el of Object.values(elements)) {
-        if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
-        if (el.x < minX) minX = el.x;
-        if (el.y < minY) minY = el.y;
-      }
-      if (!Number.isFinite(minX)) return { elements }; // papan tak (lagi) punya kartu
-
-      // Kiri/atas kartu tidak boleh melewati CANVAS_MARGIN, tapi batas layar
-      // TIDAK boleh di-reanchor ke kartu paling kiri/atas. Versi shrink lama
-      // membuat single-card atau kartu ekstrem selalu ketarik balik ke batas
-      // saat digeser menjauh; hasilnya terasa seperti layar dibatasi oleh kartu,
-      // bukan oleh dunia kanvas. Jadi normalisasi hanya berlaku untuk overflow
-      // ke bawah margin, bukan untuk menghapus ruang kosong yang sah.
-      let shiftX = 0;
-      if (minX < CANVAS_MARGIN) shiftX = CANVAS_MARGIN - minX;
-
-      let shiftY = 0;
-      if (minY < CANVAS_MARGIN) shiftY = CANVAS_MARGIN - minY;
-
-      if (shiftX === 0 && shiftY === 0) return { elements };
-
-      // Kamera TIDAK ikut dikompensasi (itu justru yang membuat pergeserannya
-      // kelihatan — kartu lain ikut kedorong/ketarik, bukan diam-diam
-      // menormalkan koordinat tanpa efek).
-      for (const el of Object.values(elements)) {
-        if (el.boardId !== s.currentBoardId || el.type === "CONNECTOR") continue;
-        elements[el.id] = { ...el, x: el.x + shiftX, y: el.y + shiftY };
       }
       return { elements };
     }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import type { RefObject } from "react";
 import { useCanvasStore } from "@/lib/store";
 import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
@@ -26,7 +27,10 @@ import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
 import { CARD_GUTTER, GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
-import { boxCenter, cardVisualBox, clampCamera } from "@/lib/geometry";
+import { boardMinCorner, boxCenter, cardVisualBox, clampCamera } from "@/lib/geometry";
+import type { Point } from "@/lib/geometry";
+import { canvasBus } from "@/lib/canvasBus";
+import type { GapMeasure, GuideLine } from "@/lib/canvasBus";
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,6 +53,39 @@ export function Canvas() {
   const marqueeDivRef = useRef<HTMLDivElement>(null);
   // Space ditahan → left-drag jadi pan (gaya Figma), bukan marquee.
   const spaceRef = useRef(false);
+
+  // Garis smart-guide (gaya Figma) — dua rupa, satu per sumbu aktif di satu
+  // waktu (lihat canvasBus.emitGuideLines/GuideLine): boundaryXRef/YRef buat
+  // margin kanvas (CANVAS_MARGIN_X/_Y — garis PENUH selayar, screen space
+  // bukan anak world-layer biar tetap lurus di zoom berapa pun, persis pola
+  // marqueeDivRef); cardGuideXRef/YRef buat nempel ke kartu LAIN (garis
+  // DIBATASI cuma sepanjang rentang dua kartu yang align, posisi & panjang
+  // keduanya diset live dari canvasBus).
+  const boundaryXRef = useRef<HTMLDivElement>(null);
+  const boundaryYRef = useRef<HTMLDivElement>(null);
+  const cardGuideXRef = useRef<HTMLDivElement>(null);
+  const cardGuideYRef = useRef<HTMLDivElement>(null);
+  // Label + garis jarak HIDUP ("42px" + garis pendek) ke tetangga terdekat —
+  // lihat canvasBus.emitGapMeasures. INDEPENDEN dari garis smart-guide/snap
+  // di atas: nyala tiap ada kartu "berhadapan" di dekatnya, apa pun
+  // jaraknya, bukan cuma pas benar-benar nempel/nge-snap. Garisnya
+  // orientasinya KEBALIK dari boundary/cardGuide di atas — measureLineXRef
+  // (celah sumbu X) itu garis DATAR (h-px), bukan tegak, karena menyusuri
+  // celah itu sendiri, bukan menandai satu posisi tegak lurus.
+  const gapLabelXRef = useRef<HTMLDivElement>(null);
+  const gapLabelYRef = useRef<HTMLDivElement>(null);
+  const measureLineXRef = useRef<HTMLDivElement>(null);
+  const measureLineYRef = useRef<HTMLDivElement>(null);
+
+  // Batas pan kiri/atas yang SUNGGUH berlaku sekarang (lihat boardMinCorner)
+  // — dibaca dari ref di dalam applyCamera yang imperatif, bukan dihitung
+  // ulang tiap frame pan/zoom (pemindaian linear semua elemen tiap frame
+  // terlalu boros); cukup di-refresh saat kartu papan ini benar-benar
+  // berubah. Sengaja TIDAK memicu re-clamp kamera secara paksa saat ini
+  // berubah (lihat efek di bawah) — biar tak ada lompatan viewport
+  // mendadak begitu user menggeser kartu, batas baru cukup berlaku buat
+  // pan/zoom BERIKUTNYA.
+  const boardMinRef = useRef<Point>({ x: 0, y: 0 });
 
   const elements = useCanvasStore((s) => s.elements);
   const databases = useCanvasStore((s) => s.databases);
@@ -141,12 +178,16 @@ export function Canvas() {
   }, [hydrate]);
   useEffect(() => startHistory(), []);
 
+  useEffect(() => {
+    boardMinRef.current = boardMinCorner(elements, currentBoardId);
+  }, [elements, currentBoardId]);
+
   const applyCamera = useCallback(() => {
     // Kiri/atas kanvas adalah batas keras (x=0/y=0 tak pernah kelihatan di
     // luar itu, gaya Milanote) — diberlakukan di sini supaya SEMUA jalur yang
     // menggerakkan kamera (wheel, pan pointer, tombol zoom, minimap, dst) lolos
     // titik yang sama, tanpa kecuali.
-    cameraRef.current = clampCamera(cameraRef.current);
+    cameraRef.current = clampCamera(cameraRef.current, boardMinRef.current);
     const { x, y, zoom } = cameraRef.current;
     if (worldRef.current) {
       worldRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${zoom})`;
@@ -187,6 +228,127 @@ export function Canvas() {
       vp.style.width = `${(rect.width / zoom) * geo.scale}px`;
       vp.style.height = `${(rect.height / zoom) * geo.scale}px`;
     }
+  }, []);
+
+  // Garis smart-guide (margin kanvas ATAU kartu lain) — lihat
+  // boundaryXRef/YRef & cardGuideXRef/YRef di atas. Posisi (dan, buat versi
+  // dibatasi, panjang) dihitung dari cameraRef SAAT itu (dunia → layar,
+  // rumus sama seperti clampCamera), sengaja tidak ikut applyCamera tiap
+  // frame pan/zoom — garis ini cuma relevan selagi drag kartu berlangsung
+  // (pan & drag kartu lain tidak terjadi bersamaan).
+  useEffect(() => {
+    const applyGuide = (
+      line: GuideLine | null,
+      fullRef: RefObject<HTMLDivElement | null>,
+      boundedRef: RefObject<HTMLDivElement | null>,
+      axis: "x" | "y"
+    ) => {
+      const cam = cameraRef.current;
+      const full = fullRef.current;
+      const bounded = boundedRef.current;
+      if (!line) {
+        if (full) full.style.display = "none";
+        if (bounded) bounded.style.display = "none";
+        return;
+      }
+      if (!line.bounded) {
+        if (bounded) bounded.style.display = "none";
+        if (full) {
+          if (axis === "x") full.style.left = `${cam.x + line.worldPos * cam.zoom}px`;
+          else full.style.top = `${cam.y + line.worldPos * cam.zoom}px`;
+          full.style.display = "block";
+        }
+        return;
+      }
+      if (full) full.style.display = "none";
+      if (bounded) {
+        const start = (line.worldStart ?? 0) * cam.zoom;
+        const end = (line.worldEnd ?? 0) * cam.zoom;
+        if (axis === "x") {
+          bounded.style.left = `${cam.x + line.worldPos * cam.zoom}px`;
+          bounded.style.top = `${cam.y + start}px`;
+          bounded.style.height = `${end - start}px`;
+        } else {
+          bounded.style.top = `${cam.y + line.worldPos * cam.zoom}px`;
+          bounded.style.left = `${cam.x + start}px`;
+          bounded.style.width = `${end - start}px`;
+        }
+        bounded.style.display = "block";
+      }
+    };
+
+    canvasBus.setGuideLineHandler((x, y) => {
+      applyGuide(x, boundaryXRef, cardGuideXRef, "x");
+      applyGuide(y, boundaryYRef, cardGuideYRef, "y");
+    });
+    return () => canvasBus.setGuideLineHandler(null);
+  }, []);
+
+  // Label + garis jarak hidup ("5px" + garis pendek menyambung celahnya) ke
+  // tetangga terdekat — lihat canvasBus.emitGapMeasures/GapMeasure
+  // (geometry.ts). INDEPENDEN dari garis smart-guide di atas: tampil tiap
+  // ada tetangga "berhadapan", bukan cuma pas benar-benar nge-snap
+  // (permintaan pemilik: "ukuran px ke card terdekatnya" selagi drag/
+  // resize, bukan cuma saat nempel persis). Garisnya SENGAJA beda orientasi
+  // dari garis smart-guide (yang X = tegak, Y = datar): ini menyusuri
+  // CELAHnya sendiri — celah sumbu X (dua kartu bersisian kiri-kanan)
+  // digambar garis DATAR sepanjang celah itu, bukan garis tegak (dilaporkan
+  // pemilik: sebelum ini cuma angkanya doang yang muncul, gak ada garis
+  // sama sekali). Titik ujung celah = `gapCenterPos ∓ gap/2` (simetris,
+  // gak perlu field baru di GapMeasure). */
+  useEffect(() => {
+    const applyMeasure = (
+      m: GapMeasure | null,
+      labelRef: RefObject<HTMLDivElement | null>,
+      lineRef: RefObject<HTMLDivElement | null>,
+      axis: "x" | "y"
+    ) => {
+      const cam = cameraRef.current;
+      const label = labelRef.current;
+      const line = lineRef.current;
+      if (!m) {
+        if (label) label.style.display = "none";
+        if (line) line.style.display = "none";
+        return;
+      }
+      const perpMid = cam[axis === "x" ? "y" : "x"] + ((m.worldStart + m.worldEnd) / 2) * cam.zoom;
+      const edgeA = (m.gapCenterPos - m.gap / 2) * cam.zoom;
+      const edgeB = (m.gapCenterPos + m.gap / 2) * cam.zoom;
+      if (axis === "x") {
+        if (label) {
+          label.style.left = `${cam.x + m.gapCenterPos * cam.zoom}px`;
+          label.style.top = `${perpMid}px`;
+        }
+        if (line) {
+          line.style.top = `${perpMid}px`;
+          line.style.left = `${cam.x + edgeA}px`;
+          line.style.width = `${edgeB - edgeA}px`;
+        }
+      } else {
+        if (label) {
+          label.style.top = `${cam.y + m.gapCenterPos * cam.zoom}px`;
+          label.style.left = `${perpMid}px`;
+        }
+        if (line) {
+          line.style.left = `${perpMid}px`;
+          line.style.top = `${cam.y + edgeA}px`;
+          line.style.height = `${edgeB - edgeA}px`;
+        }
+      }
+      if (label) {
+        // m.gap sudah dibulatkan ke kelipatan 5 di nearestGapMeasure —
+        // dipakai apa adanya, bukan dibulatkan ulang di sini.
+        label.textContent = `${m.gap}px`;
+        label.style.display = "block";
+      }
+      if (line) line.style.display = "block";
+    };
+
+    canvasBus.setGapMeasureHandler((x, y) => {
+      applyMeasure(x, gapLabelXRef, measureLineXRef, "x");
+      applyMeasure(y, gapLabelYRef, measureLineYRef, "y");
+    });
+    return () => canvasBus.setGapMeasureHandler(null);
   }, []);
 
   // world-layer HANYA dipromosikan jadi compositor layer (willChange:
@@ -750,6 +912,63 @@ export function Canvas() {
       <div
         ref={marqueeDivRef}
         className="pointer-events-none absolute z-10 hidden rounded-sm border border-forest-400 bg-forest-400/10"
+      />
+
+      {/* Garis smart-guide margin kanvas (gaya Figma) — penuh selayar, muncul/
+          nge-snap selagi kartu digeser mendekati batas kanvas, disembunyikan
+          lagi begitu drag selesai. Diposisikan imperatif lewat canvasBus.
+          Warna forest-400, SAMA dengan ring seleksi kartu (dipertahankan atas
+          klarifikasi pemilik) — TANPA halo putih (sempat ditambah, lalu
+          dilaporkan dari screenshot bikin tabrakan gak terbaca pas garis
+          lewat pas di tepi kartu berwarna sama; halo putihnya-lah biang
+          keroknya, bukan warnanya — garis polos 1px ternyata cukup). */}
+      <div
+        ref={boundaryXRef}
+        className="pointer-events-none absolute inset-y-0 z-10 hidden w-px bg-forest-400"
+      />
+      <div
+        ref={boundaryYRef}
+        className="pointer-events-none absolute inset-x-0 z-10 hidden h-px bg-forest-400"
+      />
+
+      {/* Garis smart-guide antar-kartu (gaya Figma) — DIBATASI, cuma
+          sepanjang rentang kartu yang digeser dan kartu lain yang align
+          (bukan penuh selayar seperti garis margin di atas). Posisi & ukuran
+          keduanya diset live lewat canvasBus, bukan cuma posisi. */}
+      <div
+        ref={cardGuideXRef}
+        className="pointer-events-none absolute z-10 hidden w-px bg-forest-400"
+      />
+      <div
+        ref={cardGuideYRef}
+        className="pointer-events-none absolute z-10 hidden h-px bg-forest-400"
+      />
+
+      {/* Garis pendek yang menyusuri celah itu sendiri (BEDA orientasi dari
+          garis smart-guide di atas — lihat komentar measureLineXRef) — biar
+          jaraknya kelihatan sebagai celah SUNGGUHAN, bukan cuma angka
+          mengambang tanpa acuan (dilaporkan pemilik: "cuma ada angkanya
+          saja tapi tidak ada garisnya"). */}
+      <div
+        ref={measureLineXRef}
+        className="pointer-events-none absolute z-10 hidden h-px bg-forest-400"
+      />
+      <div
+        ref={measureLineYRef}
+        className="pointer-events-none absolute z-10 hidden w-px bg-forest-400"
+      />
+
+      {/* Label jarak hidup ("42px") ke tetangga terdekat selagi drag/resize —
+          lihat nearestGapMeasure di geometry.ts. Pill kecil biar terbaca di
+          atas kanvas apa pun. Independen dari status snap — nyala tiap ada
+          kartu "berhadapan" yang relevan, bukan cuma pas nempel/nge-snap. */}
+      <div
+        ref={gapLabelXRef}
+        className="pointer-events-none absolute z-10 hidden -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-forest-700 px-1 py-0.5 text-[10px] font-medium leading-none text-white shadow-sm"
+      />
+      <div
+        ref={gapLabelYRef}
+        className="pointer-events-none absolute z-10 hidden -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded bg-forest-700 px-1 py-0.5 text-[10px] font-medium leading-none text-white shadow-sm"
       />
 
       {/* Saat presentasi: sembunyikan semua chrome, tampilkan hanya bilah kontrol. */}

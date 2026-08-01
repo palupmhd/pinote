@@ -266,9 +266,11 @@ export const MIN_CARD_WIDTH = 120;
 /** Tinggi minimum kartu saat di-resize (6×GRID) — lebih longgar dari lebar
  *  karena beberapa kartu (mis. Note kosong) wajar pendek. */
 export const MIN_CARD_HEIGHT = 60;
-/** Buffer dari tepi dunia sungguhan (x=0/y=0) ke batas kiri/atas yang
- *  ditegakkan — permintaan pemilik supaya batasnya "di dot ke-7", bukan dot
- *  pertama (dot ke-0 = world 0, jadi dot ke-7 = 7×GRID). Dipakai `clampCamera`
- *  untuk pan kamera dan `moveMany` hanya untuk mencegah kartu melewati batas
- *  itu; ruang kosong di kiri/atas kartu tetap sah. */
-export const CANVAS_MARGIN = 7 * GRID;
+/** Posisi garis smart-guide (gaya Figma, lihat `snapDelta` di
+ *  useElementDrag.ts) di sekitar tepi dunia sungguhan (x=0/y=0) — BUKAN
+ *  batas pan itu sendiri (itu selalu persis 0, lihat `boardMinCorner` di
+ *  geometry.ts), cuma jarak nafas/titik magnet dekat sana. Beda per sumbu
+ *  atas permintaan pemilik (kiri lebih sempit dari atas). Kelipatan GRID
+ *  (20=2×GRID, 60=6×GRID) supaya tetap jatuh pas di dot. */
+export const CANVAS_MARGIN_X = 20;
+export const CANVAS_MARGIN_Y = 60;
