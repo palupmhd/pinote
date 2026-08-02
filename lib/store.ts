@@ -15,6 +15,7 @@ import {
   type CellValue,
   type ClipboardPayload,
   type ColumnType,
+  type ConnectorAnchor,
   type ConnectorElement,
   type Database,
   type DatabaseView,
@@ -95,6 +96,18 @@ interface CanvasState extends Persisted {
     id: string,
     patch: Partial<Pick<ConnectorElement, "label" | "color" | "style">>
   ) => void;
+  /** Seret ulang salah satu ujung konektor yang SUDAH ADA — dipaku ke salah
+   *  satu dari 8 titik snap kartu (`anchor`), baik di kartu yang sama (cuma
+   *  pindah titik) MAUPUN kartu lain (re-target ujungnya sekalian, satu
+   *  gestur buat dua hal). Dipakai ConnectorEndpointHandles.tsx saat drag
+   *  selesai. `false` kalau tak valid (self-loop, beda papan, atau bakal
+   *  duplikat konektor lain yang sudah menghubungkan pasangan itu). */
+  updateConnectorEndpoint: (
+    id: string,
+    end: "source" | "target",
+    elementId: string,
+    anchor: ConnectorAnchor
+  ) => boolean;
   setTaskListTitle: (id: string, title: string) => void;
   addTaskItem: (id: string, afterItemId?: string) => string | null;
   setTaskText: (id: string, itemId: string, text: string) => void;
@@ -864,6 +877,45 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         elements: { ...s.elements, [id]: { ...el, ...patch, updatedAt: Date.now() } },
       };
     }),
+
+  updateConnectorEndpoint: (id, end, elementId, anchor) => {
+    const s = get();
+    const el = s.elements[id];
+    if (!el || el.type !== "CONNECTOR") return false;
+    const otherId = end === "source" ? el.targetElementId : el.sourceElementId;
+    if (elementId === otherId) return false; // gak boleh nyambung ke diri sendiri
+    const moved = s.elements[elementId];
+    const other = s.elements[otherId];
+    if (!moved || !other || moved.type === "CONNECTOR" || other.type === "CONNECTOR") return false;
+    if (moved.boardId !== other.boardId) return false;
+    const nextSourceId = end === "source" ? elementId : el.sourceElementId;
+    const nextTargetId = end === "target" ? elementId : el.targetElementId;
+    // Cegah duplikat — pasangan yang sama (arah bebas) sudah dihubungkan
+    // konektor LAIN (bukan dirinya sendiri).
+    const dup = Object.values(s.elements).some(
+      (e) =>
+        e.type === "CONNECTOR" &&
+        e.id !== id &&
+        ((e.sourceElementId === nextSourceId && e.targetElementId === nextTargetId) ||
+          (e.sourceElementId === nextTargetId && e.targetElementId === nextSourceId))
+    );
+    if (dup) return false;
+
+    set((st) => ({
+      elements: {
+        ...st.elements,
+        [id]: {
+          ...el,
+          sourceElementId: nextSourceId,
+          targetElementId: nextTargetId,
+          sourceAnchor: end === "source" ? anchor : el.sourceAnchor,
+          targetAnchor: end === "target" ? anchor : el.targetAnchor,
+          updatedAt: Date.now(),
+        },
+      },
+    }));
+    return true;
+  },
 
   openBoard: (boardId) =>
     set((s) => {

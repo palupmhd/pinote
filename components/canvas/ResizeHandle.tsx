@@ -3,7 +3,6 @@
 import { useRef, type RefObject } from "react";
 import { canvasBus } from "@/lib/canvasBus";
 import {
-  ADJACENT_SNAP_ZONE_PX,
   bestSnapPair,
   cardAlignPairs,
   cardVisualBox,
@@ -98,30 +97,23 @@ export function ResizeHandle({
   // tepi/tengah kartu LAIN saja, tak ada margin kanvas (resize tak berurusan
   // dengan batas dunia). Match yang ketemu LANGSUNG jadi lebar/tinggi akhir
   // (bukan cuma delta) — grid-snap di bawah tetap jalan di atasnya sebagai
-  // jaring pengaman, tapi biasanya sudah no-op karena tepi kartu lain & GAP
-  // sama-sama kelipatan grid.
+  // jaring pengaman, tapi biasanya sudah no-op karena tepi kartu lain sudah
+  // kelipatan grid juga.
   const smartGuideSize = (
     d: NonNullable<typeof drag.current>,
     raw: { width: number; height: number },
     zoom: number
   ) => {
     const zone = SNAP_ZONE_PX / zoom;
-    const adjacentZone = ADJACENT_SNAP_ZONE_PX / zoom;
     const selfLeft = element.x + CARD_GUTTER;
     const selfTop = element.y + CARD_GUTTER;
     const matchX = bestSnapPair(
-      cardAlignPairs(
-        null, null, selfLeft + raw.width,
-        selfTop, selfTop + raw.height,
-        d.otherBoxes, "x", zone, adjacentZone
-      )
+      cardAlignPairs(null, null, selfLeft + raw.width, d.otherBoxes, "x"),
+      zone
     );
     const matchY = bestSnapPair(
-      cardAlignPairs(
-        null, null, selfTop + raw.height,
-        selfLeft, selfLeft + raw.width,
-        d.otherBoxes, "y", zone, adjacentZone
-      )
+      cardAlignPairs(null, null, selfTop + raw.height, d.otherBoxes, "y"),
+      zone
     );
     const width = matchX ? matchX.targetValue - selfLeft : raw.width;
     const height = matchY ? matchY.targetValue - selfTop : raw.height;

@@ -59,7 +59,9 @@ export function ConnectorPopover() {
 
   const mid = connectorMidpoint(
     boxOf(source.id, source.x, source.y, source.width),
-    boxOf(target.id, target.x, target.y, target.width)
+    boxOf(target.id, target.x, target.y, target.width),
+    connector.sourceAnchor,
+    connector.targetAnchor
   );
   // world → koordinat lokal container (sama seperti transform world-layer:
   // translate3d(camera.x, camera.y) scale(camera.zoom) relatif ke container).

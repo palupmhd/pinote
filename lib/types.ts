@@ -167,6 +167,20 @@ export interface LinkElement extends BaseElement {
  *  tetap konsisten dengan garis desain "calm/minimalis" (lihat SPEC.md §0). */
 export type ConnectorColor = "gray" | "red" | "blue" | "green" | "purple" | "amber";
 export type ConnectorStyle = "solid" | "dashed";
+
+/** Salah satu dari 8 titik snap di keliling kotak visual kartu (4 sudut + 4
+ *  tengah sisi) — tempat ujung konektor bisa "dipaku" secara eksplisit,
+ *  gaya diagrams.net/Figma. Lihat `anchorPoint`/`resolveConnectorEndpoints`
+ *  di geometry.ts. */
+export type ConnectorAnchor =
+  | "top-left"
+  | "top"
+  | "top-right"
+  | "right"
+  | "bottom-right"
+  | "bottom"
+  | "bottom-left"
+  | "left";
 export const CONNECTOR_COLORS: Record<ConnectorColor, string> = {
   gray: "#a1a1aa",
   red: "#f87171",
@@ -187,7 +201,13 @@ export const CONNECTOR_COLORS: Record<ConnectorColor, string> = {
  *
  *  label/color/style opsional (undefined = default abu-abu solid tanpa
  *  label) — konektor lama yang tersimpan sebelum field ini ada tetap valid
- *  tanpa migrasi. */
+ *  tanpa migrasi.
+ *
+ *  sourceAnchor/targetAnchor opsional (undefined = perilaku lama: titik
+ *  ujung dihitung otomatis tiap render, mengikuti arah ke kartu lawan —
+ *  lihat `edgePoint` di geometry.ts). Kalau diisi, ujung itu "dipaku" ke
+ *  salah satu dari 8 titik snap di keliling kartu (lihat `ConnectorAnchor`)
+ *  dan tak lagi ikut bergeser mengikuti arah, sampai user menyeretnya lagi. */
 export interface ConnectorElement {
   id: string;
   boardId: string;
@@ -199,6 +219,8 @@ export interface ConnectorElement {
   label?: string;
   color?: ConnectorColor;
   style?: ConnectorStyle;
+  sourceAnchor?: ConnectorAnchor;
+  targetAnchor?: ConnectorAnchor;
 }
 
 /** Elemen yang punya posisi & bisa digeser di kanvas. */
