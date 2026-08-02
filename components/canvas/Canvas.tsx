@@ -11,6 +11,7 @@ import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
 import { TopBar } from "./TopBar";
+import { ConnectorEndpointHandles } from "./ConnectorEndpointHandles";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { ConnectorPopover } from "./ConnectorPopover";
 import { DatabaseCard } from "./DatabaseCard";
@@ -871,6 +872,11 @@ export function Canvas() {
             if (el.type === "DATABASE_REF") return <DatabaseCard key={el.id} element={el} />;
             return <NoteCard key={el.id} element={el} />;
           })}
+
+        {/* Dot snap + handle seret ujung konektor — DI ATAS kartu (beda dari
+            ConnectorLayer yang sengaja di bawah), cuma tampil buat konektor
+            yang lagi dipilih (sama trigger dengan ConnectorPopover). */}
+        {hydrated && <ConnectorEndpointHandles />}
       </div>
 
       {hydrated && cards.length === 0 && !presenting && (

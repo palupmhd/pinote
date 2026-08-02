@@ -3,7 +3,6 @@
 import { useRef } from "react";
 import { canvasBus } from "./canvasBus";
 import {
-  ADJACENT_SNAP_ZONE_PX,
   bestSnapPair,
   cardAlignPairs,
   cardVisualBox,
@@ -100,27 +99,20 @@ function computeGroupSnap(
   measureY: GapMeasure | null;
 } {
   const zone = SNAP_ZONE_PX / zoom;
-  const adjacentZone = ADJACENT_SNAP_ZONE_PX / zoom;
 
   const rawLeft = Math.min(...drag.members.map((m) => m.curX));
   const rawTop = Math.min(...drag.members.map((m) => m.curY));
-  const marginMatchX = bestSnapPair([{ candidateValue: rawLeft, targetValue: CANVAS_MARGIN_X, zone }]);
-  const marginMatchY = bestSnapPair([{ candidateValue: rawTop, targetValue: CANVAS_MARGIN_Y, zone }]);
+  const marginMatchX = bestSnapPair([{ candidateValue: rawLeft, targetValue: CANVAS_MARGIN_X }], zone);
+  const marginMatchY = bestSnapPair([{ candidateValue: rawTop, targetValue: CANVAS_MARGIN_Y }], zone);
 
   const group = groupVisualBox(drag.members);
   const cardMatchX = bestSnapPair(
-    cardAlignPairs(
-      group.x, group.x + group.w / 2, group.x + group.w,
-      group.y, group.y + group.h,
-      drag.otherBoxes, "x", zone, adjacentZone
-    )
+    cardAlignPairs(group.x, group.x + group.w / 2, group.x + group.w, drag.otherBoxes, "x"),
+    zone
   );
   const cardMatchY = bestSnapPair(
-    cardAlignPairs(
-      group.y, group.y + group.h / 2, group.y + group.h,
-      group.x, group.x + group.w,
-      drag.otherBoxes, "y", zone, adjacentZone
-    )
+    cardAlignPairs(group.y, group.y + group.h / 2, group.y + group.h, drag.otherBoxes, "y"),
+    zone
   );
 
   const matchX = closer(marginMatchX, cardMatchX);

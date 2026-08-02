@@ -1,5 +1,5 @@
 import { CANVAS_MARGIN_X, CANVAS_MARGIN_Y, CARD_GUTTER, GRID } from "./types";
-import type { BoardElement, Box, Camera } from "./types";
+import type { BoardElement, Box, Camera, ConnectorAnchor } from "./types";
 
 export interface Point {
   x: number;
@@ -18,19 +18,6 @@ export const snapToGrid = (v: number, step: number = GRID): number => Math.round
 // "kelengketannya" terasa sama di zoom berapa pun. Dipakai drag posisi
 // (useElementDrag.ts) DAN resize (ResizeHandle.tsx).
 export const SNAP_ZONE_PX = 8;
-
-// Jangkauan smart-guide KHUSUS pasangan "nempel" (tepi berlawanan, target
-// CARD_ADJACENT_GAP=5px — lihat cardAlignPairs) — SENGAJA lebih SEMPIT dari
-// SNAP_ZONE_PX. Dilaporkan pemilik: pakai zona 8px yang sama bikin susah
-// sengaja naruh jarak 10px (atau kelipatan 5 lain) ke kartu tetangga —
-// 10px cuma beda 5px dari target snap 5px, jelas di DALAM zona 8px, jadi
-// "ketarik" ke 5px tiap kali walau maksudnya 10. Zona sempit ini (lebih
-// kecil dari jarak GRID/2=5px antar nilai celah yang valid) memastikan
-// snap-ke-5 cuma aktif kalau BENAR-benar dekat 5px, tak lagi "mencuri"
-// upaya menuju nilai kelipatan grid lain di sekitarnya — nilai lain tetap
-// kena bulat ke kelipatan 5 terdekat lewat grid-snap biasa saat dilepas
-// (independen dari smart-guide ini), jadi tak kehilangan presisi.
-export const ADJACENT_SNAP_ZONE_PX = 3;
 
 /** Batas pan kiri/atas yang SUNGGUH berlaku sekarang. Titik acuan mutlak
  *  adalah dunia (0,0) — itu TAK PERNAH bergeser. Selama tak ada kartu yang
@@ -102,14 +89,6 @@ export function cardVisualBox(
   return { x: el.x + CARD_GUTTER, y: el.y + CARD_GUTTER, w: el.width, h };
 }
 
-/** Jarak nafas dunia saat DUA kartu "nempel" (tepi BERLAWANAN saling
- *  mendekat, mis. kanan kartu A ke kiri kartu B — beda dari tepi SEJENIS
- *  yang mau rata baris/kolom) — dot minor (GRID/2), biar konsisten sama
- *  ritme grid yang sudah ada. Dipakai `cardAlignPairs`; permintaan pemilik
- *  supaya dua kartu yang "nempel" via smart-guide selalu punya jarak nafas
- *  kecil, bukan bener-bener 0px rapat. */
-export const CARD_ADJACENT_GAP = GRID / 2;
-
 /** Satu garis smart-guide aktif (dunia, bukan layar — Canvas.tsx yang
  *  menerjemahkan lewat kamera). `bounded=false` = garis margin kanvas (tetap
  *  penuh selayar, dipakai drag posisi saja); `bounded=true` = garis nempel-
@@ -125,50 +104,29 @@ export interface GuideLine {
 /** Satu pasangan kandidat↔sasaran smart-guide pada satu sumbu — posisi
  *  SEKARANG dari sisi yang bergerak (`candidateValue`) lawan posisi yang
  *  dituju kalau match (`targetValue`). `other` = kotak kartu sumber sasaran
- *  ini (undefined kalau bukan dari kartu lain, mis. margin kanvas). `zone`
- *  jangkauan snap KHUSUS pasangan ini (dunia, sudah dibagi zoom) — per
- *  PASANGAN, bukan satu angka global, supaya pasangan "nempel" (target
- *  CARD_ADJACENT_GAP) bisa punya zona lebih sempit dari pasangan sejenis
- *  (lihat ADJACENT_SNAP_ZONE_PX) tanpa saling ganggu di satu pencarian. */
+ *  ini (undefined kalau bukan dari kartu lain, mis. margin kanvas). */
 export interface SnapCandidatePair {
   candidateValue: number;
   targetValue: number;
   other?: Box;
-  zone: number;
 }
 
 /** Bangun semua pasangan smart-guide ANTAR-KARTU satu sumbu, dari kandidat
  *  sisi kotak yang BERGERAK (null = sisi itu tak berubah pada gestur ini,
  *  tak usah dicek sama sekali — drag posisi: start/center/end ketiganya
  *  gerak bareng; resize pojok kanan-bawah: cuma `end` yang gerak) lawan
- *  tiap kartu LAIN:
- *  - start↔start, end↔end, center↔center: tepi SEJENIS, target PAS di
- *    posisi kartu lain (rata baris/kolom, delta 0) — SELALU dicek, gak
- *    peduli kartu lain itu jauh sekalipun (rata kolom/baris lintas kanvas
- *    itu wajar, gaya Figma), pakai `zone` (biasanya SNAP_ZONE_PX).
- *  - start↔(end kartu lain + GAP), end↔(start kartu lain − GAP): tepi
- *    BERLAWANAN saling mendekat ("nempel") — targetnya diberi jarak
- *    `CARD_ADJACENT_GAP`, BUKAN pas 0, dan pakai `adjacentZone` yang LEBIH
- *    SEMPIT (lihat ADJACENT_SNAP_ZONE_PX — dilaporkan pemilik: zona lebar
- *    yang sama dengan pasangan sejenis bikin susah sengaja naruh jarak
- *    10px, "ketarik" ke 5px terus). Center tak ikut skema nempel ini — tak
- *    ada makna "tengah nempel ke tengah". BEDA dari sejenis: pasangan ini
- *    CUMA dicek kalau kartu lain itu "berhadapan" — tumpang tindih SEDIKIT
- *    pun dengan kotak yang bergerak (`selfPerpStart`/`selfPerpEnd`) di
- *    sumbu TEGAK LURUS. Tanpa syarat ini, dua kartu yang sama sekali tak
- *    sebelahan bisa "ke-ikat" jarak nafas 5px cuma karena kebetulan
- *    angkanya pas — dilaporkan pemilik dari screenshot nyata: "dua card
- *    ... tidak sebelahan tapi rules 5px mengikat". */
+ *  tiap kartu LAIN — start↔start, end↔end, center↔center: tepi SEJENIS,
+ *  target PAS di posisi kartu lain (rata baris/kolom, delta 0), gak peduli
+ *  kartu lain itu jauh sekalipun (rata kolom/baris lintas kanvas itu wajar,
+ *  gaya Figma). (Percobaan "nempel" ke tepi BERLAWANAN dengan jarak nafas
+ *  5px, target CARD_ADJACENT_GAP, sempat ada di sini — dicabut lagi atas
+ *  permintaan pemilik: dianggap gak kepakai/gak berguna.) */
 export function cardAlignPairs(
   candidateStart: number | null,
   candidateCenter: number | null,
   candidateEnd: number | null,
-  selfPerpStart: number,
-  selfPerpEnd: number,
   otherBoxes: Box[],
-  axis: "x" | "y",
-  zone: number,
-  adjacentZone: number
+  axis: "x" | "y"
 ): SnapCandidatePair[] {
   const pairs: SnapCandidatePair[] = [];
   for (const o of otherBoxes) {
@@ -176,37 +134,22 @@ export function cardAlignPairs(
     const oSize = axis === "x" ? o.w : o.h;
     const oEnd = oStart + oSize;
     const oCenter = oStart + oSize / 2;
-    const oPerpStart = axis === "x" ? o.y : o.x;
-    const oPerpEnd = oPerpStart + (axis === "x" ? o.h : o.w);
-    const facing = oPerpEnd > selfPerpStart && oPerpStart < selfPerpEnd;
-    if (candidateStart !== null) {
-      pairs.push({ candidateValue: candidateStart, targetValue: oStart, other: o, zone });
-      if (facing) {
-        pairs.push({ candidateValue: candidateStart, targetValue: oEnd + CARD_ADJACENT_GAP, other: o, zone: adjacentZone });
-      }
-    }
-    if (candidateCenter !== null) {
-      pairs.push({ candidateValue: candidateCenter, targetValue: oCenter, other: o, zone });
-    }
-    if (candidateEnd !== null) {
-      pairs.push({ candidateValue: candidateEnd, targetValue: oEnd, other: o, zone });
-      if (facing) {
-        pairs.push({ candidateValue: candidateEnd, targetValue: oStart - CARD_ADJACENT_GAP, other: o, zone: adjacentZone });
-      }
-    }
+    if (candidateStart !== null) pairs.push({ candidateValue: candidateStart, targetValue: oStart, other: o });
+    if (candidateCenter !== null) pairs.push({ candidateValue: candidateCenter, targetValue: oCenter, other: o });
+    if (candidateEnd !== null) pairs.push({ candidateValue: candidateEnd, targetValue: oEnd, other: o });
   }
   return pairs;
 }
 
 /** Cari SATU pasangan terdekat (gaya Figma: yang paling dekat menang, bukan
- *  yang pertama ketemu) di antara sekumpulan pasangan kandidat↔sasaran —
- *  tiap pasangan pakai `zone`-nya SENDIRI (lihat SnapCandidatePair), bukan
- *  satu zona global. null kalau tak ada yang masuk zonanya masing-masing. */
-export function bestSnapPair(pairs: SnapCandidatePair[]): (SnapCandidatePair & { delta: number }) | null {
+ *  yang pertama ketemu) di antara sekumpulan pasangan kandidat↔sasaran,
+ *  dalam jangkauan `zone` (dunia, sudah dibagi zoom) — null kalau tak ada
+ *  yang masuk zona itu. */
+export function bestSnapPair(pairs: SnapCandidatePair[], zone: number): (SnapCandidatePair & { delta: number }) | null {
   let best: (SnapCandidatePair & { delta: number; dist: number }) | null = null;
   for (const p of pairs) {
     const dist = Math.abs(p.targetValue - p.candidateValue);
-    if (dist < p.zone && (!best || dist < best.dist)) {
+    if (dist < zone && (!best || dist < best.dist)) {
       best = { ...p, delta: p.targetValue - p.candidateValue, dist };
     }
   }
@@ -329,24 +272,106 @@ const normalize = (dx: number, dy: number): Point => {
   return { x: dx / len, y: dy / len };
 };
 
+/** Urutan tampil 8 titik snap konektor, searah jarum jam dari kiri-atas —
+ *  dipakai buat menggambar dot-dot di keliling kartu (lihat
+ *  ConnectorEndpointHandles.tsx). */
+export const CONNECTOR_ANCHORS: ConnectorAnchor[] = [
+  "top-left",
+  "top",
+  "top-right",
+  "right",
+  "bottom-right",
+  "bottom",
+  "bottom-left",
+  "left",
+];
+
+const ANCHOR_FRACTION: Record<ConnectorAnchor, Point> = {
+  "top-left": { x: 0, y: 0 },
+  top: { x: 0.5, y: 0 },
+  "top-right": { x: 1, y: 0 },
+  right: { x: 1, y: 0.5 },
+  "bottom-right": { x: 1, y: 1 },
+  bottom: { x: 0.5, y: 1 },
+  "bottom-left": { x: 0, y: 1 },
+  left: { x: 0, y: 0.5 },
+};
+
+/** Titik dunia satu dari 8 posisi snap tetap di keliling kotak (visual)
+ *  sebuah kartu — beda dari `edgePoint` (yang menghitung titik BERGERAK
+ *  mengikuti arah ke kotak lain). Dipakai kalau ujung konektor sudah
+ *  "dipaku" ke titik tertentu (`ConnectorElement.sourceAnchor`/`targetAnchor`). */
+export function anchorPoint(b: Box, anchor: ConnectorAnchor): Point {
+  const f = ANCHOR_FRACTION[anchor];
+  return { x: b.x + b.w * f.x, y: b.y + b.h * f.y };
+}
+
+/** Dari sekian titik dunia, cari yang paling dekat ke `point` — dipakai
+ *  buat nge-snap ujung konektor ke salah satu 8 titik keliling kartu yang
+ *  ada di bawah kursor selagi diseret (lihat ConnectorEndpointHandles.tsx). */
+export function nearestAnchor(b: Box, point: Point): ConnectorAnchor {
+  let best: ConnectorAnchor = CONNECTOR_ANCHORS[0];
+  let bestDist = Infinity;
+  for (const a of CONNECTOR_ANCHORS) {
+    const p = anchorPoint(b, a);
+    const dist = Math.hypot(p.x - point.x, p.y - point.y);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = a;
+    }
+  }
+  return best;
+}
+
+/** Titik ujung SUNGGUHAN (dunia) dari kedua sisi konektor, dengan anchor
+ *  tetap opsional per sisi — dipakai bareng oleh `connectorPath` (gambar
+ *  kurva), `connectorMidpoint` (posisi label/popover), dan
+ *  ConnectorEndpointHandles.tsx (posisi handle yang bisa diseret).
+ *
+ *  Kalau sisi itu punya anchor (`sourceAnchor`/`targetAnchor` diisi),
+ *  titiknya TETAP di situ — tak peduli ke mana pun kartu lawan bergerak.
+ *  Kalau tidak (undefined, perilaku lama), titiknya dinamis lewat
+ *  `edgePoint`, diarahkan ke titik SUNGGUHAN sisi lawan (anchor tetapnya
+ *  kalau ada, atau pusat kotaknya kalau sama-sama dinamis) — bukan selalu
+ *  ke pusat kotak lawan, supaya satu sisi dipaku & sisi lain dinamis tetap
+ *  kelihatan wajar mengarah ke titik paku itu, bukan ke tengah kartunya. */
+export function resolveConnectorEndpoints(
+  source: Box,
+  target: Box,
+  sourceAnchor?: ConnectorAnchor,
+  targetAnchor?: ConnectorAnchor
+): { a: Point; b: Point } {
+  const sourceFixed = sourceAnchor ? anchorPoint(source, sourceAnchor) : null;
+  const targetFixed = targetAnchor ? anchorPoint(target, targetAnchor) : null;
+  const a = sourceFixed ?? edgePoint(source, targetFixed ?? boxCenter(target));
+  const b = targetFixed ?? edgePoint(target, sourceFixed ?? boxCenter(source));
+  return { a, b };
+}
+
 /** Kurva bezier dari tepi kartu sumber ke tepi kartu tujuan.
  *
  *  Titik kontrol ditarik SEPANJANG arah keluar alami masing-masing kartu
- *  (vektor dari pusat kotak ke titik tepinya, `edgePoint`, diperpanjang
- *  keluar) — bukan dipaksa horizontal-dulu atau vertikal-dulu berdasar
- *  sumbu mana yang dominan (percobaan sebelumnya). Versi sumbu-dominan itu
- *  memaksa titik kontrol berbagi koordinat X/Y PERSIS dengan titik ujungnya;
- *  begitu ada selisih horizontal DAN vertikal yang sama-sama berarti (bukan
- *  murni satu sumbu), kurvanya harus berbelok tajam di tengah buat
- *  mengejar selisih itu — muncul sebagai kaitan/hook yang janggal, kepala
- *  panahnya kelihatan miring bukan tegak ke arah kartu tujuan. Menarik
- *  kontrol sepanjang arah keluar alami (bukan sumbu tetap) menghindari
- *  belokan tajam itu untuk sudut berapa pun antara dua kartu. */
-export function connectorPath(source: Box, target: Box): string {
+ *  (vektor dari pusat kotak ke titik tepinya, diperpanjang keluar) — bukan
+ *  dipaksa horizontal-dulu atau vertikal-dulu berdasar sumbu mana yang
+ *  dominan (percobaan sebelumnya). Versi sumbu-dominan itu memaksa titik
+ *  kontrol berbagi koordinat X/Y PERSIS dengan titik ujungnya; begitu ada
+ *  selisih horizontal DAN vertikal yang sama-sama berarti (bukan murni satu
+ *  sumbu), kurvanya harus berbelok tajam di tengah buat mengejar selisih
+ *  itu — muncul sebagai kaitan/hook yang janggal, kepala panahnya kelihatan
+ *  miring bukan tegak ke arah kartu tujuan. Menarik kontrol sepanjang arah
+ *  keluar alami (bukan sumbu tetap) menghindari belokan tajam itu untuk
+ *  sudut berapa pun antara dua kartu — berlaku sama baik titik ujungnya
+ *  dinamis (`edgePoint`) maupun dipaku (`anchorPoint`), arah keluarnya tetap
+ *  dihitung dari pusat kotak sungguhan, bukan dari titik ujungnya sendiri. */
+export function connectorPath(
+  source: Box,
+  target: Box,
+  sourceAnchor?: ConnectorAnchor,
+  targetAnchor?: ConnectorAnchor
+): string {
   const sc = boxCenter(source);
   const tc = boxCenter(target);
-  const a = edgePoint(source, tc);
-  const b = edgePoint(target, sc);
+  const { a, b } = resolveConnectorEndpoints(source, target, sourceAnchor, targetAnchor);
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
   const pull = Math.max(16, Math.min(dist * 0.4, 100));
   const dirA = normalize(a.x - sc.x, a.y - sc.y);
@@ -359,9 +384,13 @@ export function connectorPath(source: Box, target: Box): string {
 /** Titik tengah antara kedua tepi kartu — tempat label/popover konektor
  *  diletakkan. Titik tengah lurus antara a/b (bukan titik tengah kurva
  *  bezier itu sendiri), cukup dekat untuk label & jauh lebih murah dihitung. */
-export function connectorMidpoint(source: Box, target: Box): Point {
-  const a = edgePoint(source, boxCenter(target));
-  const b = edgePoint(target, boxCenter(source));
+export function connectorMidpoint(
+  source: Box,
+  target: Box,
+  sourceAnchor?: ConnectorAnchor,
+  targetAnchor?: ConnectorAnchor
+): Point {
+  const { a, b } = resolveConnectorEndpoints(source, target, sourceAnchor, targetAnchor);
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 

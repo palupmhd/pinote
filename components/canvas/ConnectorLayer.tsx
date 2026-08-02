@@ -5,7 +5,7 @@ import { canvasBus } from "@/lib/canvasBus";
 import { cardVisualBox, connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
-import { CONNECTOR_COLORS, type Box, type CardElement, type ConnectorElement } from "@/lib/types";
+import { CONNECTOR_COLORS, type Box, type CardElement, type ConnectorAnchor, type ConnectorElement } from "@/lib/types";
 
 const FALLBACK_HEIGHT = 64;
 /** Setengah sisi kotak SVG. SVG WAJIB punya ukuran nyata — svg 0x0 (walau
@@ -81,7 +81,9 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
         refs: Map<string, SVGPathElement | null>,
         id: string,
         srcId: string,
-        tgtId: string
+        tgtId: string,
+        sourceAnchor?: ConnectorAnchor,
+        targetAnchor?: ConnectorAnchor
       ) => {
         if (onlyTouching && srcId !== onlyTouching && tgtId !== onlyTouching) return;
         const path = refs.get(id);
@@ -90,17 +92,19 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
         if (!path || !s || !t) return;
         const sBox = boxOf(s);
         const tBox = boxOf(t);
-        const d = connectorPath(sBox, tBox);
+        const d = connectorPath(sBox, tBox, sourceAnchor, targetAnchor);
         path.setAttribute("d", d);
         hitRefs.current.get(id)?.setAttribute("d", d); // hit-area lebar ikut bentuk yang sama
         const label = labelRefs.current.get(id);
         if (label) {
-          const mid = connectorMidpoint(sBox, tBox);
+          const mid = connectorMidpoint(sBox, tBox, sourceAnchor, targetAnchor);
           label.setAttribute("x", String(mid.x));
           label.setAttribute("y", String(mid.y));
         }
       };
-      for (const c of connectorsRef.current) drawInto(pathRefs.current, c.id, c.sourceElementId, c.targetElementId);
+      for (const c of connectorsRef.current) {
+        drawInto(pathRefs.current, c.id, c.sourceElementId, c.targetElementId, c.sourceAnchor, c.targetAnchor);
+      }
       for (const r of relationsRef.current) drawInto(relPathRefs.current, r.id, r.sourceElementId, r.targetElementId);
     },
     [boxOf]
