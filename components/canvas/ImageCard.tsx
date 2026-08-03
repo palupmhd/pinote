@@ -48,8 +48,8 @@ function ImageCardBase({ element }: { element: ImageElement }) {
         ].join(" ")}
         style={{ height: element.height }}
       >
-        <ConnectHandle element={element} />
-        <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
+        <ConnectHandle element={element} selected={selected} />
+        <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} selected={selected} />
         <CardActionBar element={element} />
         {/* eslint-disable-next-line @next/next/no-img-element -- data URL lokal;
             next/image tak relevan untuk gambar yang sudah tertanam & dikecilkan */}

@@ -52,8 +52,8 @@ function LinkCardBase({ element }: { element: LinkElement }) {
           selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         ].join(" ")}
       >
-      <ConnectHandle element={element} />
-      <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
+      <ConnectHandle element={element} selected={selected} />
+      <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} selected={selected} />
       <CardActionBar element={element} />
 
       <div ref={contentRef} className="overflow-y-auto" style={{ height: element.height }}>

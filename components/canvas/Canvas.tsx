@@ -16,6 +16,7 @@ import { ConnectorLayer } from "./ConnectorLayer";
 import { ConnectorPopover } from "./ConnectorPopover";
 import { DatabaseCard } from "./DatabaseCard";
 import { DatabaseView } from "./DatabaseView";
+import { DatabaseViewCard } from "./DatabaseViewCard";
 import { ImageCard } from "./ImageCard";
 import { LinkCard } from "./LinkCard";
 import { Minimap, computeMinimapGeo, type MinimapGeo } from "./Minimap";
@@ -870,6 +871,7 @@ export function Canvas() {
             if (el.type === "LINK") return <LinkCard key={el.id} element={el} />;
             if (el.type === "IMAGE") return <ImageCard key={el.id} element={el} />;
             if (el.type === "DATABASE_REF") return <DatabaseCard key={el.id} element={el} />;
+            if (el.type === "DATABASE_VIEW") return <DatabaseViewCard key={el.id} element={el} />;
             return <NoteCard key={el.id} element={el} />;
           })}
 

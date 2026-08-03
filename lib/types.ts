@@ -6,6 +6,7 @@ export type ElementType =
   | "LINK"
   | "IMAGE"
   | "DATABASE_REF"
+  | "DATABASE_VIEW"
   | "CONNECTOR";
 
 export interface Board {
@@ -132,6 +133,21 @@ export interface DatabaseRefElement extends BaseElement {
   content: { databaseId: string };
 }
 
+/** Kartu yang menampilkan SATU tampilan (view) tertentu dari sebuah Database
+ *  langsung di kanvas, read+edit penuh — beda dari DATABASE_REF yang cuma
+ *  "pintu" ke modal. Banyak DATABASE_VIEW boleh menunjuk Database yang sama,
+ *  masing-masing dengan view/groupBy/dateBy SENDIRI (bukan berbagi field
+ *  Database.view/groupBy/dateBy yang dipakai modal DatabaseView). */
+export interface DatabaseViewElement extends BaseElement {
+  type: "DATABASE_VIEW";
+  content: {
+    databaseId: string;
+    view: DatabaseView;
+    groupBy?: string;
+    dateBy?: string;
+  };
+}
+
 export interface TaskItem {
   id: string;
   text: string;
@@ -230,7 +246,8 @@ export type CardElement =
   | TaskListElement
   | LinkElement
   | ImageElement
-  | DatabaseRefElement;
+  | DatabaseRefElement
+  | DatabaseViewElement;
 
 export type BoardElement = CardElement | ConnectorElement;
 

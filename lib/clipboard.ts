@@ -68,7 +68,7 @@ export function buildClipboard(state: StoreState, ids: string[]): ClipboardPaylo
   // Tarik tabel untuk tiap kartu database yang sudah terkumpul (tingkat-atas
   // maupun di dalam subpohon papan).
   for (const el of Object.values(elements)) {
-    if (el.type === "DATABASE_REF") {
+    if (el.type === "DATABASE_REF" || el.type === "DATABASE_VIEW") {
       const db = state.databases[el.content.databaseId];
       if (db) databases[db.id] = db;
     }

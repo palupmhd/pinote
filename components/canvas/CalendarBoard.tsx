@@ -47,15 +47,30 @@ function longDate(key: string): string {
 
 const WEEKDAYS_LONG = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
-export function CalendarBoard({ db }: { db: Database }) {
-  const setDatabaseDateBy = useCanvasStore((s) => s.setDatabaseDateBy);
+/** `dateBy`/`onDateByChange`: override opsional per-pemanggil — dipakai oleh
+ *  DatabaseViewCard supaya tiap kartu punya kolom-tanggal acuan SENDIRI,
+ *  independen dari `db.dateBy` yang dipakai modal DatabaseView. Tak dioper
+ *  (undefined) → perilaku lama persis: baca `db.dateBy`, tulis lewat
+ *  `setDatabaseDateBy`. */
+export function CalendarBoard({
+  db,
+  dateBy: dateByOverride,
+  onDateByChange,
+}: {
+  db: Database;
+  dateBy?: string;
+  onDateByChange?: (colId: string) => void;
+}) {
+  const setDatabaseDateByShared = useCanvasStore((s) => s.setDatabaseDateBy);
   const addRowInGroup = useCanvasStore((s) => s.addRowInGroup);
   const setCell = useCanvasStore((s) => s.setCell);
   const removeRow = useCanvasStore((s) => s.removeRow);
+  const effectiveDateBy = dateByOverride ?? db.dateBy;
+  const setDateBy = onDateByChange ?? ((colId: string) => setDatabaseDateByShared(db.id, colId));
 
   const dateCols = db.columns.filter((c) => c.type === "date");
   const dateCol: DbColumn | undefined =
-    db.columns.find((c) => c.id === db.dateBy && c.type === "date") ?? dateCols[0];
+    db.columns.find((c) => c.id === effectiveDateBy && c.type === "date") ?? dateCols[0];
   const titleCol = db.columns.find((c) => c.type === "text");
 
   const now = new Date();
@@ -113,7 +128,7 @@ export function CalendarBoard({ db }: { db: Database }) {
             Berdasarkan:
             <select
               value={dateCol.id}
-              onChange={(e) => setDatabaseDateBy(db.id, e.target.value)}
+              onChange={(e) => setDateBy(e.target.value)}
               className="cursor-pointer rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-700 outline-none"
             >
               {dateCols.map((c) => (

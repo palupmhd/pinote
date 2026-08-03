@@ -95,7 +95,7 @@ export function searchWorkspace(ws: WorkspaceLike, query: string): SearchHit[] {
       text = [c.title, c.description, c.siteName, c.url].filter(Boolean).join(" ");
       label = c.title || c.url || "Tautan";
       typeLabel = "Tautan";
-    } else if (el.type === "DATABASE_REF") {
+    } else if (el.type === "DATABASE_REF" || el.type === "DATABASE_VIEW") {
       const db = ws.databases[el.content.databaseId];
       if (!db) continue;
       const cells = db.rows
@@ -106,7 +106,12 @@ export function searchWorkspace(ws: WorkspaceLike, query: string): SearchHit[] {
       const cols = db.columns.map((col) => col.name).join(" ");
       text = `${db.title} ${cols} ${cells}`.trim();
       label = db.title || "Database";
-      typeLabel = "Database";
+      // Beda label tipe tiap kartu, meski KONTEN yang dicari sama — supaya
+      // hasil pencarian tetap bisa dibedakan mana kartu pintu (buka modal
+      // penuh) mana kartu-view (satu tampilan spesifik di kanvas). Tiap
+      // kartu-view menghasilkan hit sendiri; klik lompat (focusElement) ke
+      // kartu FISIK yang benar di kanvas, bukan cuma ke satu representasi.
+      typeLabel = el.type === "DATABASE_REF" ? "Database" : "Tampilan Database";
     } else {
       continue; // BOARD_REF, IMAGE, CONNECTOR
     }

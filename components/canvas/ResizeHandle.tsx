@@ -31,10 +31,12 @@ export function ResizeHandle({
   element,
   rootRef,
   contentRef,
+  selected,
 }: {
   element: CardElement;
   rootRef: RefObject<HTMLDivElement | null>;
   contentRef?: RefObject<HTMLElement | null>;
+  selected: boolean;
 }) {
   const resizeElement = useCanvasStore((s) => s.resizeElement);
   const drag = useRef<{
@@ -210,7 +212,10 @@ export function ResizeHandle({
         // (sebelum ada gutter), jadi sudulnya nongol 2px lewat batas kotak
         // posisi (outer), menimpa sudut kartu tetangga kalau posisinya rapat.
         // Diklem pas di tepi gutter supaya tak pernah melewati kartu sendiri.
-        className="absolute -right-[2px] -bottom-[2px] z-10 h-3.5 w-3.5 cursor-nwse-resize touch-none rounded-sm border-2 border-white bg-forest-400 opacity-0 shadow transition-opacity group-hover:opacity-100"
+        className={[
+          "absolute -right-[2px] -bottom-[2px] z-10 h-3.5 w-3.5 cursor-nwse-resize touch-none rounded-sm border-2 border-white bg-forest-400 shadow transition-opacity",
+          selected ? "opacity-100" : "opacity-0",
+        ].join(" ")}
       />
       {/* "240 × 120" — cuma tampil selagi resize aktif (lihat onPointerMove/
           commit), nongkrong di bawah pojok kanan-bawah biar tak ketiban jari/

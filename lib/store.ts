@@ -36,6 +36,18 @@ const DATABASE_CARD_WIDTH = 220;
 const IMAGE_MAX_WIDTH = 320;
 const IMAGE_MIN_WIDTH = 140;
 
+/** Ukuran default kartu DATABASE_VIEW per tampilan — kelipatan GRID (10),
+ *  konsisten dengan lebar kartu bawaan lain. Kalender & Kanban butuh ruang
+ *  paling besar (Kalender: grid 6×7 hari + drawer hari `w-72`; Kanban: kolom
+ *  lebar 240px) — dites via eksplorasi kode, lihat plan fitur ini. */
+const DATABASE_VIEW_DEFAULTS: Record<DatabaseView, { width: number; height: number }> = {
+  table: { width: 480, height: 360 },
+  kanban: { width: 420, height: 420 },
+  calendar: { width: 520, height: 480 },
+  gallery: { width: 420, height: 360 },
+  spatial: { width: 420, height: 380 },
+};
+
 export interface Persisted {
   boards: Record<string, Board>;
   elements: Record<string, BoardElement>;
@@ -87,6 +99,21 @@ interface CanvasState extends Persisted {
    *  database bisa "dipanggil" di board mana pun (spec §7.3/§7.4), beda dari
    *  addDatabase yang bikin database baru. */
   attachDatabase: (databaseId: string, worldX: number, worldY: number) => string | null;
+  /** Taruh kartu DATABASE_VIEW baru ke Database yang SUDAH ADA — beda dari
+   *  attachDatabase (kartu pintu ke modal): kartu ini merender SATU tampilan
+   *  langsung di kanvas, dan `view`/`groupBy`/`dateBy`-nya melekat ke KARTU
+   *  ini sendiri (lewat `opts`), bukan ke entitas Database — jadi banyak
+   *  kartu boleh menunjuk database yang sama dengan konfigurasi berbeda. */
+  attachDatabaseView: (
+    databaseId: string,
+    view: DatabaseView,
+    worldX: number,
+    worldY: number,
+    opts?: { groupBy?: string; dateBy?: string }
+  ) => string | null;
+  /** Ubah groupBy/dateBy milik SATU kartu DATABASE_VIEW (keyed elementId,
+   *  bukan databaseId) — inti independensi antar kartu-view. */
+  setDatabaseViewConfig: (elementId: string, patch: { groupBy?: string; dateBy?: string }) => void;
   addImage: (worldX: number, worldY: number, img: { src: string; naturalWidth: number; naturalHeight: number }) => string;
   resolveLink: (id: string, url: string) => Promise<void>;
   addConnector: (sourceElementId: string, targetElementId: string) => string | null;
@@ -286,13 +313,17 @@ function purgeElementCascade(
   const el = ne[id];
   if (!el) return;
   delete ne[id];
-  // Kartu database = hapus tabelnya, TAPI cuma kalau tidak ada kartu pintu
-  // lain (di board mana pun) yang masih menunjuk ke database yang sama —
-  // satu database bisa dipanggil dari banyak board (spec §7.3), jadi hapus
-  // satu kartu tidak boleh menghancurkan data yang masih dipakai board lain.
-  if (el.type === "DATABASE_REF") {
+  // Kartu database (pintu DATABASE_REF ATAU kartu-view DATABASE_VIEW) = hapus
+  // tabelnya, TAPI cuma kalau tidak ada kartu LAIN dari salah satu tipe ini
+  // (di board mana pun) yang masih menunjuk ke database yang sama — satu
+  // database bisa dipanggil dari banyak kartu (spec §7.3/fitur kartu-view),
+  // jadi hapus satu kartu tidak boleh menghancurkan data yang masih dipakai
+  // kartu lain.
+  if (el.type === "DATABASE_REF" || el.type === "DATABASE_VIEW") {
     const stillReferenced = Object.values(ne).some(
-      (e) => e.type === "DATABASE_REF" && e.content.databaseId === el.content.databaseId
+      (e) =>
+        (e.type === "DATABASE_REF" || e.type === "DATABASE_VIEW") &&
+        e.content.databaseId === el.content.databaseId
     );
     if (!stillReferenced) {
       // Board kanvas bertaut milik tiap baris ikut yatim → buang board +
@@ -777,6 +808,47 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }));
     return elementId;
   },
+
+  attachDatabaseView: (databaseId, view, worldX, worldY, opts) => {
+    if (!get().databases[databaseId]) return null;
+    const elementId = crypto.randomUUID();
+    const { width, height } = DATABASE_VIEW_DEFAULTS[view];
+    set((s) => ({
+      elements: {
+        ...s.elements,
+        [elementId]: {
+          id: elementId,
+          boardId: s.currentBoardId,
+          type: "DATABASE_VIEW",
+          // Di-center KEDUA sumbu (beda dari attachDatabase yang cuma geser Y
+          // tetap -30) — kartu-view jauh lebih tinggi dari kartu pintu, jadi
+          // offset tetap kecil akan mendaratkannya sebagian besar di bawah
+          // titik klik.
+          x: worldX - width / 2,
+          y: worldY - height / 2,
+          width,
+          height,
+          zIndex: nextZIndex(s.elements, s.currentBoardId),
+          content: { databaseId, view, groupBy: opts?.groupBy, dateBy: opts?.dateBy },
+          updatedAt: Date.now(),
+        },
+      },
+      selectedIds: [elementId],
+    }));
+    return elementId;
+  },
+
+  setDatabaseViewConfig: (elementId, patch) =>
+    set((s) => {
+      const el = s.elements[elementId];
+      if (!el || el.type !== "DATABASE_VIEW") return s;
+      return {
+        elements: {
+          ...s.elements,
+          [elementId]: { ...el, content: { ...el.content, ...patch }, updatedAt: Date.now() },
+        },
+      };
+    }),
 
   addImage: (worldX, worldY, img) => {
     const id = crypto.randomUUID();
@@ -1338,6 +1410,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         }
         if (cloned.type === "DATABASE_REF" && el.type === "DATABASE_REF") {
           cloned.content = { databaseId: dbIdMap.get(el.content.databaseId) ?? el.content.databaseId };
+        }
+        if (cloned.type === "DATABASE_VIEW" && el.type === "DATABASE_VIEW") {
+          cloned.content = {
+            ...cloned.content,
+            databaseId: dbIdMap.get(el.content.databaseId) ?? el.content.databaseId,
+          };
         }
         if (!onClonedBoard) {
           cloned.x = el.x + offset.x;

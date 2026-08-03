@@ -36,6 +36,8 @@ export function CardActionBar({ element }: { element: CardElement }) {
     primary = { label: "↗", title: "Buka papan", onClick: () => openBoard(element.content.boardId) };
   } else if (element.type === "DATABASE_REF") {
     primary = { label: "↗", title: "Buka tabel", onClick: () => openDatabase(element.content.databaseId) };
+  } else if (element.type === "DATABASE_VIEW") {
+    primary = { label: "↗", title: "Buka tabel penuh", onClick: () => openDatabase(element.content.databaseId) };
   } else if (element.type === "LINK" && element.content.state === "ready") {
     primary = {
       label: "↗",

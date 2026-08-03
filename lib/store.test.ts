@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { buildClipboard } from "./clipboard";
 import { useCanvasStore } from "./store";
 import { CANVAS_MARGIN_X, CANVAS_MARGIN_Y, ROOT_BOARD_ID } from "./types";
 
@@ -137,4 +138,88 @@ test("setCamera: batas pan istirahat persis di 0, melonggar ke kartu−margin be
   const reverted = useCanvasStore.getState().camera;
   assert.equal(reverted.x, 0, "batas harus kembali persis ke 0, bukan mengetat ke posisi kartu");
   assert.equal(reverted.y, 0);
+});
+
+// --- Kartu DATABASE_VIEW (extract Kanban/Kalender/Galeri/Spasial/Tabel jadi kartu kanvas) ---
+
+test("attachDatabaseView menghasilkan elemen DATABASE_VIEW berbentuk benar", () => {
+  createEmptyBoard();
+  const s = useCanvasStore.getState();
+  const doorId = s.addDatabase(0, 0);
+  const dbId = databaseIdOf(doorId);
+
+  const viewElId = s.attachDatabaseView(dbId, "kanban", 200, 200);
+  assert.ok(viewElId, "attachDatabaseView harus berhasil untuk database yang ada");
+
+  const el = useCanvasStore.getState().elements[viewElId!];
+  assert.ok(el && el.type === "DATABASE_VIEW", "elemen harus bertipe DATABASE_VIEW");
+  assert.equal(el.content.databaseId, dbId);
+  assert.equal(el.content.view, "kanban");
+
+  // Database yang tak ada → gagal (null), tak bikin elemen apa pun.
+  assert.equal(s.attachDatabaseView("id-tak-ada", "kanban", 0, 0), null);
+});
+
+test("setDatabaseViewConfig: dua kartu-view dari database sama tetap independen, Database.groupBy shared tak ikut berubah", () => {
+  createEmptyBoard();
+  const s = useCanvasStore.getState();
+  const doorId = s.addDatabase(0, 0);
+  const dbId = databaseIdOf(doorId);
+  const groupByBefore = useCanvasStore.getState().databases[dbId]!.groupBy;
+
+  const cardAId = s.attachDatabaseView(dbId, "kanban", 100, 100)!;
+  const cardBId = s.attachDatabaseView(dbId, "kanban", 300, 100)!;
+
+  s.setDatabaseViewConfig(cardAId, { groupBy: "col-status" });
+  s.setDatabaseViewConfig(cardBId, { groupBy: "col-priority" });
+
+  const after = useCanvasStore.getState();
+  const cardA = after.elements[cardAId];
+  const cardB = after.elements[cardBId];
+  assert.ok(cardA && cardA.type === "DATABASE_VIEW");
+  assert.ok(cardB && cardB.type === "DATABASE_VIEW");
+  assert.equal(cardA.content.groupBy, "col-status");
+  assert.equal(cardB.content.groupBy, "col-priority", "kartu B tak boleh ikut ketiban groupBy kartu A");
+  assert.equal(after.databases[dbId]!.groupBy, groupByBefore, "Database.groupBy shared tak boleh ikut berubah");
+});
+
+test("hapus kartu DATABASE_REF/DATABASE_VIEW: database cuma benar-benar hilang begitu SEMUA kartu penunjuknya hilang", () => {
+  createEmptyBoard();
+  const s = useCanvasStore.getState();
+  const doorId = s.addDatabase(0, 0);
+  const dbId = databaseIdOf(doorId);
+  const viewAId = s.attachDatabaseView(dbId, "kanban", 100, 100)!;
+  const viewBId = s.attachDatabaseView(dbId, "gallery", 300, 100)!;
+
+  // Hapus salah satu kartu-view → door-card + kartu-view lain masih menunjuk
+  // database ini → database TIDAK boleh hilang.
+  s.removeElement(viewAId);
+  assert.ok(useCanvasStore.getState().databases[dbId], "database harus tetap ada (2 kartu lain masih menunjuk)");
+
+  // Hapus door-card → masih ada 1 kartu-view → database TETAP tidak boleh hilang.
+  s.removeElement(doorId);
+  assert.ok(useCanvasStore.getState().databases[dbId], "database harus tetap ada (1 kartu-view masih menunjuk)");
+
+  // Hapus kartu-view TERAKHIR → tak ada lagi yang menunjuk → database harus
+  // benar-benar hilang, bukan jadi hantu.
+  s.removeElement(viewBId);
+  assert.equal(useCanvasStore.getState().databases[dbId], undefined, "database harus hilang setelah referensi terakhir dihapus");
+});
+
+test("pasteElements meremap content.databaseId pada DATABASE_VIEW ke database hasil clone", () => {
+  const boardId = createEmptyBoard();
+  const s = useCanvasStore.getState();
+  const doorId = s.addDatabase(0, 0);
+  const dbId = databaseIdOf(doorId);
+  const viewId = s.attachDatabaseView(dbId, "kanban", 100, 100, { groupBy: "col-x" })!;
+
+  const payload = buildClipboard(useCanvasStore.getState(), [viewId]);
+  const [pastedId] = s.pasteElements(payload, boardId, { x: 24, y: 24 });
+
+  const pasted = useCanvasStore.getState().elements[pastedId];
+  assert.ok(pasted && pasted.type === "DATABASE_VIEW", "hasil paste harus DATABASE_VIEW");
+  assert.notEqual(pasted.content.databaseId, dbId, "harus menunjuk database HASIL CLONE, bukan yang asli");
+  assert.ok(useCanvasStore.getState().databases[pasted.content.databaseId], "database hasil clone harus ada di store");
+  assert.equal(pasted.content.view, "kanban", "view/groupBy lain harus ikut ter-clone apa adanya");
+  assert.equal(pasted.content.groupBy, "col-x");
 });

@@ -3,6 +3,21 @@
 import { useMemo, useState } from "react";
 import { backlinksTo } from "@/lib/backlinks";
 import { breadcrumbPath, useCanvasStore } from "@/lib/store";
+import type { Board } from "@/lib/types";
+
+// Batas leluhur yang ditampilkan sebelum diringkas — papan bersarang dalam
+// (mis. tumpukan "Papan baru" berkali-kali) dulu merender SEMUA leluhur tanpa
+// batas, meluber keluar TopBar menabrak kotak pencarian (dilaporkan pemilik
+// lewat screenshot). Lebih dari ini: cuma leluhur PALING ATAS (buat jalan
+// pulang ke root) + DUA leluhur terdekat ke papan aktif yang ditampilkan,
+// sisanya diringkas jadi "…" statis (bukan tombol — tak ada makna untuk
+// diklik, cuma penanda "ada leluhur lain di antara").
+const MAX_VISIBLE_ANCESTORS = 3;
+
+function collapseAncestors(ancestors: Board[]): (Board | "ellipsis")[] {
+  if (ancestors.length <= MAX_VISIBLE_ANCESTORS) return ancestors;
+  return [ancestors[0]!, "ellipsis", ...ancestors.slice(-2)];
+}
 
 export function Breadcrumb() {
   // Subscribe ke state yang referensinya stabil, lalu hitung jalurnya di
@@ -25,21 +40,31 @@ export function Breadcrumb() {
   );
 
   const current = path[path.length - 1];
+  const visibleAncestors = useMemo(() => collapseAncestors(path.slice(0, -1)), [path]);
   if (!current) return null;
 
   return (
-    <div className="flex min-w-0 max-w-[46vw] items-center gap-1 text-sm">
-      {path.slice(0, -1).map((b) => (
-        <span key={b.id} className="flex items-center gap-1">
-          <button
-            onClick={() => openBoard(b.id)}
-            className="max-w-[160px] truncate text-neutral-500 hover:text-neutral-900 hover:underline"
-          >
-            {b.title}
-          </button>
-          <span className="text-neutral-300">/</span>
-        </span>
-      ))}
+    <div className="flex min-w-0 max-w-[46vw] items-center gap-1 overflow-hidden text-sm">
+      {visibleAncestors.map((b) =>
+        b === "ellipsis" ? (
+          <span key="ellipsis" className="flex shrink-0 items-center gap-1">
+            <span title="Papan leluhur lainnya" className="text-neutral-300">
+              …
+            </span>
+            <span className="text-neutral-300">/</span>
+          </span>
+        ) : (
+          <span key={b.id} className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={() => openBoard(b.id)}
+              className="max-w-[160px] truncate text-neutral-500 hover:text-neutral-900 hover:underline"
+            >
+              {b.title}
+            </button>
+            <span className="text-neutral-300">/</span>
+          </span>
+        )
+      )}
 
       {draft === null ? (
         <button

@@ -9,7 +9,7 @@ import type { CardElement } from "@/lib/types";
 const FALLBACK_HEIGHT = 64;
 
 /** Titik kecil di tepi kanan kartu. Tarik ke kartu lain untuk membuat garis. */
-export function ConnectHandle({ element }: { element: CardElement }) {
+export function ConnectHandle({ element, selected }: { element: CardElement; selected: boolean }) {
   const addConnector = useCanvasStore((s) => s.addConnector);
   const dragging = useRef<number | null>(null);
 
@@ -76,7 +76,12 @@ export function ConnectHandle({ element }: { element: CardElement }) {
       title="Tarik ke elemen lain untuk menghubungkan"
       className="absolute -right-4 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 cursor-crosshair items-center justify-center"
     >
-      <span className="h-4 w-4 rounded-full border-2 border-white bg-forest-400 opacity-0 shadow transition-opacity group-hover:opacity-100" />
+      <span
+        className={[
+          "h-4 w-4 rounded-full border-2 border-white bg-forest-400 shadow transition-opacity",
+          selected ? "opacity-100" : "opacity-0",
+        ].join(" ")}
+      />
     </div>
   );
 }

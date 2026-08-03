@@ -54,16 +54,30 @@ function bucketRows(db: Database, groupCol: DbColumn, groups: Group[]): Map<stri
   return m;
 }
 
-export function KanbanBoard({ db }: { db: Database }) {
-  const setDatabaseGroupBy = useCanvasStore((s) => s.setDatabaseGroupBy);
+/** `groupBy`/`onGroupByChange`: override opsional per-pemanggil — dipakai oleh
+ *  DatabaseViewCard supaya tiap kartu punya pengelompokan SENDIRI, independen
+ *  dari `db.groupBy` yang dipakai modal DatabaseView. Tak dioper (undefined) →
+ *  perilaku lama persis: baca `db.groupBy`, tulis lewat `setDatabaseGroupBy`. */
+export function KanbanBoard({
+  db,
+  groupBy: groupByOverride,
+  onGroupByChange,
+}: {
+  db: Database;
+  groupBy?: string;
+  onGroupByChange?: (colId: string) => void;
+}) {
+  const setDatabaseGroupByShared = useCanvasStore((s) => s.setDatabaseGroupBy);
   const setCell = useCanvasStore((s) => s.setCell);
   const addRowInGroup = useCanvasStore((s) => s.addRowInGroup);
   const removeRow = useCanvasStore((s) => s.removeRow);
+  const effectiveGroupBy = groupByOverride ?? db.groupBy;
+  const setGroupBy = onGroupByChange ?? ((colId: string) => setDatabaseGroupByShared(db.id, colId));
 
   const groupCols = db.columns.filter(groupable);
   // Default: kolom centang (paling "status"-like untuk Kanban) → lalu teks pertama.
   const groupCol =
-    db.columns.find((c) => c.id === db.groupBy && groupable(c)) ??
+    db.columns.find((c) => c.id === effectiveGroupBy && groupable(c)) ??
     db.columns.find((c) => c.type === "checkbox") ??
     groupCols[0];
   const titleCol = db.columns.find((c) => c.type === "text");
@@ -99,7 +113,7 @@ export function KanbanBoard({ db }: { db: Database }) {
         <span>Kelompokkan:</span>
         <select
           value={groupCol.id}
-          onChange={(e) => setDatabaseGroupBy(db.id, e.target.value)}
+          onChange={(e) => setGroupBy(e.target.value)}
           className="cursor-pointer rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-700 outline-none"
         >
           {groupCols.map((c) => (

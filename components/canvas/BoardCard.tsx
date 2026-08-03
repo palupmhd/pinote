@@ -45,8 +45,8 @@ function BoardCardBase({ element, count }: { element: BoardRefElement; count: nu
           selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         ].join(" ")}
       >
-        <ConnectHandle element={element} />
-        <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />
+        <ConnectHandle element={element} selected={selected} />
+        <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} selected={selected} />
         <CardActionBar element={element} />
         <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
           <p className="truncate text-sm font-medium text-neutral-800">{title}</p>

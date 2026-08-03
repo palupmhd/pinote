@@ -149,8 +149,8 @@ function TaskListCardBase({ element }: { element: TaskListElement }) {
           selected ? "ring-2 ring-forest-400 shadow-md" : "ring-1 ring-neutral-200 hover:shadow-md",
         ].join(" ")}
       >
-      {!editing && <ConnectHandle element={element} />}
-      {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} />}
+      {!editing && <ConnectHandle element={element} selected={selected} />}
+      {!editing && <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} selected={selected} />}
       <CardActionBar element={element} />
 
       <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>
