@@ -3,7 +3,18 @@
 import { useRef, useState } from "react";
 import { todayStr } from "@/lib/dates";
 import { useCanvasStore } from "@/lib/store";
-import type { Database, DbColumn } from "@/lib/types";
+import { CONNECTOR_COLORS, type ConnectorColor, type Database, type DbColumn } from "@/lib/types";
+
+// Palet warna kategori dot per baris — reuse preset konektor yang sudah ada
+// (bukan color-picker bebas, konsisten dengan keputusan "calm" §0 SPEC) alih-
+// alih menambah field baru. "gray" dilewati sebagai kandidat kategori teks
+// (dipakai khusus checkbox=false) supaya tak ada dua kategori teks berbeda
+// kebetulan sama-sama abu-abu.
+const CATEGORY_PALETTE: ConnectorColor[] = ["blue", "green", "amber", "purple", "red"];
+
+/** Kolom yang layak jadi sumber warna kategori: nilai diskret (sama kriteria
+ *  `groupable` di KanbanBoard.tsx). */
+const colorable = (c: DbColumn) => c.type === "text" || c.type === "checkbox";
 
 const WEEKDAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const MONTHS = [
@@ -23,6 +34,36 @@ function monthGrid(year: number, month: number): Date[] {
     d.setDate(start.getDate() + i);
     return d;
   });
+}
+
+/** Peta nilai teks unik → warna kategori, stabil lintas render (diurut
+ *  alfabet dulu lalu diindeks ke palet — sama pola dengan `buildGroups` di
+ *  KanbanBoard.tsx) supaya warna sebuah nilai tak berubah-ubah cuma karena
+ *  urutan baris berubah. */
+function buildColorMap(db: Database, col: DbColumn): Map<string, ConnectorColor> {
+  const seen = new Set<string>();
+  for (const r of db.rows) {
+    const v = r.cells[col.id];
+    if (typeof v === "string" && v.trim()) seen.add(v.trim());
+  }
+  const sorted = [...seen].sort((a, b) => a.localeCompare(b));
+  return new Map(sorted.map((v, i) => [v, CATEGORY_PALETTE[i % CATEGORY_PALETTE.length]!]));
+}
+
+/** Warna dot kategori untuk satu baris, atau null kalau tak ada kolom
+ *  kategori/nilai kosong (dot disembunyikan, bukan dot abu-abu default —
+ *  supaya tak menyiratkan makna yang tak sungguh ada). */
+function categoryColorFor(
+  row: Database["rows"][number],
+  col: DbColumn | undefined,
+  colorMap: Map<string, ConnectorColor>
+): string | null {
+  if (!col) return null;
+  const v = row.cells[col.id];
+  if (col.type === "checkbox") return CONNECTOR_COLORS[v === true ? "green" : "gray"];
+  if (typeof v !== "string" || !v.trim()) return null;
+  const name = colorMap.get(v.trim());
+  return name ? CONNECTOR_COLORS[name] : null;
 }
 
 /** Kelompokkan baris per tanggal ("YYYY-MM-DD"). Murni & di scope modul supaya
@@ -104,6 +145,28 @@ export function CalendarBoard({
     const v = titleCol ? r.cells[titleCol.id] : null;
     return typeof v === "string" && v.trim() ? v.trim() : "Baris";
   };
+
+  // Warna kategori (default otomatis, sama heuristik "kolom checkbox dulu →
+  // teks pertama" seperti default groupCol KanbanBoard — bukan pemilih baru,
+  // supaya cepat & tak menambah kontrol lagi di header yang sudah padat).
+  const colorCol = db.columns.find((c) => colorable(c) && c.id !== titleCol?.id && c.id !== dateCol.id);
+  const colorMap = colorCol && colorCol.type === "text" ? buildColorMap(db, colorCol) : new Map<string, ConnectorColor>();
+
+  // Preview satu kolom lain (baca saja) di tiap chip hari, kolom pertama yang
+  // BUKAN judul/tanggal/kategori dan punya nilai berarti — mirror "ringkasan
+  // kolom lain" yang KanbanBoard sudah punya, tapi cuma SATU (bukan semua)
+  // supaya tetap muat satu baris ringkas di chip kalender yang jauh lebih
+  // sempit dari kartu Kanban.
+  const previewFor = (r: Database["rows"][number]): string | null => {
+    for (const c of db.columns) {
+      if (c.id === titleCol?.id || c.id === dateCol.id || c.id === colorCol?.id) continue;
+      const v = r.cells[c.id];
+      if (v == null || v === "" || v === false || Array.isArray(v)) continue;
+      return c.type === "checkbox" ? `✓ ${c.name}` : `${c.name}: ${v}`;
+    }
+    return null;
+  };
+
   const shift = (delta: number) => {
     const d = new Date(ym.year, ym.month + delta, 1);
     setYm({ year: d.getFullYear(), month: d.getMonth() });
@@ -155,8 +218,13 @@ export function CalendarBoard({
             <div
               key={key}
               data-day-key={key}
+              // Klik area kosong sel (bukan cuma tombol + atau item) buka
+              // drawer hari juga — sebelumnya cuma dua jalan sempit itu yang
+              // bisa melihat detail hari.
+              onClick={() => setOpenDay(key)}
+              title="Klik untuk lihat/tambah baris di tanggal ini"
               className={[
-                "group min-h-[64px] border-b border-r border-neutral-100 p-1 text-xs transition-colors",
+                "group min-h-[64px] cursor-pointer border-b border-r border-neutral-100 p-1 text-xs transition-colors",
                 dragRow && dropKey === key
                   ? "bg-forest-50 ring-1 ring-inset ring-forest-300"
                   : inMonth ? "bg-white" : "bg-neutral-50/60",
@@ -172,7 +240,10 @@ export function CalendarBoard({
                   {d.getDate()}
                 </span>
                 <button
-                  onClick={() => addRowInGroup(db.id, dateCol.id, key)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // jangan ikut memicu buka drawer milik sel
+                    addRowInGroup(db.id, dateCol.id, key);
+                  }}
                   title="Tambah baris di tanggal ini"
                   className="px-1 text-neutral-300 opacity-0 hover:text-neutral-700 group-hover:opacity-100"
                 >
@@ -180,7 +251,10 @@ export function CalendarBoard({
                 </button>
               </div>
               <div className="mt-0.5 space-y-0.5">
-                {rows.slice(0, 3).map((r) => (
+                {rows.slice(0, 3).map((r) => {
+                  const dotColor = categoryColorFor(r, colorCol, colorMap);
+                  const preview = previewFor(r);
+                  return (
                   <button
                     key={r.id}
                     onPointerDown={(e) => {
@@ -205,7 +279,8 @@ export function CalendarBoard({
                       setDragRow(null);
                       setDropKey(null);
                     }}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation(); // jangan rangkap dengan onClick sel di baliknya
                       if (draggedRef.current) {
                         draggedRef.current = false; // geser, bukan tap → jangan buka drawer
                         return;
@@ -214,16 +289,31 @@ export function CalendarBoard({
                     }}
                     title="Seret untuk pindah tanggal · klik untuk lihat/edit"
                     className={[
-                      "block w-full touch-none truncate rounded bg-forest-50 px-1 py-0.5 text-left text-[11px] text-forest-800 hover:bg-forest-100",
+                      "block w-full touch-none rounded bg-forest-50 px-1 py-0.5 text-left text-[11px] text-forest-800 hover:bg-forest-100",
                       dragRow === r.id ? "cursor-grabbing opacity-60" : "cursor-grab",
                     ].join(" ")}
                   >
-                    {label(r)}
+                    <span className="flex min-w-0 items-center gap-1">
+                      {dotColor && (
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: dotColor }}
+                        />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">
+                        {label(r)}
+                        {preview ? ` · ${preview}` : ""}
+                      </span>
+                    </span>
                   </button>
-                ))}
+                  );
+                })}
                 {rows.length > 3 && (
                   <button
-                    onClick={() => setOpenDay(key)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setOpenDay(key);
+                    }}
                     className="px-1 text-[10px] text-neutral-400 hover:text-neutral-700"
                   >
                     +{rows.length - 3} lagi
@@ -255,6 +345,12 @@ export function CalendarBoard({
             ) : (
               (byDay.get(openDay) ?? []).map((r) => (
                 <div key={r.id} className="group flex items-center gap-1 rounded px-1 hover:bg-neutral-50">
+                  {categoryColorFor(r, colorCol, colorMap) && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: categoryColorFor(r, colorCol, colorMap)! }}
+                    />
+                  )}
                   {titleCol ? (
                     <input
                       value={typeof r.cells[titleCol.id] === "string" ? (r.cells[titleCol.id] as string) : ""}
