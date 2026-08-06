@@ -4,7 +4,7 @@
  *  lokal (spec v1.1 offline): IndexedDB, bukan localStorage, karena data URL
  *  gambar cepat menembus batas ~5MB localStorage — IndexedDB jauh lebih lega
  *  dan menyimpan objek apa adanya (tanpa JSON.stringify). */
-const DB_NAME = "swanote";
+const DB_NAME = "edenote";
 const STORE = "kv";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -41,9 +41,10 @@ export async function idbSet(key: string, value: unknown): Promise<void> {
   });
 }
 
-/** Baca satu nilai dari database IndexedDB bernama lain — dipakai sekali untuk
- *  memigrasi data lokal saat nama db berganti (mis. "pinote" → "swanote"). Tak
- *  pernah membuat store; kalau db/store/key tak ada, kembalikan undefined. */
+/** Baca satu nilai dari database IndexedDB bernama lain — dipakai untuk
+ *  memigrasi data lokal saat nama db berganti (mis. "pinote" → "swanote" →
+ *  "edenote"). Tak pernah membuat store; kalau db/store/key tak ada,
+ *  kembalikan undefined. */
 export async function idbGetFrom<T>(
   dbName: string,
   storeName: string,

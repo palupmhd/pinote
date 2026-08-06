@@ -144,6 +144,14 @@ export function KanbanBoard({
                 <span className="text-xs tabular-nums text-neutral-400">{rows.length}</span>
               </div>
 
+              {/* min-h-0 + overflow-y-auto: kolom Kanban SEBELUMNYA tak punya
+                  batas tinggi sendiri, "bekerja" cuma karena modal induknya
+                  auto-height (tumbuh ikut konten). Begitu modal jadi tinggi
+                  TETAP (lihat DatabaseView.tsx), kolom dengan banyak kartu
+                  butuh scroll SENDIRI supaya kartu di bawah tak hilang tanpa
+                  cara melihatnya — header grup & tombol "+ baris" tetap
+                  di luar area scroll ini, jadi selalu terlihat. */}
+              <div className="min-h-0 flex-1 overflow-y-auto">
               <div className="flex flex-col gap-2">
                 {rows.map((row) => (
                   <div
@@ -220,6 +228,7 @@ export function KanbanBoard({
                     </div>
                   </div>
                 ))}
+              </div>
               </div>
 
               <button

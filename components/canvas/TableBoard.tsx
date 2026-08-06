@@ -1,20 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
+import { ColumnTypeGrid, COLUMN_TYPE_ICON } from "./ColumnTypePicker";
+import { FloatingPopover } from "./FloatingPopover";
+import { IconPlus } from "./icons";
 import { computeFormula, FORMULA_PRESETS } from "@/lib/formula";
 import { computeRollup } from "@/lib/rollup";
 import { useCanvasStore } from "@/lib/store";
 import type { CellValue, ColumnType, Database, DbColumn, DbRow, FormulaPreset, RollupOp } from "@/lib/types";
-
-const TYPE_LABEL: Record<ColumnType, string> = {
-  text: "Teks",
-  number: "Angka",
-  checkbox: "Centang",
-  date: "Tanggal",
-  relation: "Relasi",
-  rollup: "Rollup",
-  formula: "Formula",
-};
 
 const ROLLUP_OPS: Record<RollupOp, string> = {
   count: "Jumlah tautan",
@@ -86,6 +79,8 @@ function RelationCell({
   );
   const toggleRelation = useCanvasStore((s) => s.toggleRelation);
   const linked = Array.isArray(value) ? value : [];
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   if (!column.targetDatabaseId) {
     return <span className="text-xs text-neutral-300">pilih database tujuan di header</span>;
@@ -117,31 +112,37 @@ function RelationCell({
           </button>
           );
         })}
-      <details className="relative">
-        <summary className="cursor-pointer list-none rounded px-1 text-xs text-neutral-400 hover:text-neutral-700">
-          + tautkan
-        </summary>
-        <div className="absolute z-10 mt-1 max-h-48 w-44 overflow-auto rounded-md border border-neutral-200 bg-white p-1 shadow-lg">
-          {target.rows.length === 0 ? (
-            <p className="px-2 py-1 text-xs text-neutral-400">Tabel tujuan kosong</p>
-          ) : (
-            target.rows.map((r, i) => (
-              <label
-                key={r.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-neutral-100"
-              >
-                <input
-                  type="checkbox"
-                  checked={linked.includes(r.id)}
-                  onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
-                  className="h-3.5 w-3.5 accent-forest-600"
-                />
-                <span className="truncate text-neutral-700">{rowLabel(textCol, r, i)}</span>
-              </label>
-            ))
-          )}
-        </div>
-      </details>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        className="rounded px-1 text-xs text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
+      >
+        + tautkan
+      </button>
+      {/* Portal + posisi fixed (lihat FloatingPopover) — sel ini hidup di
+          dalam tabel overflow-auto; popover position:absolute biasa di sini
+          akan ikut terpotong saat tabel discroll, persis bug yang sudah
+          diperbaiki di menu "Lainnya" Toolbar.tsx. */}
+      <FloatingPopover anchorRef={btnRef} open={open} onClose={() => setOpen(false)} width={176}>
+        {target.rows.length === 0 ? (
+          <p className="px-2 py-1 text-xs text-neutral-400">Tabel tujuan kosong</p>
+        ) : (
+          target.rows.map((r, i) => (
+            <label
+              key={r.id}
+              className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-neutral-100"
+            >
+              <input
+                type="checkbox"
+                checked={linked.includes(r.id)}
+                onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
+                className="h-3.5 w-3.5 accent-forest-600"
+              />
+              <span className="truncate text-neutral-700">{rowLabel(textCol, r, i)}</span>
+            </label>
+          ))
+        )}
+      </FloatingPopover>
     </div>
   );
 }
@@ -265,133 +266,200 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   }, [databases, dbId, column.id, column.formulaPreset]);
   const formulaInputs = column.formulaPreset ? FORMULA_PRESETS[column.formulaPreset].inputs : 0;
 
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const Icon = COLUMN_TYPE_ICON[column.type];
+
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1">
+    <>
+      {/* Kolaps: ikon tipe + nama saja — dulu SEMUA kontrol (nama, tipe, &
+          config per-tipe) selalu terbuka sekaligus di tiap header, ramai &
+          padat. Klik untuk buka popover ubah nama/tipe/config, gaya Notion
+          (klik header kolom → menu properti), bukan select mentah yang
+          selalu kelihatan. */}
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen((v) => !v)}
+        title="Klik untuk ubah nama/tipe kolom"
+        className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-neutral-100"
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-neutral-600">{column.name}</span>
+      </button>
+
+      <FloatingPopover anchorRef={triggerRef} open={open} onClose={() => setOpen(false)}>
         <input
+          autoFocus
           value={column.name}
           onChange={(e) => renameColumn(dbId, column.id, e.target.value)}
-          className="min-w-0 flex-1 bg-transparent text-xs font-medium text-neutral-600 outline-none"
+          placeholder="Nama kolom"
+          className="mb-1.5 w-full rounded border border-neutral-200 px-2 py-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-300 focus:border-forest-300"
         />
-        <select
-          value={column.type}
-          onChange={(e) => setColumnType(dbId, column.id, e.target.value as ColumnType)}
-          title="Tipe kolom"
-          className="shrink-0 cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-500 outline-none"
-        >
-          {(Object.keys(TYPE_LABEL) as ColumnType[]).map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
-            </option>
-          ))}
-        </select>
+
+        <p className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">Tipe</p>
+        <ColumnTypeGrid value={column.type} onPick={(t) => setColumnType(dbId, column.id, t)} />
+
+        {column.type === "relation" && (
+          <div className="mt-1.5 border-t border-neutral-100 pt-1.5">
+            <select
+              value={column.targetDatabaseId ?? ""}
+              onChange={(e) => setColumnTarget(dbId, column.id, e.target.value)}
+              title="Database tujuan relasi"
+              className="w-full cursor-pointer rounded bg-forest-50 px-2 py-1 text-xs text-forest-800 outline-none"
+            >
+              <option value="" disabled>
+                → database tujuan…
+              </option>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {column.type === "rollup" && (
+          <div className="mt-1.5 flex flex-col gap-1 border-t border-neutral-100 pt-1.5">
+            <select
+              value={column.rollupRelationId ?? ""}
+              onChange={(e) => setRollup(dbId, column.id, { rollupRelationId: e.target.value })}
+              title="Lewat kolom relasi mana"
+              className="w-full cursor-pointer rounded bg-amber-50 px-2 py-1 text-xs text-amber-700 outline-none"
+            >
+              <option value="" disabled>→ lewat relasi…</option>
+              {relationCols.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={column.rollupOp ?? "count"}
+              onChange={(e) => setRollup(dbId, column.id, { rollupOp: e.target.value as RollupOp })}
+              title="Fungsi rollup"
+              className="w-full cursor-pointer rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 outline-none"
+            >
+              {(Object.keys(ROLLUP_OPS) as RollupOp[]).map((op) => (
+                <option key={op} value={op}>{ROLLUP_OPS[op]}</option>
+              ))}
+            </select>
+            {(column.rollupOp ?? "count") !== "count" && (
+              <select
+                value={column.rollupTargetColumnId ?? ""}
+                onChange={(e) => setRollup(dbId, column.id, { rollupTargetColumnId: e.target.value })}
+                title="Kolom angka di database tujuan"
+                className="w-full cursor-pointer rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 outline-none"
+              >
+                <option value="" disabled>→ kolom angka…</option>
+                {numberCols.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+        {column.type === "formula" && (
+          <div className="mt-1.5 flex flex-col gap-1 border-t border-neutral-100 pt-1.5">
+            <select
+              value={column.formulaPreset ?? ""}
+              onChange={(e) =>
+                setFormula(dbId, column.id, { formulaPreset: (e.target.value || undefined) as FormulaPreset })
+              }
+              title="Preset formula"
+              className="w-full cursor-pointer rounded bg-emerald-50 px-2 py-1 text-xs text-emerald-700 outline-none"
+            >
+              <option value="" disabled>→ pilih preset…</option>
+              {(Object.keys(FORMULA_PRESETS) as FormulaPreset[]).map((p) => (
+                <option key={p} value={p}>{FORMULA_PRESETS[p].label}</option>
+              ))}
+            </select>
+            {formulaInputs >= 1 && (
+              <select
+                value={column.formulaColA ?? ""}
+                onChange={(e) => setFormula(dbId, column.id, { formulaColA: e.target.value })}
+                title="Kolom input A"
+                className="w-full cursor-pointer rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 outline-none"
+              >
+                <option value="" disabled>→ kolom A…</option>
+                {formulaCands.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+            {formulaInputs >= 2 && (
+              <select
+                value={column.formulaColB ?? ""}
+                onChange={(e) => setFormula(dbId, column.id, { formulaColB: e.target.value })}
+                title="Kolom input B"
+                className="w-full cursor-pointer rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 outline-none"
+              >
+                <option value="" disabled>→ kolom B…</option>
+                {formulaCands.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        <div className="my-1.5 h-px bg-neutral-100" />
         <button
-          onClick={() => removeColumn(dbId, column.id)}
-          title="Hapus kolom"
-          className="shrink-0 px-1 text-neutral-300 hover:text-red-500"
+          onClick={() => {
+            removeColumn(dbId, column.id);
+            setOpen(false);
+          }}
+          className="w-full rounded-md px-2 py-1.5 text-left text-sm text-red-500 hover:bg-red-50"
         >
-          ✕
+          Hapus kolom
         </button>
-      </div>
-      {column.type === "relation" && (
-        <select
-          value={column.targetDatabaseId ?? ""}
-          onChange={(e) => setColumnTarget(dbId, column.id, e.target.value)}
-          title="Database tujuan relasi"
-          className="w-full cursor-pointer rounded bg-forest-50 px-1 py-0.5 text-[10px] text-forest-800 outline-none"
-        >
-          <option value="" disabled>
-            → database tujuan…
-          </option>
-          {targets.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.title}
-            </option>
-          ))}
-        </select>
-      )}
-      {column.type === "rollup" && (
-        <div className="space-y-1">
-          <select
-            value={column.rollupRelationId ?? ""}
-            onChange={(e) => setRollup(dbId, column.id, { rollupRelationId: e.target.value })}
-            title="Lewat kolom relasi mana"
-            className="w-full cursor-pointer rounded bg-amber-50 px-1 py-0.5 text-[10px] text-amber-700 outline-none"
-          >
-            <option value="" disabled>→ lewat relasi…</option>
-            {relationCols.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-          <select
-            value={column.rollupOp ?? "count"}
-            onChange={(e) => setRollup(dbId, column.id, { rollupOp: e.target.value as RollupOp })}
-            title="Fungsi rollup"
-            className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
-          >
-            {(Object.keys(ROLLUP_OPS) as RollupOp[]).map((op) => (
-              <option key={op} value={op}>{ROLLUP_OPS[op]}</option>
-            ))}
-          </select>
-          {(column.rollupOp ?? "count") !== "count" && (
-            <select
-              value={column.rollupTargetColumnId ?? ""}
-              onChange={(e) => setRollup(dbId, column.id, { rollupTargetColumnId: e.target.value })}
-              title="Kolom angka di database tujuan"
-              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
-            >
-              <option value="" disabled>→ kolom angka…</option>
-              {numberCols.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-      {column.type === "formula" && (
-        <div className="space-y-1">
-          <select
-            value={column.formulaPreset ?? ""}
-            onChange={(e) =>
-              setFormula(dbId, column.id, { formulaPreset: (e.target.value || undefined) as FormulaPreset })
-            }
-            title="Preset formula"
-            className="w-full cursor-pointer rounded bg-emerald-50 px-1 py-0.5 text-[10px] text-emerald-700 outline-none"
-          >
-            <option value="" disabled>→ pilih preset…</option>
-            {(Object.keys(FORMULA_PRESETS) as FormulaPreset[]).map((p) => (
-              <option key={p} value={p}>{FORMULA_PRESETS[p].label}</option>
-            ))}
-          </select>
-          {formulaInputs >= 1 && (
-            <select
-              value={column.formulaColA ?? ""}
-              onChange={(e) => setFormula(dbId, column.id, { formulaColA: e.target.value })}
-              title="Kolom input A"
-              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
-            >
-              <option value="" disabled>→ kolom A…</option>
-              {formulaCands.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
-          {formulaInputs >= 2 && (
-            <select
-              value={column.formulaColB ?? ""}
-              onChange={(e) => setFormula(dbId, column.id, { formulaColB: e.target.value })}
-              title="Kolom input B"
-              className="w-full cursor-pointer rounded bg-neutral-100 px-1 py-0.5 text-[10px] text-neutral-600 outline-none"
-            >
-              <option value="" disabled>→ kolom B…</option>
-              {formulaCands.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-    </div>
+      </FloatingPopover>
+    </>
+  );
+}
+
+/** Tombol "+" tambah kolom: dulu langsung membuat "Kolom N" bertipe teks
+ *  tanpa jeda, dinamai/ditipekan belakangan lewat ColumnHeader. Sekarang gaya
+ *  Notion — nama dulu (opsional, boleh dikosongkan), lalu pilih tipe dari
+ *  daftar berikon; keduanya dikirim SEKALIGUS saat tipe dipilih (addColumn
+ *  lalu renameColumn, satu gestur). Enter di field nama = buat sebagai teks,
+ *  jalan pintas buat yang tak peduli tipe (perilaku lama, tetap tersedia). */
+function AddColumnButton({ dbId }: { dbId: string }) {
+  const addColumn = useCanvasStore((s) => s.addColumn);
+  const renameColumn = useCanvasStore((s) => s.renameColumn);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  const create = (type: ColumnType) => {
+    const id = addColumn(dbId, type);
+    if (id && name.trim()) renameColumn(dbId, id, name.trim());
+    setName("");
+    setOpen(false);
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
+        title="Tambah kolom"
+        className="rounded px-1.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
+      >
+        +
+      </button>
+      <FloatingPopover anchorRef={btnRef} open={open} onClose={() => setOpen(false)} align="end">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") create("text");
+          }}
+          placeholder="Nama kolom (opsional)"
+          className="mb-1.5 w-full rounded border border-neutral-200 px-2 py-1 text-sm text-neutral-800 outline-none placeholder:text-neutral-300 focus:border-forest-300"
+        />
+        <p className="mb-0.5 px-1 text-[10px] font-medium uppercase tracking-wide text-neutral-400">Tipe</p>
+        <ColumnTypeGrid onPick={create} />
+      </FloatingPopover>
+    </>
   );
 }
 
@@ -400,7 +468,6 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
  *  kanvas, sama seperti Kanban/Kalender/Galeri/Spasial yang sudah lebih dulu
  *  jadi komponen lepas. */
 export function TableBoard({ db, onOpenRowCanvas }: { db: Database; onOpenRowCanvas: (rowId: string) => void }) {
-  const addColumn = useCanvasStore((s) => s.addColumn);
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
 
@@ -419,13 +486,7 @@ export function TableBoard({ db, onOpenRowCanvas }: { db: Database; onOpenRowCan
                 </th>
               ))}
               <th className="w-10 px-2 py-2">
-                <button
-                  onClick={() => addColumn(db.id)}
-                  title="Tambah kolom"
-                  className="rounded px-1.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
-                >
-                  +
-                </button>
+                <AddColumnButton dbId={db.id} />
               </th>
             </tr>
           </thead>
@@ -473,9 +534,9 @@ export function TableBoard({ db, onOpenRowCanvas }: { db: Database; onOpenRowCan
       <div className="border-t border-neutral-200 px-4 py-2">
         <button
           onClick={() => addRow(db.id)}
-          className="rounded px-2 py-1 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+          className="flex items-center gap-1.5 rounded-md bg-forest-50 px-3 py-1.5 text-sm font-medium text-forest-700 hover:bg-forest-100"
         >
-          + Tambah baris
+          <IconPlus className="h-3.5 w-3.5" /> Tambah baris
         </button>
       </div>
     </div>

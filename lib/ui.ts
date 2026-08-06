@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 
-const SHOW_GRID_KEY = "swanote:showGrid";
+const SHOW_GRID_KEY = "edenote:showGrid";
 
 // Preferensi tampilan murni per-perangkat (bukan data workspace) — disimpan
 // langsung ke localStorage, TIDAK lewat store kanvas/IndexedDB, supaya

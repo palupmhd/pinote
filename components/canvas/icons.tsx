@@ -140,6 +140,52 @@ export const IconDots = (p: P) => (
     <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none" />
   </S>
 );
+// Ikon tipe kolom database (spec §8.4 polish) — satu per ColumnType, dipakai
+// konsisten di header kolom, pemilih tipe saat tambah kolom, dan popover ubah
+// tipe, supaya tiap tipe selalu punya bentuk yang sama di mana pun ia muncul.
+export const IconColText = (p: P) => (
+  <S {...p}>
+    <path d="M6 7h12M6 12h9M6 17h6" />
+  </S>
+);
+export const IconColNumber = (p: P) => (
+  <S {...p}>
+    <path d="M9 4L7 20M17 4l-2 16M4 9h16M3 15h16" />
+  </S>
+);
+export const IconColCheckbox = (p: P) => (
+  <S {...p}>
+    <rect x="5" y="5" width="14" height="14" rx="3" />
+    <path d="M8.5 12l2.5 2.5 4.5-5" />
+  </S>
+);
+export const IconColDate = (p: P) => (
+  <S {...p}>
+    <rect x="4" y="5" width="16" height="15" rx="2" />
+    <path d="M4 10h16M8 3v4M16 3v4" />
+  </S>
+);
+export const IconColRelation = (p: P) => (
+  <S {...p}>
+    <circle cx="6" cy="12" r="2.2" />
+    <circle cx="18" cy="12" r="2.2" />
+    <path d="M8.2 12h7.6" />
+    <path d="M13.5 9.5L16 12l-2.5 2.5" />
+  </S>
+);
+export const IconColRollup = (p: P) => (
+  <S {...p}>
+    <path d="M17 6H8l5 6-5 6h9" />
+  </S>
+);
+export const IconColFormula = (p: P) => (
+  <S {...p}>
+    <path d="M9 20V10a3 3 0 013-3h1.5" />
+    <path d="M7.5 13.5h6" />
+    <path d="M15.5 13.5l4 6.5M19.5 13.5l-4 6.5" />
+  </S>
+);
+
 export const IconGridDots = (p: P) => (
   <S {...p}>
     <circle cx="7" cy="7" r="1.3" fill="currentColor" stroke="none" />

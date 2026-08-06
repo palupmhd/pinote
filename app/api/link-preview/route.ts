@@ -40,7 +40,7 @@ async function safeFetch(start: URL): Promise<{ res: Response; url: URL } | null
       return null;
     }
     const res = await fetch(url, {
-      headers: { "user-agent": "SwanoteBot/0.1 (+link preview)", accept: "text/html,*/*" },
+      headers: { "user-agent": "EdenoteBot/0.1 (+link preview)", accept: "text/html,*/*" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
       redirect: "manual",
     });

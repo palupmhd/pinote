@@ -6,9 +6,16 @@ import { snapshot, useCanvasStore, type Persisted } from "./store";
 import { supabase } from "./supabase";
 import { toast } from "./toast";
 
-const SYNC_KEY_PREFIX = "swanote:sync:v1";
-const LAST_USER_KEY = "swanote:sync:user"; // siapa yang terakhir sinkron di browser ini
-const LEGACY_SYNC_PREFIX = "milnote:sync:v1"; // key lama sebelum rename produk
+const SYNC_KEY_PREFIX = "edenote:sync:v1";
+const LAST_USER_KEY = "edenote:sync:user"; // siapa yang terakhir sinkron di browser ini
+// Riwayat key sebelum rename produk, dari yang PALING BARU ke paling lama —
+// dimigrasi berurutan (lihat migrateLsChain di bawah): Swanote adalah nama
+// sebelum "Edenote" sekarang; Milnote lebih lama lagi (era sebelum Swanote —
+// fitur sync belum pernah pakai nama "Pinote" sama sekali, jadi tak ada hop
+// untuk itu di sini).
+const PREV_SYNC_PREFIX = "swanote:sync:v1";
+const PREV_LAST_USER_KEY = "swanote:sync:user";
+const LEGACY_SYNC_PREFIX = "milnote:sync:v1";
 const LEGACY_LAST_USER_KEY = "milnote:sync:user";
 const PUSH_DEBOUNCE = 1500;
 
@@ -24,6 +31,14 @@ function migrateLsKey(oldK: string, newK: string) {
   } catch {
     /* abaikan */
   }
+}
+
+/** Jalankan migrateLsKey berantai lewat sederet nama lama, dari PALING LAMA ke
+ *  PALING BARU (kebalikan urutan deklarasi di atas) — supaya user yang belum
+ *  pernah buka app sejak rename SEBELUM ini pun tetap terangkat sampai ke key
+ *  yang aktif sekarang, bukan cuma berhenti di satu hop lama. */
+function migrateLsChain(keys: string[]) {
+  for (let i = 0; i < keys.length - 1; i++) migrateLsKey(keys[i], keys[i + 1]);
 }
 
 /** Key metadata sync di-scope ke user yang sedang masuk. Kalau global, revisi &
@@ -120,7 +135,7 @@ export const useSyncStore = create<SyncState>((set) => ({
   init: async () => {
     if (!supabase) return;
     authSub?.unsubscribe(); // re-init (Strict Mode/dev) → buang listener lama dulu
-    migrateLsKey(LEGACY_LAST_USER_KEY, LAST_USER_KEY); // rename produk: sekali di awal
+    migrateLsChain([LEGACY_LAST_USER_KEY, PREV_LAST_USER_KEY, LAST_USER_KEY]); // rename produk: sekali di awal
 
     // Satu jalur untuk sesi awal maupun perubahan berikutnya: onAuthStateChange
     // langsung menembak INITIAL_SESSION saat didaftarkan, jadi tak perlu
@@ -134,7 +149,11 @@ export const useSyncStore = create<SyncState>((set) => ({
           lastUserId = user.id;
           // Scope metadata ke user ini sebelum pull/push apa pun.
           metaKey = `${SYNC_KEY_PREFIX}:${user.id}`;
-          migrateLsKey(`${LEGACY_SYNC_PREFIX}:${user.id}`, metaKey); // rename produk
+          migrateLsChain([
+            `${LEGACY_SYNC_PREFIX}:${user.id}`,
+            `${PREV_SYNC_PREFIX}:${user.id}`,
+            metaKey,
+          ]); // rename produk
           // User berbeda dari yang terakhir sinkron di browser ini → jangan
           // bawa data user sebelumnya ke akun ini. (Login pertama tanpa riwayat
           // tetap mempertahankan data lokal: alur "kerja lokal lalu masuk".)

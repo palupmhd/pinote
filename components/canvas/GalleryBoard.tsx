@@ -1,5 +1,6 @@
 "use client";
 
+import { IconPlus } from "./icons";
 import { cellSummary } from "@/lib/dbCell";
 import { useCanvasStore } from "@/lib/store";
 import type { Database } from "@/lib/types";
@@ -78,9 +79,9 @@ export function GalleryBoard({
 
       <button
         onClick={() => addRow(db.id)}
-        className="mt-3 rounded px-2 py-1 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800"
+        className="mt-3 flex items-center gap-1.5 rounded-md bg-forest-50 px-3 py-1.5 text-sm font-medium text-forest-700 hover:bg-forest-100"
       >
-        + Tambah baris
+        <IconPlus className="h-3.5 w-3.5" /> Tambah baris
       </button>
     </div>
   );
