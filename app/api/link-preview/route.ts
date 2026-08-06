@@ -4,14 +4,6 @@ import { isBlockedHost } from "@/lib/urlGuard";
 const TIMEOUT_MS = 6000;
 const MAX_BYTES = 512 * 1024; // cukup untuk <head>; jangan tarik halaman raksasa
 
-const pick = (html: string, patterns: RegExp[]): string | null => {
-  for (const re of patterns) {
-    const m = html.match(re);
-    if (m?.[1]) return decode(m[1].trim()).slice(0, 300);
-  }
-  return null;
-};
-
 const decode = (s: string) =>
   s
     .replace(/&quot;/g, '"')
@@ -20,6 +12,14 @@ const decode = (s: string) =>
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
+
+const pick = (html: string, patterns: RegExp[]): string | null => {
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m?.[1]) return decode(m[1].trim()).slice(0, 300);
+  }
+  return null;
+};
 
 const meta = (prop: string) => [
   new RegExp(`<meta[^>]+property=["']${prop}["'][^>]+content=["']([^"']+)["']`, "i"),

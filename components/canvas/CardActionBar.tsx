@@ -48,7 +48,7 @@ export function CardActionBar({ element }: { element: CardElement }) {
 
   return (
     <div
-      // Jangan biарkan interaksi bilah ini memicu drag/deselect kartunya.
+      // Jangan biarkan interaksi bilah ini memicu drag/deselect kartunya.
       onPointerDown={(e) => e.stopPropagation()}
       className="absolute -top-9 left-0 z-20 flex items-center gap-0.5 rounded-md bg-white/95 p-0.5 text-neutral-600 shadow-md ring-1 ring-neutral-200 backdrop-blur"
     >

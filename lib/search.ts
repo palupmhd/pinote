@@ -55,24 +55,41 @@ interface WorkspaceLike {
   databases: Record<string, Database>;
 }
 
-export function searchWorkspace(ws: WorkspaceLike, query: string): SearchHit[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  const hits: SearchHit[] = [];
+/** Satu entri siap-cari: teks lengkap sudah diekstrak sekali (HTML sudah
+ *  di-parse, sel database sudah digabung) beserta versi huruf-kecilnya untuk
+ *  pencocokan. Dipisah dari `queryIndex` di bawah supaya membangun ulang
+ *  HANYA perlu terjadi saat workspace-nya sendiri berubah — sebelumnya
+ *  seluruh ekstraksi ini (termasuk parse HTML tiap Note lewat DOMParser)
+ *  berjalan ULANG di setiap keystroke di kotak pencarian, karena satu-satunya
+ *  fungsi publik dulu menggabung build+filter jadi satu. */
+interface SearchEntry {
+  kind: "element" | "board";
+  id: string;
+  boardTitle: string;
+  typeLabel: string;
+  label: string;
+  text: string;
+  textLower: string;
+}
+
+/** Bangun indeks pencarian dari seluruh workspace — sengaja TAK peduli query.
+ *  Pemanggil (SearchPanel) memoisasi ini terpisah dari `queryIndex`, dikunci
+ *  ke {boards, elements, databases}, bukan ke query. */
+export function buildSearchIndex(ws: WorkspaceLike): SearchEntry[] {
+  const entries: SearchEntry[] = [];
   const boardTitle = (id: string) => ws.boards[id]?.title ?? "Papan";
 
   // Papan (judul) → membuka papannya.
   for (const b of Object.values(ws.boards)) {
-    if (b.title.toLowerCase().includes(q)) {
-      hits.push({
-        kind: "board",
-        id: b.id,
-        boardTitle: b.parentBoardId ? boardTitle(b.parentBoardId) : "—",
-        typeLabel: "Papan",
-        label: b.title || "Tanpa judul",
-        snippet: b.title,
-      });
-    }
+    entries.push({
+      kind: "board",
+      id: b.id,
+      boardTitle: b.parentBoardId ? boardTitle(b.parentBoardId) : "—",
+      typeLabel: "Papan",
+      label: b.title || "Tanpa judul",
+      text: b.title,
+      textLower: b.title.toLowerCase(),
+    });
   }
 
   // Elemen → loncat ke kartunya. BOARD_REF & IMAGE dilewati (judul papan sudah
@@ -116,17 +133,49 @@ export function searchWorkspace(ws: WorkspaceLike, query: string): SearchHit[] {
       continue; // BOARD_REF, IMAGE, CONNECTOR
     }
 
-    if (text.toLowerCase().includes(q)) {
-      hits.push({
-        kind: "element",
-        id: el.id,
-        boardTitle: boardTitle(el.boardId),
-        typeLabel,
-        label: label.slice(0, 80),
-        snippet: snippetAround(text, q),
-      });
-    }
+    entries.push({
+      kind: "element",
+      id: el.id,
+      boardTitle: boardTitle(el.boardId),
+      typeLabel,
+      label,
+      text,
+      textLower: text.toLowerCase(),
+    });
   }
 
-  return hits.slice(0, MAX_HITS);
+  return entries;
+}
+
+/** Saring indeks yang sudah dibangun (`buildSearchIndex`) atas sebuah query —
+ *  murah: cuma `includes` atas teks yang sudah di-lowercase, tak ada parse
+ *  ulang. Dipanggil tiap keystroke. */
+export function queryIndex(index: SearchEntry[], query: string): SearchHit[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const hits: SearchHit[] = [];
+  for (const entry of index) {
+    if (!entry.textLower.includes(q)) continue;
+    hits.push({
+      kind: entry.kind,
+      id: entry.id,
+      boardTitle: entry.boardTitle,
+      typeLabel: entry.typeLabel,
+      // Board label sengaja TIDAK dipotong — perilaku lama membedakan
+      // keduanya (cuma label elemen yang dibatasi 80 karakter).
+      label: entry.kind === "element" ? entry.label.slice(0, 80) : entry.label,
+      snippet: entry.kind === "board" ? entry.text : snippetAround(entry.text, q),
+    });
+    if (hits.length >= MAX_HITS) break; // sama seperti .slice(0, MAX_HITS) lama, tanpa terus memindai
+  }
+  return hits;
+}
+
+/** Wrapper sekali-jalan (build lalu query) — dipakai kalau tak ada alasan
+ *  memisah keduanya (mis. pemanggilan satu kali, bukan lewat UI reaktif).
+ *  Konsumen React yang query-nya berubah tiap keystroke (SearchPanel)
+ *  sebaiknya panggil `buildSearchIndex`/`queryIndex` terpisah, masing-masing
+ *  di useMemo sendiri. */
+export function searchWorkspace(ws: WorkspaceLike, query: string): SearchHit[] {
+  return queryIndex(buildSearchIndex(ws), query);
 }

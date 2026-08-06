@@ -1,17 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { cardBoxFromDom } from "@/lib/domGeometry";
 import { connectorMidpoint } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
-import { CONNECTOR_COLORS, type Box, type ConnectorColor } from "@/lib/types";
-
-const FALLBACK_HEIGHT = 64;
-
-const boxOf = (id: string, x: number, y: number, width: number): Box => {
-  const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
-  return { x, y, w: width, h: node?.offsetHeight ?? FALLBACK_HEIGHT };
-};
+import { CONNECTOR_COLORS, type ConnectorColor } from "@/lib/types";
 
 /** Popover mini di tengah konektor yang sedang dipilih (klik garis) — ubah
  *  label/warna/gaya, atau hapus. Posisinya screen-space (bukan anak
@@ -57,9 +51,14 @@ export function ConnectorPopover() {
   if (!connector || connector.type !== "CONNECTOR" || !source || !target) return null;
   if (source.type === "CONNECTOR" || target.type === "CONNECTOR") return null;
 
+  // Kotak VISUAL (bukan posisi mentah) — sama fungsi yang dipakai
+  // ConnectorLayer buat menggambar garis & ConnectorEndpointHandles buat titik
+  // snap; sebelumnya popover ini pakai kotak posisi mentah + tinggi outer,
+  // jadi titik tengahnya bisa geser beberapa piksel dari titik tengah garis
+  // yang sungguh digambar begitu kartu punya CARD_GUTTER (semua kartu).
   const mid = connectorMidpoint(
-    boxOf(source.id, source.x, source.y, source.width),
-    boxOf(target.id, target.x, target.y, target.width),
+    cardBoxFromDom(source),
+    cardBoxFromDom(target),
     connector.sourceAnchor,
     connector.targetAnchor
   );

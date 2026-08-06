@@ -2,10 +2,10 @@
 
 import { useRef, type RefObject } from "react";
 import { canvasBus } from "@/lib/canvasBus";
+import { otherCardBoxes } from "@/lib/domGeometry";
 import {
   bestSnapPair,
   cardAlignPairs,
-  cardVisualBox,
   guideLineFor,
   nearestGapMeasure,
   snapToGrid,
@@ -66,11 +66,7 @@ export function ResizeHandle({
     // diam sepanjang resize ini, cukup dibaca sekali. Dipakai smart-guide
     // buat tepi kanan/bawah yang bergerak selagi resize (lihat smartGuideSize).
     const st = useCanvasStore.getState();
-    const otherBoxes: Box[] = Object.values(st.elements)
-      .filter(
-        (el): el is CardElement => el.type !== "CONNECTOR" && el.boardId === st.currentBoardId && el.id !== element.id
-      )
-      .map((el) => cardVisualBox(el, document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`), MIN_CARD_HEIGHT));
+    const otherBoxes = otherCardBoxes(st.elements, st.currentBoardId, new Set([element.id]));
 
     drag.current = {
       pointerId: e.pointerId,
@@ -83,13 +79,10 @@ export function ResizeHandle({
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
 
-  const sizeAt = (d: NonNullable<typeof drag.current>, e: React.PointerEvent) => {
-    const { zoom } = useCanvasStore.getState().camera;
-    return {
-      width: Math.max(MIN_CARD_WIDTH, d.startWidth + (e.clientX - d.startClientX) / zoom),
-      height: Math.max(MIN_CARD_HEIGHT, d.startHeight + (e.clientY - d.startClientY) / zoom),
-    };
-  };
+  const sizeAt = (d: NonNullable<typeof drag.current>, e: React.PointerEvent, zoom: number) => ({
+    width: Math.max(MIN_CARD_WIDTH, d.startWidth + (e.clientX - d.startClientX) / zoom),
+    height: Math.max(MIN_CARD_HEIGHT, d.startHeight + (e.clientY - d.startClientY) / zoom),
+  });
 
   // Smart-guide (gaya Figma, lihat cardAlignPairs/geometry.ts) buat resize —
   // BEDA dari drag posisi: cuma tepi KANAN (lebar) dan BAWAH (tinggi) yang
@@ -142,8 +135,10 @@ export function ResizeHandle({
   // dot terdekat begitu dilepas (dilaporkan pemilik: tepi kelihatan gak pas di
   // titik yang dituju, kartu jatuh bukan di dot yang dimau).
   const snappedSizeAt = (d: NonNullable<typeof drag.current>, e: React.PointerEvent) => {
-    const raw = sizeAt(d, e);
+    // Zoom dibaca SEKALI lalu dioper ke bawah — dulu `sizeAt` dan blok ini
+    // masing-masing memanggil getState() sendiri di frame yang sama.
     const { zoom } = useCanvasStore.getState().camera;
+    const raw = sizeAt(d, e, zoom);
     const { width, height, guideX, guideY, measureX, measureY } = smartGuideSize(d, raw, zoom);
     return {
       width: Math.max(MIN_CARD_WIDTH, snapToGrid(width, GRID / 2)),

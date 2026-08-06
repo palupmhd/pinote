@@ -2,33 +2,20 @@
 
 import { useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
-import { boxCenter, cardVisualBox } from "@/lib/geometry";
+import { cardBoxFromDom, worldPointFromClient } from "@/lib/domGeometry";
+import { boxCenter } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import type { CardElement } from "@/lib/types";
-
-const FALLBACK_HEIGHT = 64;
 
 /** Titik kecil di tepi kanan kartu. Tarik ke kartu lain untuk membuat garis. */
 export function ConnectHandle({ element, selected }: { element: CardElement; selected: boolean }) {
   const addConnector = useCanvasStore((s) => s.addConnector);
   const dragging = useRef<number | null>(null);
 
-  const toWorld = (clientX: number, clientY: number) => {
-    // getBoundingClientRect world layer sudah memuat translate kamera,
-    // jadi cukup dibagi zoom — tak perlu baca posisi kamera terpisah.
-    const world = document.getElementById("world-layer");
-    const rect = world?.getBoundingClientRect();
-    const { zoom } = useCanvasStore.getState().camera;
-    return {
-      x: ((clientX - (rect?.left ?? 0)) / zoom),
-      y: ((clientY - (rect?.top ?? 0)) / zoom),
-    };
-  };
+  const toWorld = (clientX: number, clientY: number) =>
+    worldPointFromClient(clientX, clientY, useCanvasStore.getState().camera.zoom);
 
-  const sourcePoint = () => {
-    const node = document.querySelector<HTMLElement>(`[data-element-id="${element.id}"]`);
-    return boxCenter(cardVisualBox(element, node, FALLBACK_HEIGHT));
-  };
+  const sourcePoint = () => boxCenter(cardBoxFromDom(element));
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;

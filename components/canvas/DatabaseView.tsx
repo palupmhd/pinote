@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useCanvasStore } from "@/lib/store";
+import { DATABASE_VIEW_LABELS, type DatabaseView as DatabaseViewMode } from "@/lib/types";
 import { useUiStore } from "@/lib/ui";
 import { CalendarBoard } from "./CalendarBoard";
 import { GalleryBoard } from "./GalleryBoard";
@@ -19,12 +20,6 @@ export function DatabaseView() {
   const openRowAsBoard = useCanvasStore((s) => s.openRowAsBoard);
   const setDatabaseView = useCanvasStore((s) => s.setDatabaseView);
   const attachDatabaseView = useCanvasStore((s) => s.attachDatabaseView);
-
-  // Buka isi kanvas sebuah baris: bikin/buka board bersarang lalu tutup overlay
-  // ini supaya kanvas board baru kelihatan (spec §7.2, irisan tipis).
-  const openRowCanvas = (rowId: string) => {
-    if (openRowAsBoard(db!.id, rowId)) close();
-  };
 
   // "Keluarkan sebagai kartu" — bikin DATABASE_VIEW baru di papan yang sedang
   // dibuka, membawa view/groupBy/dateBy yang SEDANG aktif di modal ini, lalu
@@ -58,6 +53,23 @@ export function DatabaseView() {
   // Tabel bisa terhapus (mis. via undo) selagi terbuka → tutup dengan aman.
   if (!openId || !db) return null;
 
+  // Setelah guard di atas `db` dijamin ada — makanya openRowCanvas didefinisikan
+  // di sini, bukan di atas dengan `db!` yang mematikan pengecekan TypeScript.
+  // Buka isi kanvas sebuah baris: bikin/buka board bersarang lalu tutup overlay
+  // ini supaya kanvas board baru kelihatan (spec §7.2, irisan tipis).
+  const openRowCanvas = (rowId: string) => {
+    if (openRowAsBoard(db.id, rowId)) close();
+  };
+
+  const view = db.view ?? "table";
+  const boardFor = (mode: DatabaseViewMode) => {
+    if (mode === "kanban") return <KanbanBoard db={db} />;
+    if (mode === "calendar") return <CalendarBoard db={db} />;
+    if (mode === "gallery") return <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />;
+    if (mode === "spatial") return <SpatialBoard db={db} onOpenRowCanvas={openRowCanvas} />;
+    return <TableBoard db={db} onOpenRowCanvas={openRowCanvas} />;
+  };
+
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6">
       {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat. */}
@@ -87,43 +99,25 @@ export function DatabaseView() {
               digeser horizontal supaya tak menekan judul. */}
           <div className="order-3 w-full overflow-x-auto sm:order-2 sm:w-auto">
             <div className="flex w-max rounded-md bg-neutral-100 p-0.5 text-xs">
-              {(["table", "kanban", "calendar", "gallery", "spatial"] as const).map((v) => (
+              {(Object.keys(DATABASE_VIEW_LABELS) as DatabaseViewMode[]).map((v) => (
                 <button
                   key={v}
                   onClick={() => setDatabaseView(db.id, v)}
                   className={[
                     "shrink-0 whitespace-nowrap rounded px-2 py-1",
-                    (db.view ?? "table") === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
+                    view === v ? "bg-white text-neutral-800 shadow-sm" : "text-neutral-500",
                   ].join(" ")}
                 >
-                  {v === "table" ? "Tabel" : v === "kanban" ? "Kanban" : v === "calendar" ? "Kalender" : v === "gallery" ? "Galeri" : "Spasial"}
+                  {DATABASE_VIEW_LABELS[v]}
                 </button>
               ))}
             </div>
           </div>
         </div>
 
-        {(db.view ?? "table") === "kanban" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <KanbanBoard db={db} />
-          </div>
-        ) : (db.view ?? "table") === "calendar" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <CalendarBoard db={db} />
-          </div>
-        ) : (db.view ?? "table") === "gallery" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />
-          </div>
-        ) : (db.view ?? "table") === "spatial" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <SpatialBoard db={db} onOpenRowCanvas={openRowCanvas} />
-          </div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <TableBoard db={db} onOpenRowCanvas={openRowCanvas} />
-          </div>
-        )}
+        {/* Pembungkusnya sama untuk kelima tampilan — cuma isinya yang berbeda,
+            jadi dipilih di boardFor() alih-alih menyalin div ini lima kali. */}
+        <div className="min-h-0 flex-1 overflow-hidden">{boardFor(view)}</div>
       </div>
     </div>
   );
