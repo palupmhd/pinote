@@ -21,7 +21,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  title: "Swanote",
+  title: "Edenote",
   description: "Visual workspace — kanvas untuk catatan, ide, dan proyek",
 };
 

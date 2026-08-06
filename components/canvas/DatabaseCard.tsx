@@ -5,7 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { useElementDrag } from "@/lib/useElementDrag";
 import { useSnapAutoHeight } from "@/lib/useSnapAutoHeight";
-import { CARD_GUTTER } from "@/lib/types";
+import { CARD_GUTTER, DATABASE_VIEW_DEFAULTS } from "@/lib/types";
 import type { DatabaseRefElement } from "@/lib/types";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
@@ -53,7 +53,21 @@ function DatabaseCardBase({ element }: { element: DatabaseRefElement }) {
         <ConnectHandle element={element} selected={selected} />
         <ResizeHandle element={element} rootRef={rootRef} contentRef={contentRef} selected={selected} />
         <DatabaseViewPicker
-          onPick={(view) => attachDatabaseView(dbId, view, element.x + element.width + 30, element.y)}
+          onPick={(view) => {
+            // attachDatabaseView MEMUSATKAN kartu baru di titik yang dioper
+            // (kedua sumbu) — cocok untuk pemanggil lain (DatabaseView.tsx:
+            // titik itu benar-benar pusat viewport). Di sini yang diinginkan
+            // beda: kartu-view baru muncul DI SAMPING kartu pintu ini, tepi
+            // ATAS-nya sejajar dengan tepi atas kartu pintu — bukan dipusatkan
+            // pada tepi atas itu (yang mendorong separuh TINGGI kartu-view ke
+            // ATAS kartu pintu, bisa lahir di luar layar kalau kartu pintu
+            // dekat tepi atas viewport). Kompensasi: geser titik y yang
+            // dioper turun sejumlah setengah tinggi kartu-view, supaya setelah
+            // attachDatabaseView memusatkannya, tepi atas hasilnya balik
+            // persis ke element.y.
+            const dropY = element.y + DATABASE_VIEW_DEFAULTS[view].height / 2;
+            attachDatabaseView(dbId, view, element.x + element.width + 30, dropY);
+          }}
         />
         <CardActionBar element={element} />
         <div ref={contentRef} className="overflow-y-auto p-3" style={{ height: element.height }}>

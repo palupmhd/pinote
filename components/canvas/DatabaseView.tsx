@@ -72,8 +72,23 @@ export function DatabaseView() {
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6">
-      {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat. */}
-      <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl sm:h-auto sm:max-h-full sm:rounded-lg">
+      {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat,
+          UKURAN TETAP (lebar & tinggi) — sama persis di kelima tampilan
+          (Tabel/Kanban/Kalender/Galeri/Spasial), bukan lagi h-auto yang dulu
+          mengikuti konten (modal jadi pendek untuk Kanban berisi sedikit
+          kartu, tinggi untuk Tabel banyak baris — pemilik: "muncul popupnya
+          dengan size yang fix apapun mode view yang dipilih").
+          Lebar (max-w-4xl, 896px) sudah efektif tetap sejak awal (w-full
+          dijepit max-w-4xl di dalam overlay yang lebih lebar); yang berubah
+          di sini cuma TINGGI. 640px dipilih dari kebutuhan konten TERBESAR
+          yang punya ukuran intrinsik tetap — grid Kalender (header bulan
+          ~40px + baris hari ~24px + 6 baris sel `min-h-[64px]` = 384px,
+          ditambah header modal ~56px ≈ 504px) — plus ruang lega di atasnya
+          buat Tabel/Kanban/Galeri menampilkan beberapa baris/kartu sebelum
+          scroll internal masing-masing (semua view sudah `overflow-auto`
+          sendiri-sendiri) mulai bekerja. `min(640px,85vh)` menyusut lembut
+          di viewport pendek, bukan meluber keluar layar. */}
+      <div className="flex h-full w-full max-w-4xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[min(640px,85vh)] sm:rounded-lg">
         <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-3">
           <input
             value={db.title}

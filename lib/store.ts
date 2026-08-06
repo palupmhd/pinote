@@ -5,6 +5,7 @@ import { boardMinCorner, clampCamera, snapToGrid } from "./geometry";
 import { idbGet, idbGetFrom, idbSet } from "./idb";
 import type { BoardTemplate } from "./templates";
 import {
+  DATABASE_VIEW_DEFAULTS,
   DEFAULT_CAMERA,
   INBOX_BOARD_ID,
   ROOT_BOARD_ID,
@@ -26,7 +27,10 @@ import {
 } from "./types";
 
 const STORAGE_KEY = "milnote:workspace:v1"; // localStorage lama (dibaca sekali utk migrasi)
-const LEGACY_IDB_DB = "pinote"; // nama db IndexedDB lama sebelum rename ke "swanote"
+// Nama db IndexedDB lama, dari yang PALING BARU ke paling lama — riwayat rename
+// produk: Milnote (localStorage, lihat STORAGE_KEY) → Pinote → Swanote → Edenote
+// (sekarang, lihat DB_NAME di idb.ts). Dicoba berurutan sampai satu ketemu isi.
+const LEGACY_IDB_DBS = ["swanote", "pinote"];
 const IDB_WORKSPACE_KEY = "workspace"; // kunci di IndexedDB (kapasitas jauh lebih besar)
 const NOTE_WIDTH = 240; // kelipatan GRID — biar tepi kanan Note juga jatuh pas di dot
 const BOARD_CARD_WIDTH = 200;
@@ -41,17 +45,6 @@ const IMAGE_MIN_WIDTH = 140;
 const NOTE_DROP_Y_OFFSET = 20;
 const CARD_DROP_Y_OFFSET = 30;
 
-/** Ukuran default kartu DATABASE_VIEW per tampilan — kelipatan GRID (10),
- *  konsisten dengan lebar kartu bawaan lain. Kalender & Kanban butuh ruang
- *  paling besar (Kalender: grid 6×7 hari + drawer hari `w-72`; Kanban: kolom
- *  lebar 240px) — dites via eksplorasi kode, lihat plan fitur ini. */
-const DATABASE_VIEW_DEFAULTS: Record<DatabaseView, { width: number; height: number }> = {
-  table: { width: 480, height: 360 },
-  kanban: { width: 420, height: 420 },
-  calendar: { width: 520, height: 480 },
-  gallery: { width: 420, height: 360 },
-  spatial: { width: 420, height: 380 },
-};
 
 export interface Persisted {
   boards: Record<string, Board>;
@@ -150,7 +143,10 @@ interface CanvasState extends Persisted {
   renameBoard: (boardId: string, title: string) => void;
   // Database (spec §8.4)
   renameDatabase: (dbId: string, title: string) => void;
-  addColumn: (dbId: string, type?: ColumnType) => void;
+  /** Mengembalikan id kolom baru (null bila database tak ada) — dipakai
+   *  popover "tambah kolom" untuk langsung menamainya lewat renameColumn
+   *  begitu dibuat, satu gestur bukan dua. */
+  addColumn: (dbId: string, type?: ColumnType) => string | null;
   renameColumn: (dbId: string, colId: string, name: string) => void;
   setColumnType: (dbId: string, colId: string, type: ColumnType) => void;
   /** Setel database tujuan untuk kolom "relation" (spec §8.6). */
@@ -481,13 +477,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (get().hydrated) return;
     try {
       let data = await idbGet<Partial<Persisted>>(IDB_WORKSPACE_KEY);
-      // Migrasi sekali dari IndexedDB lama (nama db "pinote") → db baru "swanote",
-      // supaya rename produk tidak menghilangkan workspace lokal yang sudah ada.
+      // Migrasi dari IndexedDB lama (nama db era produk sebelumnya) → db baru
+      // sekarang, supaya rename produk tidak menghilangkan workspace lokal yang
+      // sudah ada. Dicoba berurutan dari yang PALING BARU (paling mungkin
+      // sungguh terisi) — begitu satu ketemu, sisanya tak perlu dicek lagi.
       if (!data) {
-        const legacy = await idbGetFrom<Partial<Persisted>>(LEGACY_IDB_DB, "kv", IDB_WORKSPACE_KEY);
-        if (legacy) {
-          data = legacy;
-          await idbSet(IDB_WORKSPACE_KEY, data);
+        for (const legacyDb of LEGACY_IDB_DBS) {
+          const legacy = await idbGetFrom<Partial<Persisted>>(legacyDb, "kv", IDB_WORKSPACE_KEY);
+          if (legacy) {
+            data = legacy;
+            await idbSet(IDB_WORKSPACE_KEY, data);
+            break;
+          }
         }
       }
       // Migrasi sekali dari localStorage (versi sebelum IndexedDB) → IndexedDB.
@@ -1040,11 +1041,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   renameDatabase: (dbId, title) =>
     updateDatabase(set, dbId, (db) => (db.title === title ? db : { ...db, title })),
 
-  addColumn: (dbId, type = "text") =>
+  addColumn: (dbId, type = "text") => {
+    if (!get().databases[dbId]) return null;
+    const id = crypto.randomUUID();
     updateDatabase(set, dbId, (db) => ({
       ...db,
-      columns: [...db.columns, { id: crypto.randomUUID(), name: `Kolom ${db.columns.length + 1}`, type }],
-    })),
+      columns: [...db.columns, { id, name: `Kolom ${db.columns.length + 1}`, type }],
+    }));
+    return id;
+  },
 
   renameColumn: (dbId, colId, name) =>
     updateDatabase(set, dbId, (db) => ({

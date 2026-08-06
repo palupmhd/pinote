@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { IconPlus } from "./icons";
 import { cellSummary } from "@/lib/dbCell";
 import { connectorPath } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
@@ -189,9 +190,9 @@ export function SpatialBoard({
 
       <button
         onClick={() => addRow(db.id)}
-        className="absolute left-3 top-3 z-10 rounded bg-white px-2 py-1 text-sm text-neutral-500 shadow-sm ring-1 ring-neutral-200 hover:bg-neutral-100 hover:text-neutral-800"
+        className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-md bg-forest-50 px-3 py-1.5 text-sm font-medium text-forest-700 shadow-sm hover:bg-forest-100"
       >
-        + Tambah baris
+        <IconPlus className="h-3.5 w-3.5" /> Tambah baris
       </button>
     </div>
   );

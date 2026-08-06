@@ -92,6 +92,21 @@ export const DATABASE_VIEW_LABELS: Record<DatabaseView, string> = {
   spatial: "Spasial",
 };
 
+/** Ukuran default kartu DATABASE_VIEW per tampilan — kelipatan GRID (10),
+ *  konsisten dengan lebar kartu bawaan lain. Kalender & Kanban butuh ruang
+ *  paling besar (Kalender: grid 6×7 hari + drawer hari `w-72`; Kanban: kolom
+ *  lebar 240px) — dites via eksplorasi kode, lihat plan fitur ini. Ditaruh di
+ *  sini (bukan store.ts) supaya pemanggil di luar store — mis. DatabaseCard.tsx
+ *  menghitung titik jatuh kartu-view SEBELUM memanggil attachDatabaseView —
+ *  bisa membaca tinggi kartu tanpa mengimpor store cuma untuk satu konstanta. */
+export const DATABASE_VIEW_DEFAULTS: Record<DatabaseView, { width: number; height: number }> = {
+  table: { width: 480, height: 360 },
+  kanban: { width: 420, height: 420 },
+  calendar: { width: 520, height: 480 },
+  gallery: { width: 420, height: 360 },
+  spatial: { width: 420, height: 380 },
+};
+
 export interface Database {
   id: string;
   title: string;
