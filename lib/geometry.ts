@@ -244,7 +244,7 @@ export function nearestGapMeasure(selfBox: Box, otherBoxes: Box[], axis: "x" | "
   const start = Math.max(perpSelfStart, perpOStart);
   const end = Math.min(perpSelfEnd, perpOEnd);
   return {
-    gap: Math.round(best.gap / (GRID / 2)) * (GRID / 2),
+    gap: snapToGrid(best.gap, GRID / 2),
     gapCenterPos: best.gapCenterPos,
     worldStart: start,
     worldEnd: end,

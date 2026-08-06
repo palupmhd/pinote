@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { exportBoardPng } from "@/lib/exportImage";
 import { buildPresentationOrder } from "@/lib/presentation";
-import { searchWorkspace } from "@/lib/search";
+import { buildSearchIndex, queryIndex } from "@/lib/search";
 import { useCanvasStore } from "@/lib/store";
 import { toast } from "@/lib/toast";
 import { INBOX_BOARD_ID } from "@/lib/types";
@@ -125,10 +125,16 @@ function SearchPanelInner() {
   const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const results = useMemo(
-    () => searchWorkspace({ boards, elements, databases }, query),
-    [boards, elements, databases, query]
+  // Dipisah jadi dua tahap: membangun indeks (parse HTML tiap Note, gabung sel
+  // database) HANYA jalan ulang saat workspace-nya sendiri berubah; menyaring
+  // by query jalan tiap keystroke tapi murah (cuma `includes` atas teks yang
+  // sudah diekstrak) — sebelumnya keduanya digabung jadi satu useMemo yang
+  // di-key ke `query`, jadi seluruh ekstraksi berjalan ulang tiap huruf diketik.
+  const searchIndex = useMemo(
+    () => buildSearchIndex({ boards, elements, databases }),
+    [boards, elements, databases]
   );
+  const results = useMemo(() => queryIndex(searchIndex, query), [searchIndex, query]);
 
   const q = query.trim().toLowerCase();
   const commands = useMemo(

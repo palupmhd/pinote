@@ -29,10 +29,19 @@ import { Toolbar } from "./Toolbar";
 import { ZoomControls } from "./ZoomControls";
 import { CARD_GUTTER, GRID, INBOX_BOARD_ID, MAX_ZOOM, MIN_ZOOM } from "@/lib/types";
 import type { Camera, CardElement, ConnectorElement } from "@/lib/types";
+import { cardNode } from "@/lib/domGeometry";
 import { boardMinCorner, boxCenter, cardVisualBox, clampCamera } from "@/lib/geometry";
 import type { Point } from "@/lib/geometry";
 import { canvasBus } from "@/lib/canvasBus";
 import type { GapMeasure, GuideLine } from "@/lib/canvasBus";
+
+/** Tinggi cadangan saat memusatkan kamera ke satu kartu di Presentation Mode
+ *  dan node-nya belum ada di DOM (papan lain baru saja dibuka). Sengaja lebih
+ *  besar dari tinggi-cadangan konektor: kesalahan di sini cuma bikin zoom
+ *  sedikit longgar, sementara terlalu kecil bikin kartu ter-zoom berlebihan. */
+const PRESENT_FALLBACK_CARD_HEIGHT = 120;
+/** Geseran minimum (px layar) sebelum marquee dianggap seleksi, bukan klik. */
+const MARQUEE_MIN_DRAG = 4;
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -483,13 +492,18 @@ export function Canvas() {
   // Delete/Backspace hapus elemen terpilih (kecuali sedang mengetik); Esc batal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Dihitung sekali di atas: dulu tiap cabang di bawah memanggil ulang
+      // `e.key.toLowerCase()` dan menyusun ulang tes modifier yang sama.
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+
       // Tangkapan cepat harus jalan dari MANA SAJA — termasuk saat sedang
       // mengetik di editor note (contentEditable) — supaya benar-benar tanpa
       // gesekan. Karena itu dicek sebelum guard "sedang mengetik" di bawah.
       // Konsekuensinya Cmd+I tak lagi jadi italic di editor; ditukar demi
       // tangkap-dari-mana-saja. TAPI jangan mencuri fokus dari field form
       // (pencarian, email login): di INPUT/TEXTAREA, biarkan lewat.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+      if (mod && key === "i") {
         const t = e.target as HTMLElement;
         if (t.tagName === "INPUT" || t.tagName === "TEXTAREA") return;
         e.preventDefault();
@@ -497,7 +511,7 @@ export function Canvas() {
         return;
       }
       // Buka pencarian dari mana saja (Cmd/Ctrl+K).
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      if (mod && key === "k") {
         e.preventDefault();
         openSearch();
         return;
@@ -514,13 +528,13 @@ export function Canvas() {
 
       // Undo/redo. Saat mengetik di kartu, kita sudah keluar di atas → editor
       // teks pakai undo bawaan browser; di kanvas kosong, ini yang jalan.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      if (mod && key === "z") {
         e.preventDefault();
         if (e.shiftKey) redo();
         else undo();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+      if (mod && key === "y") {
         e.preventDefault();
         redo();
         return;
@@ -529,11 +543,11 @@ export function Canvas() {
       // Copy / duplicate. Paste ditangani lewat event 'paste' terpisah supaya
       // bisa membedakan gambar dari clipboard (→ kartu gambar) dari tempelan
       // internal. Di dalam kartu teks kita sudah keluar di atas.
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      if (mod && key === "c") {
         copySelection();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+      if (mod && key === "d") {
         e.preventDefault();
         duplicateSelection();
         return;
@@ -645,11 +659,10 @@ export function Canvas() {
     const rect = containerRef.current?.getBoundingClientRect();
     const W = rect?.width ?? window.innerWidth;
     const H = rect?.height ?? window.innerHeight;
-    const node = document.querySelector<HTMLElement>(`[data-element-id="${id}"]`);
     // Kotak permukaan yang SUNGGUH terlihat (bukan kotak posisi mentah, yang
     // sengaja lebih besar 2×CARD_GUTTER) — tanpa ini kartu sedikit bias ke
     // kiri-atas & fit-nya tak sepenuhnya mengikuti tepi yang kelihatan.
-    const box = cardVisualBox(el, node, 120);
+    const box = cardVisualBox(el, cardNode(id), PRESENT_FALLBACK_CARD_HEIGHT);
     const { x: wx, y: wy } = boxCenter(box);
     // Pas-kan kartu ke ~2/3 viewport, dijepit ke rentang zoom kanvas.
     const zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(W / (box.w * 1.5), H / (box.h * 1.6))));
@@ -699,7 +712,7 @@ export function Canvas() {
     const m = marqueeRef.current;
     if (!m) return;
     // Geseran mungil = klik biasa → seleksi sudah dikosongkan saat pointer turun.
-    if (Math.abs(m.curX - m.startX) < 4 && Math.abs(m.curY - m.startY) < 4) return;
+    if (Math.abs(m.curX - m.startX) < MARQUEE_MIN_DRAG && Math.abs(m.curY - m.startY) < MARQUEE_MIN_DRAG) return;
     const cam = cameraRef.current;
     const toWorldX = (sx: number) => (sx - cam.x) / cam.zoom;
     const toWorldY = (sy: number) => (sy - cam.y) / cam.zoom;
@@ -712,7 +725,7 @@ export function Canvas() {
     const hits: string[] = [];
     for (const el of Object.values(st.elements)) {
       if (el.boardId !== st.currentBoardId || el.type === "CONNECTOR") continue;
-      const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
+      const node = cardNode(el.id);
       const h = node?.offsetHeight ?? 64;
       // Lebar diukur dari DOM (bukan el.width mentah) — root SENGAJA lebih
       // lebar dari el.width sejak fix gutter-grid (lihat CARD_GUTTER), sama
@@ -796,11 +809,8 @@ export function Canvas() {
 
   const onDoubleClick = (e: React.MouseEvent) => {
     if (!isBackground(e)) return;
-    const rect = containerRef.current!.getBoundingClientRect();
-    const cam = cameraRef.current;
-    const worldX = (e.clientX - rect.left - cam.x) / cam.zoom;
-    const worldY = (e.clientY - rect.top - cam.y) / cam.zoom;
-    addNote(worldX, worldY);
+    const { x, y } = screenToWorld(e.clientX, e.clientY);
+    addNote(x, y);
   };
 
   return (
@@ -888,11 +898,8 @@ export function Canvas() {
             <div className="flex flex-wrap justify-center gap-2">
               <button
                 onClick={() => {
-                  const rect = containerRef.current?.getBoundingClientRect();
-                  const cam = cameraRef.current;
-                  const wx = ((rect?.width ?? 0) / 2 - cam.x) / cam.zoom;
-                  const wy = ((rect?.height ?? 0) / 2 - cam.y) / cam.zoom;
-                  addNote(wx, wy);
+                  const { x, y } = viewportCenterWorld();
+                  addNote(x, y);
                 }}
                 className="rounded-md bg-forest-700 px-3 py-1.5 text-sm text-white hover:bg-forest-800"
               >

@@ -88,15 +88,6 @@ export function KanbanBoard({
   const columnKeyAt = (x: number, y: number) =>
     document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-group-key]")?.dataset.groupKey ?? null;
 
-  const groups = groupCol ? buildGroups(db, groupCol) : [];
-  const byGroup = groupCol ? bucketRows(db, groupCol, groups) : new Map<string, Database["rows"]>();
-
-  const moveTo = (rowId: string, key: string | null) => {
-    if (!groupCol || !key) return;
-    const target = groups.find((g) => g.key === key);
-    if (target) setCell(db.id, rowId, groupCol.id, target.value);
-  };
-
   if (!groupCol) {
     return (
       <p className="p-6 text-center text-sm text-neutral-400">
@@ -106,6 +97,18 @@ export function KanbanBoard({
       </p>
     );
   }
+
+  // Setelah guard di atas groupCol dijamin ada — dulu ketiganya dihitung lebih
+  // dulu lewat ternary (+ Map kosong yang tak pernah terpakai) dan moveTo harus
+  // mengulang cek `!groupCol` yang sama di dalam dirinya.
+  const groups = buildGroups(db, groupCol);
+  const byGroup = bucketRows(db, groupCol, groups);
+
+  const moveTo = (rowId: string, key: string | null) => {
+    if (!key) return;
+    const target = groups.find((g) => g.key === key);
+    if (target) setCell(db.id, rowId, groupCol.id, target.value);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -197,10 +200,7 @@ export function KanbanBoard({
                     <div className="mt-1.5 flex items-center justify-between">
                       <select
                         value={g.key}
-                        onChange={(e) => {
-                          const target = groups.find((x) => x.key === e.target.value);
-                          if (target) setCell(db.id, row.id, groupCol.id, target.value);
-                        }}
+                        onChange={(e) => moveTo(row.id, e.target.value)}
                         title="Pindahkan ke grup lain"
                         className="cursor-pointer rounded bg-neutral-50 text-[11px] text-neutral-500 outline-none"
                       >

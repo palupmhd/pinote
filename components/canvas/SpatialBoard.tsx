@@ -1,9 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { cellSummary } from "@/lib/dbCell";
 import { connectorPath } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
-import type { Box, CellValue, Database, DbColumn } from "@/lib/types";
+import type { Box, Database } from "@/lib/types";
 
 /** Tampilan Spatial (spec §7.2 dual-mode penuh): tiap baris jadi kartu bebas
  *  yang bisa digeser, tetap membawa properti terstrukturnya. Kolom relasi yang
@@ -19,17 +20,6 @@ const PAD = 24;
 function autoPos(index: number): { x: number; y: number } {
   const cols = 4;
   return { x: PAD + (index % cols) * (CARD_W + GAP), y: PAD + Math.floor(index / cols) * (CARD_H + GAP) };
-}
-
-/** Ringkasan sel (baca saja) untuk kartu. null = jangan tampilkan. */
-function cellSummary(col: DbColumn, v: CellValue): string | null {
-  if (col.type === "checkbox") return v === true ? `✓ ${col.name}` : null;
-  if (col.type === "relation") {
-    const n = Array.isArray(v) ? v.length : 0;
-    return n > 0 ? `${col.name}: ${n} tertaut` : null;
-  }
-  if (v == null || v === "") return null;
-  return `${col.name}: ${v}`;
 }
 
 export function SpatialBoard({
@@ -76,11 +66,12 @@ export function SpatialBoard({
     for (const r of db.rows) {
       const v = r.cells[col.id];
       if (!Array.isArray(v)) continue;
+      const a = boxOf(r.id); // tak bergantung tujuan — jangan hitung ulang per tautan
+      if (!a) continue;
       for (const tid of v) {
         if (tid === r.id || !idIndex.has(tid)) continue;
-        const a = boxOf(r.id);
         const b = boxOf(tid);
-        if (a && b) arrows.push({ key: `${col.id}:${r.id}->${tid}`, d: connectorPath(a, b) });
+        if (b) arrows.push({ key: `${col.id}:${r.id}->${tid}`, d: connectorPath(a, b) });
       }
     }
   }

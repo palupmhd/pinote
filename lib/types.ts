@@ -77,6 +77,21 @@ export interface DbRow {
 
 export type DatabaseView = "table" | "kanban" | "calendar" | "gallery" | "spatial";
 
+/** Nama tampil tiap tampilan database — satu sumber kebenaran dipakai pengalih
+ *  di modal (DatabaseView.tsx) DAN pemilih "keluarkan sebagai kartu"
+ *  (DatabaseViewPicker.tsx). Sebagai Record atas `DatabaseView`, menambah
+ *  tampilan baru ke union itu langsung jadi galat tipe di sini — dulu daftarnya
+ *  ditulis ulang sebagai array literal di dua tempat, jadi tampilan baru bisa
+ *  diam-diam hilang dari salah satunya. Urutan Object.keys = urutan deklarasi,
+ *  yaitu urutan tampilnya. */
+export const DATABASE_VIEW_LABELS: Record<DatabaseView, string> = {
+  table: "Tabel",
+  kanban: "Kanban",
+  calendar: "Kalender",
+  gallery: "Galeri",
+  spatial: "Spasial",
+};
+
 export interface Database {
   id: string;
   title: string;

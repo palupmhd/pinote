@@ -1,18 +1,8 @@
 "use client";
 
+import { cellSummary } from "@/lib/dbCell";
 import { useCanvasStore } from "@/lib/store";
-import type { CellValue, Database, DbColumn } from "@/lib/types";
-
-/** Ringkasan sebuah sel untuk kartu galeri (baca saja). null = jangan tampilkan. */
-function cellSummary(col: DbColumn, v: CellValue): string | null {
-  if (col.type === "checkbox") return v === true ? `✓ ${col.name}` : null;
-  if (col.type === "relation") {
-    const n = Array.isArray(v) ? v.length : 0;
-    return n > 0 ? `${col.name}: ${n} tertaut` : null;
-  }
-  if (v == null || v === "") return null;
-  return `${col.name}: ${v}`;
-}
+import type { Database } from "@/lib/types";
 
 export function GalleryBoard({
   db,

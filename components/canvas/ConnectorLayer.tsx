@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { canvasBus } from "@/lib/canvasBus";
-import { cardVisualBox, connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
+import { cardBoxFromDom } from "@/lib/domGeometry";
+import { connectorMidpoint, connectorPath, curveBetween, type Point } from "@/lib/geometry";
 import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import { CONNECTOR_COLORS, type Box, type CardElement, type ConnectorAnchor, type ConnectorElement } from "@/lib/types";
 
-const FALLBACK_HEIGHT = 64;
 /** Setengah sisi kotak SVG. SVG WAJIB punya ukuran nyata — svg 0x0 (walau
  *  overflow:visible) tidak dilukis sama sekali. Anak-anaknya digeser +EXTENT
  *  lewat <g> supaya tetap bisa memakai koordinat world apa adanya, termasuk
@@ -68,11 +68,10 @@ export function ConnectorLayer({ connectors, relations, cards }: Props) {
    *  cardVisualBox mengoreksi x/y/h ke permukaan yang SUNGGUH terlihat (bukan
    *  kotak posisi mentah, yang sengaja lebih besar 2×CARD_GUTTER) — tanpa
    *  ini ujung/tengah konektor meleset dari tepi kartu yang kelihatan. */
-  const boxOf = useCallback((el: CardElement): Box => {
-    const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
-    const live = livePos.current.get(el.id);
-    return cardVisualBox({ x: live?.x ?? el.x, y: live?.y ?? el.y, width: el.width }, node, FALLBACK_HEIGHT);
-  }, []);
+  const boxOf = useCallback(
+    (el: CardElement): Box => cardBoxFromDom(el, livePos.current.get(el.id)),
+    []
+  );
 
   const redraw = useCallback(
     (onlyTouching?: string) => {

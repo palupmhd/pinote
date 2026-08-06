@@ -1,10 +1,10 @@
 "use client";
 
 import { canvasBus } from "@/lib/canvasBus";
+import { cardBoxFromDom, worldPointFromClient } from "@/lib/domGeometry";
 import {
   CONNECTOR_ANCHORS,
   anchorPoint,
-  cardVisualBox,
   nearestAnchor,
   resolveConnectorEndpoints,
   type Point,
@@ -13,19 +13,10 @@ import { useCanvasStore } from "@/lib/store";
 import { useUiStore } from "@/lib/ui";
 import type { Box, CardElement, ConnectorAnchor } from "@/lib/types";
 
-const FALLBACK_HEIGHT = 64;
+const boxOf = (el: CardElement): Box => cardBoxFromDom(el);
 
-const boxOf = (el: CardElement): Box => {
-  const node = document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`);
-  return cardVisualBox(el, node, FALLBACK_HEIGHT);
-};
-
-const toWorld = (clientX: number, clientY: number): Point => {
-  const world = document.getElementById("world-layer");
-  const rect = world?.getBoundingClientRect();
-  const { zoom } = useCanvasStore.getState().camera;
-  return { x: (clientX - (rect?.left ?? 0)) / zoom, y: (clientY - (rect?.top ?? 0)) / zoom };
-};
+const toWorld = (clientX: number, clientY: number): Point =>
+  worldPointFromClient(clientX, clientY, useCanvasStore.getState().camera.zoom);
 
 /** Kartu (bukan konektor) yang ada persis di bawah kursor SUNGGUHAN
  *  (`elementFromPoint`, koordinat layar) — dipakai cari tujuan seret ujung

@@ -1,15 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { DATABASE_VIEW_LABELS } from "@/lib/types";
 import type { DatabaseView } from "@/lib/types";
 
-const VIEWS: { value: DatabaseView; label: string }[] = [
-  { value: "table", label: "Tabel" },
-  { value: "kanban", label: "Kanban" },
-  { value: "calendar", label: "Kalender" },
-  { value: "gallery", label: "Galeri" },
-  { value: "spatial", label: "Spasial" },
-];
+const VIEWS = Object.keys(DATABASE_VIEW_LABELS) as DatabaseView[];
 
 /** Ikon hover-visible di pojok kartu pintu (DatabaseCard) — pilih satu
  *  tampilan untuk dikeluarkan langsung sebagai kartu DATABASE_VIEW di
@@ -46,14 +41,14 @@ export function DatabaseViewPicker({ onPick }: { onPick: (view: DatabaseView) =>
         <div className="absolute left-0 top-full z-20 mt-1 w-40 rounded-md bg-white p-1 shadow-lg ring-1 ring-neutral-200">
           {VIEWS.map((v) => (
             <button
-              key={v.value}
+              key={v}
               onClick={() => {
-                onPick(v.value);
+                onPick(v);
                 setOpen(false);
               }}
               className="block w-full rounded px-2 py-1.5 text-left text-sm text-neutral-700 hover:bg-neutral-100"
             >
-              {v.label}
+              {DATABASE_VIEW_LABELS[v]}
             </button>
           ))}
         </div>

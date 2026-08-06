@@ -56,9 +56,14 @@ function FormulaCell({ dbId, row, column }: { dbId: string; row: DbRow; column: 
 }
 
 /** Label ringkas sebuah baris: nilai kolom teks pertama yang terisi, kalau
- *  tidak ada pakai nomor urut. Dipakai untuk chip & pemilih relasi. */
-function rowLabel(db: Database, row: DbRow, index: number): string {
-  const textCol = db.columns.find((c) => c.type === "text");
+ *  tidak ada pakai nomor urut. Dipakai untuk chip & pemilih relasi.
+ *
+ *  Terima `textCol` yang SUDAH dicari (bukan `db` mentah): pemanggil di bawah
+ *  memanggil ini sekali per BARIS (chip tertaut + tiap opsi dropdown), dan
+ *  `db.columns.find(...)` yang tadinya di dalam sini akan berulang identik
+ *  untuk semua baris di database yang sama — kolom teks pertamanya tak pernah
+ *  beda antar baris. */
+function rowLabel(textCol: DbColumn | undefined, row: DbRow, index: number): string {
   const v = textCol ? row.cells[textCol.id] : null;
   if (typeof v === "string" && v.trim()) return v.trim();
   return `Baris ${index + 1}`;
@@ -89,25 +94,29 @@ function RelationCell({
     return <span className="text-xs text-red-400">database tujuan hilang</span>;
   }
 
-  const labelFor = (rid: string) => {
-    const idx = target.rows.findIndex((r) => r.id === rid);
-    return idx < 0 ? "?" : rowLabel(target, target.rows[idx], idx);
-  };
+  // Indeks id→urutan dibangun sekali. Versi lama memindai `target.rows` secara
+  // linear DUA kali per chip (`some` untuk menyaring, lalu `findIndex` untuk
+  // labelnya), jadi biayanya tumbuh sebagai tautan × baris di tiap render sel.
+  const indexOf = new Map(target.rows.map((r, i) => [r.id, i] as const));
+  const textCol = target.columns.find((c) => c.type === "text");
 
   return (
     <div className="flex flex-wrap items-center gap-1">
       {linked
-        .filter((rid) => target.rows.some((r) => r.id === rid))
-        .map((rid) => (
+        .filter((rid) => indexOf.has(rid))
+        .map((rid) => {
+          const idx = indexOf.get(rid)!;
+          return (
           <button
             key={rid}
             onClick={() => toggleRelation(dbId, rowId, column.id, rid)}
             title="Klik untuk lepas"
             className="rounded bg-forest-50 px-1.5 py-0.5 text-xs text-forest-800 hover:bg-red-50 hover:text-red-600"
           >
-            {labelFor(rid)} ✕
+            {rowLabel(textCol, target.rows[idx], idx)} ✕
           </button>
-        ))}
+          );
+        })}
       <details className="relative">
         <summary className="cursor-pointer list-none rounded px-1 text-xs text-neutral-400 hover:text-neutral-700">
           + tautkan
@@ -127,7 +136,7 @@ function RelationCell({
                   onChange={() => toggleRelation(dbId, rowId, column.id, r.id)}
                   className="h-3.5 w-3.5 accent-forest-600"
                 />
-                <span className="truncate text-neutral-700">{rowLabel(target, r, i)}</span>
+                <span className="truncate text-neutral-700">{rowLabel(textCol, r, i)}</span>
               </label>
             ))
           )}

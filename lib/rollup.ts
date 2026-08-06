@@ -21,14 +21,19 @@ export function computeRollup(
     // Hitung hanya tautan yang barisnya masih ada — konsisten dengan chip yang
     // ditampilkan (yang juga menyaring baris terhapus) dan dengan sum/avg/min/max.
     if (!targetDb) return links.length;
-    return links.filter((id) => targetDb.rows.some((r) => r.id === id)).length;
+    const ids = new Set(targetDb.rows.map((r) => r.id));
+    return links.filter((id) => ids.has(id)).length;
   }
 
   const targetColId = col.rollupTargetColumnId;
   if (!targetDb || !targetColId) return null;
 
+  // Indeks baris tujuan dibangun sekali, bukan pemindaian linear per tautan:
+  // fungsi ini dipanggil per-baris per-kolom-rollup saat render, jadi `find`/
+  // `some` di dalam loop tautan tumbuh jadi biaya kubik pada tabel yang ramai.
+  const byId = new Map(targetDb.rows.map((r) => [r.id, r] as const));
   const nums = links
-    .map((id) => targetDb.rows.find((r) => r.id === id))
+    .map((id) => byId.get(id))
     .filter((r): r is DbRow => !!r)
     .map((r) => r.cells[targetColId])
     .filter((v): v is number => typeof v === "number");

@@ -17,6 +17,7 @@ const CATEGORY_PALETTE: ConnectorColor[] = ["blue", "green", "amber", "purple", 
 const colorable = (c: DbColumn) => c.type === "text" || c.type === "checkbox";
 
 const WEEKDAYS = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+const WEEKDAYS_LONG = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const MONTHS = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
   "Juli", "Agustus", "September", "Oktober", "November", "Desember",
@@ -86,8 +87,6 @@ function longDate(key: string): string {
   return `${wd}, ${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-const WEEKDAYS_LONG = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-
 /** `dateBy`/`onDateByChange`: override opsional per-pemanggil — dipakai oleh
  *  DatabaseViewCard supaya tiap kartu punya kolom-tanggal acuan SENDIRI,
  *  independen dari `db.dateBy` yang dipakai modal DatabaseView. Tak dioper
@@ -127,8 +126,6 @@ export function CalendarBoard({
   const dayKeyAt = (x: number, y: number) =>
     document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-day-key]")?.dataset.dayKey ?? null;
 
-  const byDay = dateCol ? bucketByDay(db, dateCol) : new Map<string, Database["rows"]>();
-
   if (!dateCol) {
     return (
       <p className="p-6 text-center text-sm text-neutral-400">
@@ -139,6 +136,9 @@ export function CalendarBoard({
     );
   }
 
+  // Setelah guard di atas dateCol dijamin ada — dulu bucketByDay dipanggil
+  // sebelum guard lewat ternary + Map kosong yang tak pernah terpakai.
+  const byDay = bucketByDay(db, dateCol);
   const days = monthGrid(ym.year, ym.month);
   const today = todayStr();
   const label = (r: Database["rows"][number]) => {
@@ -166,6 +166,10 @@ export function CalendarBoard({
     }
     return null;
   };
+
+  // Baris di tanggal yang drawer-nya terbuka — dulu `byDay.get(openDay) ?? []`
+  // dievaluasi dua kali di JSX (sekali untuk cek kosong, sekali untuk map).
+  const openDayRows = openDay ? byDay.get(openDay) ?? [] : [];
 
   const shift = (delta: number) => {
     const d = new Date(ym.year, ym.month + delta, 1);
@@ -340,15 +344,17 @@ export function CalendarBoard({
             </button>
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {(byDay.get(openDay) ?? []).length === 0 ? (
+            {openDayRows.length === 0 ? (
               <p className="px-1 py-4 text-center text-xs text-neutral-400">Belum ada baris.</p>
             ) : (
-              (byDay.get(openDay) ?? []).map((r) => (
+              openDayRows.map((r) => {
+                const dotColor = categoryColorFor(r, colorCol, colorMap);
+                return (
                 <div key={r.id} className="group flex items-center gap-1 rounded px-1 hover:bg-neutral-50">
-                  {categoryColorFor(r, colorCol, colorMap) && (
+                  {dotColor && (
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: categoryColorFor(r, colorCol, colorMap)! }}
+                      style={{ backgroundColor: dotColor }}
                     />
                   )}
                   {titleCol ? (
@@ -369,7 +375,8 @@ export function CalendarBoard({
                     ✕
                   </button>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
           <button

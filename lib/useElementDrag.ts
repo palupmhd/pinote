@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import { canvasBus } from "./canvasBus";
+import { cardNode, otherCardBoxes } from "./domGeometry";
 import {
   bestSnapPair,
   cardAlignPairs,
@@ -44,17 +45,22 @@ function memberVisualBox(m: Member): Box {
 /** Kotak gabungan (bounding box) SEMUA anggota grup yang sedang digeser —
  *  smart-guide menimbang tepi/tengah kotak GABUNGAN ini, bukan per-kartu,
  *  supaya grup tetap bergerak sebagai satu kesatuan (sejalan dengan cara
- *  moveMany men-commit-nya sebagai satu langkah). */
-function groupVisualBox(members: Member[]): Box {
+ *  moveMany men-commit-nya sebagai satu langkah). Sekalian mengembalikan pojok
+ *  kiri-atas MENTAH (kotak posisi, tanpa koreksi gutter) — itu ruang koordinat
+ *  yang dipakai pencocokan margin kanvas, lihat computeGroupSnap. */
+function groupBoxes(members: Member[]): { visual: Box; rawLeft: number; rawTop: number } {
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  let rawLeft = Infinity, rawTop = Infinity;
   for (const m of members) {
     const b = memberVisualBox(m);
     left = Math.min(left, b.x);
     top = Math.min(top, b.y);
     right = Math.max(right, b.x + b.w);
     bottom = Math.max(bottom, b.y + b.h);
+    rawLeft = Math.min(rawLeft, m.curX);
+    rawTop = Math.min(rawTop, m.curY);
   }
-  return { x: left, y: top, w: right - left, h: bottom - top };
+  return { visual: { x: left, y: top, w: right - left, h: bottom - top }, rawLeft, rawTop };
 }
 
 type Match = SnapCandidatePair & { delta: number };
@@ -100,12 +106,12 @@ function computeGroupSnap(
 } {
   const zone = SNAP_ZONE_PX / zoom;
 
-  const rawLeft = Math.min(...drag.members.map((m) => m.curX));
-  const rawTop = Math.min(...drag.members.map((m) => m.curY));
+  // Satu lintasan atas anggota grup untuk kotak visual DAN pojok mentah —
+  // dipanggil tiap pointermove, jadi jangan alokasi array antara per frame.
+  const { visual: group, rawLeft, rawTop } = groupBoxes(drag.members);
   const marginMatchX = bestSnapPair([{ candidateValue: rawLeft, targetValue: CANVAS_MARGIN_X }], zone);
   const marginMatchY = bestSnapPair([{ candidateValue: rawTop, targetValue: CANVAS_MARGIN_Y }], zone);
 
-  const group = groupVisualBox(drag.members);
   const cardMatchX = bestSnapPair(
     cardAlignPairs(group.x, group.x + group.w / 2, group.x + group.w, drag.otherBoxes, "x"),
     zone
@@ -158,6 +164,15 @@ export function useElementDrag(element: CardElement, enabled = true) {
     otherBoxes: Box[];
     moved: boolean;
   } | null>(null);
+  // Bertahan lewat `dragRef.current = null` di onPointerUp — browser menembak
+  // event click/dblclick SETELAH pointerup pada gesture yang sama (bukan di
+  // tugas terpisah), jadi wasDragged() dipanggil dari handler dblclick akan
+  // SELALU baca dragRef yang sudah dikosongkan kalau dibaca dari sana; itulah
+  // sebabnya wasDragged() sebelumnya tak pernah bisa true. Diisi ulang di
+  // onPointerUp (nilai gestur yang baru selesai), dibaca lewat wasDragged(),
+  // lalu direset di awal onPointerDown BERIKUTNYA supaya tak "bocor" ke klik
+  // lain yang tak berkaitan dengan drag ini.
+  const lastMovedRef = useRef(false);
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (!enabled || e.button !== 0) return;
@@ -167,6 +182,7 @@ export function useElementDrag(element: CardElement, enabled = true) {
     const target = e.target as HTMLElement;
     if (target.closest('input, textarea, button, select, a, [contenteditable="true"]')) return;
     e.stopPropagation();
+    lastMovedRef.current = false; // gestur baru dimulai — bersihkan penanda gestur sebelumnya
 
     // Shift/Ctrl-klik: toggle keanggotaan seleksi, tanpa memulai geseran.
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -193,21 +209,12 @@ export function useElementDrag(element: CardElement, enabled = true) {
         curX: el.x,
         curY: el.y,
         width: el.width,
-        node: document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`),
+        node: cardNode(el.id),
       }));
 
     // Kotak visual kartu LAIN (bukan grup ini) di papan yang sama — dihitung
-    // SEKALI di sini, bukan tiap frame pointermove: kartu-kartu itu diam
-    // selama drag ini berlangsung (satu-satunya yang bergerak ya grup ini),
-    // jadi kotaknya tak pernah berubah sampai drag selesai. Menghindari
-    // pemindaian + offsetHeight (memaksa layout) atas SEMUA kartu papan tiap
-    // frame — itu satu-satunya sumber "kartu lain" buat smart-guide antar-kartu.
-    const otherBoxes: Box[] = Object.values(st.elements)
-      .filter(
-        (el): el is CardElement =>
-          el.type !== "CONNECTOR" && el.boardId === st.currentBoardId && !groupIdSet.has(el.id)
-      )
-      .map((el) => cardVisualBox(el, document.querySelector<HTMLElement>(`[data-element-id="${el.id}"]`), MIN_CARD_HEIGHT));
+    // SEKALI di sini, bukan tiap frame pointermove (lihat otherCardBoxes).
+    const otherBoxes = otherCardBoxes(st.elements, st.currentBoardId, groupIdSet);
 
     dragRef.current = {
       pointerId: e.pointerId,
@@ -262,6 +269,7 @@ export function useElementDrag(element: CardElement, enabled = true) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== e.pointerId) return;
     dragRef.current = null;
+    lastMovedRef.current = drag.moved;
     canvasBus.emitGuideLines(null, null);
     canvasBus.emitGapMeasures(null, null);
     if (drag.moved) {
@@ -295,7 +303,7 @@ export function useElementDrag(element: CardElement, enabled = true) {
 
   /** true kalau pointer barusan benar-benar digeser — dipakai untuk membedakan
    *  klik dari akhir sebuah drag. */
-  const wasDragged = () => dragRef.current?.moved ?? false;
+  const wasDragged = () => lastMovedRef.current;
 
   return { rootRef, wasDragged, dragHandlers: { onPointerDown, onPointerMove, onPointerUp } };
 }

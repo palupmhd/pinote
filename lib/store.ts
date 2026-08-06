@@ -35,6 +35,11 @@ const LINK_WIDTH = 240;
 const DATABASE_CARD_WIDTH = 220;
 const IMAGE_MAX_WIDTH = 320;
 const IMAGE_MIN_WIDTH = 140;
+/** Seberapa jauh kartu baru digeser ke ATAS dari titik jatuhnya — biar titik
+ *  klik jatuh di dalam kartu (dekat baris pertamanya), bukan di pojok kiri-atas.
+ *  Note lebih kecil karena barisnya lebih rapat dari kartu berjudul. */
+const NOTE_DROP_Y_OFFSET = 20;
+const CARD_DROP_Y_OFFSET = 30;
 
 /** Ukuran default kartu DATABASE_VIEW per tampilan — kelipatan GRID (10),
  *  konsisten dengan lebar kartu bawaan lain. Kalender & Kanban butuh ruang
@@ -233,6 +238,47 @@ function updateTaskList(
   });
 }
 
+/** Field geometri yang boleh dipatch lewat updateCardElement. SENGAJA bukan
+ *  `Partial<CardElement>`: menyertakan `type`/`content` di sini akan melebarkan
+ *  diskriminan union saat di-spread, sehingga hasilnya tak lagi bertipe satu
+ *  varian kartu yang pasti. */
+type CardGeometryPatch = { x?: number; y?: number; width?: number; height?: number };
+
+/** Patch satu KARTU (bukan konektor, yang tak punya posisi/ukuran sendiri),
+ *  menjaga guard tipe & `updatedAt` konsisten — dipakai moveElement &
+ *  resizeElement, yang sebelumnya dua salinan identik dari blok ini. */
+function updateCardElement(set: SetState, id: string, patch: CardGeometryPatch) {
+  set((s) => {
+    const el = s.elements[id];
+    if (!el || el.type === "CONNECTOR") return s;
+    return { elements: { ...s.elements, [id]: { ...el, ...patch, updatedAt: Date.now() } } };
+  });
+}
+
+/** Field bawaan tiap kartu baru: identitas, penempatan (dipusatkan horizontal
+ *  di titik jatuh, digeser `yOffset` ke atas), dan bookkeeping z-index/waktu.
+ *  Pemanggil menambahkan `type` + `content`-nya sendiri secara literal —
+ *  sengaja TIDAK ikut disembunyikan di sini, supaya bentuk tiap tipe kartu
+ *  tetap terbaca langsung di tempat pembuatannya. */
+function cardBase(
+  s: CanvasState,
+  id: string,
+  width: number,
+  worldX: number,
+  worldY: number,
+  yOffset: number
+) {
+  return {
+    id,
+    boardId: s.currentBoardId,
+    x: worldX - width / 2,
+    y: worldY - yOffset,
+    width,
+    zIndex: nextZIndex(s.elements, s.currentBoardId),
+    updatedAt: Date.now(),
+  };
+}
+
 /** Pembungkus umum untuk mengubah satu Database, menjaga guard "ada/tidak"
  *  tetap satu tempat (mirip updateTaskList untuk daftar tugas). */
 function updateDatabase(
@@ -274,27 +320,54 @@ function coerceCell(value: CellValue, type: ColumnType): CellValue | undefined {
 }
 
 function nextZIndex(elements: Record<string, BoardElement>, boardId: string): number {
-  const zs = Object.values(elements)
-    .filter((e) => e.boardId === boardId && e.type !== "CONNECTOR")
-    .map((e) => e.zIndex);
-  return zs.length ? Math.max(...zs) + 1 : 1;
+  // Satu lintasan tanpa array antara: versi lama membangun dua array (filter →
+  // map) lalu `Math.max(...zs)`, dan spread atas papan yang sangat ramai bisa
+  // menembus batas argumen fungsi. Ini dipanggil di tiap pembuatan kartu.
+  let top = 0;
+  for (const e of Object.values(elements)) {
+    if (e.boardId !== boardId || e.type === "CONNECTOR") continue;
+    if (e.zIndex > top) top = e.zIndex;
+  }
+  return top + 1;
 }
 
 /** Board + seluruh keturunannya — dipakai saat menghapus kartu papan supaya
- *  isinya tidak jadi data menggantung. */
+ *  isinya tidak jadi data menggantung.
+ *
+ *  Indeks induk→anak dibangun sekali lalu ditelusuri BFS. Versi lama memindai
+ *  ULANG seluruh `boards` berkali-kali sampai satu putaran penuh tak menemukan
+ *  anak baru (O(papan²) pada hierarki dalam); hasilnya sama persis, cuma
+ *  jalannya yang linear. */
 function collectDescendants(boards: Record<string, Board>, rootId: string): Set<string> {
+  const childrenOf = new Map<string, string[]>();
+  for (const b of Object.values(boards)) {
+    if (!b.parentBoardId) continue;
+    const siblings = childrenOf.get(b.parentBoardId);
+    if (siblings) siblings.push(b.id);
+    else childrenOf.set(b.parentBoardId, [b.id]);
+  }
   const ids = new Set<string>([rootId]);
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const b of Object.values(boards)) {
-      if (b.parentBoardId && ids.has(b.parentBoardId) && !ids.has(b.id)) {
-        ids.add(b.id);
-        grew = true;
-      }
+  const queue = [rootId];
+  while (queue.length) {
+    for (const childId of childrenOf.get(queue.pop()!) ?? []) {
+      if (ids.has(childId)) continue; // siklus induk korup: jangan berputar selamanya
+      ids.add(childId);
+      queue.push(childId);
     }
   }
   return ids;
+}
+
+/** Buang konektor yang salah satu ujungnya sudah lenyap. MUTATES `elements`.
+ *  Wajib jalan SETELAH semua penghapusan selesai (bukan di tengah kaskade),
+ *  supaya konektor tak ikut terbuang gara-gara ujungnya "sementara" belum
+ *  sempat dihapus. Dipakai bareng removeElements & removeRow. */
+function pruneOrphanConnectors(elements: Record<string, BoardElement>): void {
+  for (const e of Object.values(elements)) {
+    if (e.type === "CONNECTOR" && (!elements[e.sourceElementId] || !elements[e.targetElementId])) {
+      delete elements[e.id];
+    }
+  }
 }
 
 /** Hapus satu elemen beserta entitas yang cuma "dimiliki" olehnya (database
@@ -388,12 +461,7 @@ function removeElements(
   const nc = { ...cameras };
 
   for (const id of ids) purgeElementCascade(nb, ne, nd, nc, id);
-
-  for (const e of Object.values(ne)) {
-    if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
-      delete ne[e.id];
-    }
-  }
+  pruneOrphanConnectors(ne);
 
   return { boards: nb, elements: ne, databases: nd, cameras: nc };
 }
@@ -501,15 +569,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [id]: {
-          id,
-          boardId: s.currentBoardId,
+          ...cardBase(s, id, NOTE_WIDTH, worldX, worldY, NOTE_DROP_Y_OFFSET),
           type: "NOTE",
-          x: worldX - NOTE_WIDTH / 2,
-          y: worldY - 20,
-          width: NOTE_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { html: "" },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [id],
@@ -552,7 +614,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             x,
             y,
             width: NOTE_WIDTH,
-            zIndex: count + 1,
+            // nextZIndex, bukan `count + 1` — `count` cuma menghitung kartu
+            // yang MASIH ADA (buat penempatan y), jadi habis satu kartu Inbox
+            // dihapus, `count + 1` bisa jatuh sama dengan z-index kartu yang
+            // masih hidup (kartu baru mendarat DI BAWAH kartu lama, bukan di
+            // atasnya). nextZIndex baca zIndex tertinggi yang sungguh ada.
+            zIndex: nextZIndex(s.elements, INBOX_BOARD_ID),
             content: { html: "" },
             updatedAt: Date.now(),
           },
@@ -579,15 +646,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [elementId]: {
-          id: elementId,
-          boardId: s.currentBoardId,
+          ...cardBase(s, elementId, BOARD_CARD_WIDTH, worldX, worldY, CARD_DROP_Y_OFFSET),
           type: "BOARD_REF",
-          x: worldX - BOARD_CARD_WIDTH / 2,
-          y: worldY - 30,
-          width: BOARD_CARD_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { boardId: newBoardId },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [elementId],
@@ -672,18 +733,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [id]: {
-          id,
-          boardId: s.currentBoardId,
+          ...cardBase(s, id, TASK_LIST_WIDTH, worldX, worldY, CARD_DROP_Y_OFFSET),
           type: "TASK_LIST",
-          x: worldX - TASK_LIST_WIDTH / 2,
-          y: worldY - 30,
-          width: TASK_LIST_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: {
             title: "",
             items: [{ id: crypto.randomUUID(), text: "", done: false }],
           },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [id],
@@ -737,15 +792,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [id]: {
-          id,
-          boardId: s.currentBoardId,
+          ...cardBase(s, id, LINK_WIDTH, worldX, worldY, CARD_DROP_Y_OFFSET),
           type: "LINK",
-          x: worldX - LINK_WIDTH / 2,
-          y: worldY - 30,
-          width: LINK_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { url: "", state: "empty" },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [id],
@@ -770,15 +819,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [elementId]: {
-          id: elementId,
-          boardId: s.currentBoardId,
+          ...cardBase(s, elementId, DATABASE_CARD_WIDTH, worldX, worldY, CARD_DROP_Y_OFFSET),
           type: "DATABASE_REF",
-          x: worldX - DATABASE_CARD_WIDTH / 2,
-          y: worldY - 30,
-          width: DATABASE_CARD_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { databaseId },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [elementId],
@@ -793,15 +836,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [elementId]: {
-          id: elementId,
-          boardId: s.currentBoardId,
+          ...cardBase(s, elementId, DATABASE_CARD_WIDTH, worldX, worldY, CARD_DROP_Y_OFFSET),
           type: "DATABASE_REF",
-          x: worldX - DATABASE_CARD_WIDTH / 2,
-          y: worldY - 30,
-          width: DATABASE_CARD_WIDTH,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { databaseId },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [elementId],
@@ -817,20 +854,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [elementId]: {
-          id: elementId,
-          boardId: s.currentBoardId,
-          type: "DATABASE_VIEW",
           // Di-center KEDUA sumbu (beda dari attachDatabase yang cuma geser Y
-          // tetap -30) — kartu-view jauh lebih tinggi dari kartu pintu, jadi
-          // offset tetap kecil akan mendaratkannya sebagian besar di bawah
-          // titik klik.
-          x: worldX - width / 2,
-          y: worldY - height / 2,
-          width,
+          // tetap CARD_DROP_Y_OFFSET) — kartu-view jauh lebih tinggi dari kartu
+          // pintu, jadi offset tetap kecil akan mendaratkannya sebagian besar di
+          // bawah titik klik. Karena itu yOffset di sini = setengah tingginya.
+          ...cardBase(s, elementId, width, worldX, worldY, height / 2),
+          type: "DATABASE_VIEW",
           height,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: { databaseId, view, groupBy: opts?.groupBy, dateBy: opts?.dateBy },
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [elementId],
@@ -864,15 +895,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       elements: {
         ...s.elements,
         [id]: {
-          id,
-          boardId: s.currentBoardId,
+          // Dipusatkan di kedua sumbu: tinggi turunan rasio di atas cuma dipakai
+          // untuk itu, tidak ikut disimpan (tinggi Image ikut aspect-ratio CSS).
+          ...cardBase(s, id, width, worldX, worldY, height / 2),
           type: "IMAGE",
-          x: worldX - width / 2,
-          y: worldY - height / 2,
-          width,
-          zIndex: nextZIndex(s.elements, s.currentBoardId),
           content: img,
-          updatedAt: Date.now(),
         },
       },
       selectedIds: [id],
@@ -1149,11 +1176,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         const nc = { ...s.cameras };
         const ne = { ...s.elements };
         purgeBoardCascade(nb, ne, databases, nc, gone.boardId);
-        for (const e of Object.values(ne)) {
-          if (e.type === "CONNECTOR" && (!ne[e.sourceElementId] || !ne[e.targetElementId])) {
-            delete ne[e.id];
-          }
-        }
+        pruneOrphanConnectors(ne);
         return { databases, boards: nb, cameras: nc, elements: ne };
       }
       return { databases };
@@ -1207,23 +1230,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setDatabaseDateBy: (dbId, colId) =>
     updateDatabase(set, dbId, (db) => ({ ...db, dateBy: colId })),
 
-  moveElement: (id, x, y) =>
-    set((s) => {
-      const el = s.elements[id];
-      if (!el || el.type === "CONNECTOR") return s; // konektor tak punya posisi sendiri
-      return {
-        elements: { ...s.elements, [id]: { ...el, x, y, updatedAt: Date.now() } },
-      };
-    }),
+  // Konektor tak punya posisi/ukuran sendiri — guard itu ada di updateCardElement.
+  moveElement: (id, x, y) => updateCardElement(set, id, { x, y }),
 
-  resizeElement: (id, patch) =>
-    set((s) => {
-      const el = s.elements[id];
-      if (!el || el.type === "CONNECTOR") return s;
-      return {
-        elements: { ...s.elements, [id]: { ...el, ...patch, updatedAt: Date.now() } },
-      };
-    }),
+  resizeElement: (id, patch) => updateCardElement(set, id, patch),
 
   // Kartu TIDAK PERNAH digeser paksa demi menegakkan CANVAS_MARGIN — versi
   // lama (extend) memaksa SELURUH papan bergeser tiap kali satu kartu
