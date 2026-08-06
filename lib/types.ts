@@ -69,13 +69,9 @@ export interface DbRow {
    *  irisan tipis). Dibuat lazy saat pertama kali baris dibuka sebagai kanvas;
    *  baris tanpa field ini = belum punya kanvas (mayoritas baris). */
   boardId?: string;
-  /** Posisi kartu di tampilan Spatial (spec §7.2 dual-mode penuh). Baris tanpa
-   *  koordinat di-auto-layout grid; koordinat tersimpan begitu baris digeser. */
-  sx?: number;
-  sy?: number;
 }
 
-export type DatabaseView = "table" | "kanban" | "calendar" | "gallery" | "spatial";
+export type DatabaseView = "table" | "kanban" | "calendar";
 
 /** Nama tampil tiap tampilan database — satu sumber kebenaran dipakai pengalih
  *  di modal (DatabaseView.tsx) DAN pemilih "keluarkan sebagai kartu"
@@ -88,8 +84,6 @@ export const DATABASE_VIEW_LABELS: Record<DatabaseView, string> = {
   table: "Tabel",
   kanban: "Kanban",
   calendar: "Kalender",
-  gallery: "Galeri",
-  spatial: "Spasial",
 };
 
 /** Ukuran default kartu DATABASE_VIEW per tampilan — kelipatan GRID (10),
@@ -103,8 +97,6 @@ export const DATABASE_VIEW_DEFAULTS: Record<DatabaseView, { width: number; heigh
   table: { width: 480, height: 360 },
   kanban: { width: 420, height: 420 },
   calendar: { width: 520, height: 480 },
-  gallery: { width: 420, height: 360 },
-  spatial: { width: 420, height: 380 },
 };
 
 export interface Database {

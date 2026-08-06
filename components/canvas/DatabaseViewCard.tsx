@@ -9,10 +9,8 @@ import type { DatabaseViewElement } from "@/lib/types";
 import { CalendarBoard } from "./CalendarBoard";
 import { CardActionBar } from "./CardActionBar";
 import { ConnectHandle } from "./ConnectHandle";
-import { GalleryBoard } from "./GalleryBoard";
 import { KanbanBoard } from "./KanbanBoard";
 import { ResizeHandle } from "./ResizeHandle";
-import { SpatialBoard } from "./SpatialBoard";
 import { TableBoard } from "./TableBoard";
 
 /** Kartu yang merender SATU tampilan Database langsung di kanvas, read+edit
@@ -29,7 +27,7 @@ function DatabaseViewCardBase({ element }: { element: DatabaseViewElement }) {
 
   const { rootRef, dragHandlers } = useElementDrag(element);
   const contentRef = useRef<HTMLDivElement>(null);
-  // BUKAN auto-height: Kanban/Kalender/Galeri/Spasial/Tabel semua layout
+  // BUKAN auto-height: Kanban/Kalender/Tabel semua layout
   // h-full + scroll internal (bukan "tumbuh ikut konten" seperti Note) —
   // attachDatabaseView selalu menyetel `height` eksplisit, jadi selalu
   // nonaktif di sini, bukan digerbang element.height === undefined.
@@ -78,10 +76,6 @@ function DatabaseViewCardBase({ element }: { element: DatabaseViewElement }) {
               dateBy={element.content.dateBy}
               onDateByChange={(colId) => setDatabaseViewConfig(element.id, { dateBy: colId })}
             />
-          ) : element.content.view === "gallery" ? (
-            <GalleryBoard db={db} onOpenRowCanvas={openRowCanvasForCard} />
-          ) : element.content.view === "spatial" ? (
-            <SpatialBoard db={db} onOpenRowCanvas={openRowCanvasForCard} />
           ) : (
             <TableBoard db={db} onOpenRowCanvas={openRowCanvasForCard} />
           )}

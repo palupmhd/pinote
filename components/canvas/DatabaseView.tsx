@@ -5,9 +5,7 @@ import { useCanvasStore } from "@/lib/store";
 import { DATABASE_VIEW_LABELS, type DatabaseView as DatabaseViewMode } from "@/lib/types";
 import { useUiStore } from "@/lib/ui";
 import { CalendarBoard } from "./CalendarBoard";
-import { GalleryBoard } from "./GalleryBoard";
 import { KanbanBoard } from "./KanbanBoard";
-import { SpatialBoard } from "./SpatialBoard";
 import { TableBoard } from "./TableBoard";
 
 /** Editor tabel penuh untuk satu Database (spec §8.4). Dibuka dari kartu
@@ -65,16 +63,14 @@ export function DatabaseView() {
   const boardFor = (mode: DatabaseViewMode) => {
     if (mode === "kanban") return <KanbanBoard db={db} />;
     if (mode === "calendar") return <CalendarBoard db={db} />;
-    if (mode === "gallery") return <GalleryBoard db={db} onOpenRowCanvas={openRowCanvas} />;
-    if (mode === "spatial") return <SpatialBoard db={db} onOpenRowCanvas={openRowCanvas} />;
     return <TableBoard db={db} onOpenRowCanvas={openRowCanvas} />;
   };
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6">
       {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat,
-          UKURAN TETAP (lebar & tinggi) — sama persis di kelima tampilan
-          (Tabel/Kanban/Kalender/Galeri/Spasial), bukan lagi h-auto yang dulu
+          UKURAN TETAP (lebar & tinggi) — sama persis di ketiga tampilan
+          (Tabel/Kanban/Kalender), bukan lagi h-auto yang dulu
           mengikuti konten (modal jadi pendek untuk Kanban berisi sedikit
           kartu, tinggi untuk Tabel banyak baris — pemilik: "muncul popupnya
           dengan size yang fix apapun mode view yang dipilih").
@@ -84,7 +80,7 @@ export function DatabaseView() {
           yang punya ukuran intrinsik tetap — grid Kalender (header bulan
           ~40px + baris hari ~24px + 6 baris sel `min-h-[64px]` = 384px,
           ditambah header modal ~56px ≈ 504px) — plus ruang lega di atasnya
-          buat Tabel/Kanban/Galeri menampilkan beberapa baris/kartu sebelum
+          buat Tabel/Kanban menampilkan beberapa baris/kartu sebelum
           scroll internal masing-masing (semua view sudah `overflow-auto`
           sendiri-sendiri) mulai bekerja. `min(640px,85vh)` menyusut lembut
           di viewport pendek, bukan meluber keluar layar. */}

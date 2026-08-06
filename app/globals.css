@@ -63,8 +63,8 @@ body {
   box-shadow: 0 20px 35px -10px rgba(0, 0, 0, 0.28), 0 6px 12px rgba(0, 0, 0, 0.10);
 }
 
-/* Banyak field kecil di seluruh app (sel Tabel/Kanban/Kalender/Galeri/Spatial,
- * dst) menghapus outline browser bawaan (Tailwind `outline-none`) demi
+/* Banyak field kecil di seluruh app (sel Tabel/Kanban/Kalender, dst) menghapus
+ * outline browser bawaan (Tailwind `outline-none`) demi
  * tampilan bersih, tapi kebanyakan tak pernah diberi pengganti — pengguna
  * keyboard kehilangan indikator fokus SAMA SEKALI. Dikonfirmasi lewat
  * computed style sungguhan (outlineStyle "none", boxShadow "none"), bukan
