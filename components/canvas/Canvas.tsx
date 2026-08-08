@@ -7,6 +7,7 @@ import { redo, startHistory, undo } from "@/lib/history";
 import { copySelection, duplicateSelection, pasteClipboard } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { firstImageFile, importImageFile } from "@/lib/images";
+import { insideCanvasOverlay, scrollAbsorber } from "@/lib/scroll";
 import { useUiStore } from "@/lib/ui";
 import { AgendaView } from "./AgendaView";
 import { BoardCard } from "./BoardCard";
@@ -460,13 +461,40 @@ export function Canvas() {
 
   // Wheel: pan (default) / zoom ke arah kursor (ctrl / pinch trackpad).
   // Listener manual karena wheel React bersifat passive → preventDefault tak jalan.
+  //
+  // Listener ini di container TERLUAR, jadi ia menerima wheel dari seluruh
+  // keturunannya — dan preventDefault tanpa syarat (dulu baris pertamanya)
+  // membatalkan scroll native SATU RANTAI PENUH, termasuk scroller di dalam
+  // kartu & modal. Makanya ada dua guard di bawah sebelum kamera disentuh,
+  // sejajar dengan guard isBackground() yang sudah lama dipakai handler
+  // pointer — wheel-lah satu-satunya jalur yang dulu tak punya padanannya.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Pinch trackpad datang sebagai wheel + ctrlKey (bukan gesture event) —
+      // dipisah di atas karena DUA guard di bawah memperlakukannya beda.
+      const zoomGesture = e.ctrlKey || e.metaKey;
+
+      // Guard 1 — di atas panel yang menutupi kanvas (modal database,
+      // pencarian, agenda): kamera di belakangnya diam total. preventDefault
+      // tetap dipanggil untuk gestur zoom supaya yang terjadi bukan malah zoom
+      // BROWSER; untuk scroll biasa sengaja TIDAK, karena itulah yang membuat
+      // isi panel bisa discroll normal.
+      if (insideCanvasOverlay(e.target)) {
+        if (zoomGesture) e.preventDefault();
+        return;
+      }
+
+      // Guard 2 — ada kotak scroll di bawah kursor (isi kartu, tabel database,
+      // kolom Kanban, dropdown): roda milik dia. Gestur zoom DIKECUALIKAN —
+      // pinch di atas kartu tetap men-zoom kanvas, sama seperti Figma/Milanote,
+      // bukan men-scroll isi kartunya.
+      if (!zoomGesture && scrollAbsorber(e.target, el, e.deltaX, e.deltaY)) return;
+
       e.preventDefault();
       const cam = cameraRef.current;
-      if (e.ctrlKey || e.metaKey) {
+      if (zoomGesture) {
         const rect = el.getBoundingClientRect();
         const cx = e.clientX - rect.left;
         const cy = e.clientY - rect.top;

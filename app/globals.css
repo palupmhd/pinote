@@ -80,6 +80,58 @@ textarea:focus-visible,
   outline-offset: 1px;
 }
 
+/* ── Scroller di dalam kanvas ───────────────────────────────────────────────
+ *
+ * Pasangan CSS dari guard wheel di lib/scroll.ts. Guard itu menyelesaikan
+ * "roda mouse di atas kartu/modal jangan menggerakkan kamera"; dua hal di
+ * bawah ini yang tak bisa diselesaikan dari JS.
+ *
+ * Selektornya SENGAJA mencocokkan kelas utility Tailwind-nya, bukan penanda
+ * yang dipasang manual: kelas itulah yang membuat elemennya jadi kotak scroll,
+ * jadi aturan ini mustahil melenceng dari kenyataan — scroller baru otomatis
+ * ikut benar tanpa ada yang perlu ingat menambah penanda (alasan yang sama
+ * dengan aturan :focus-visible global di atas). `~=` mencocokkan kata utuh di
+ * atribut class, bukan substring.
+ *
+ * (1) overscroll-behavior: scroll yang mentok di ujung tak merambat ke kotak
+ *     scroll di LUARNYA — mis. kolom Kanban di dalam modal database, atau
+ *     badan tabel di dalam modalnya sendiri. */
+[data-canvas-bg="true"] [class~="overflow-auto"],
+[data-canvas-bg="true"] [class~="overflow-scroll"],
+[data-canvas-bg="true"] [class~="overflow-x-auto"],
+[data-canvas-bg="true"] [class~="overflow-x-scroll"],
+[data-canvas-bg="true"] [class~="overflow-y-auto"],
+[data-canvas-bg="true"] [class~="overflow-y-scroll"] {
+  overscroll-behavior: contain;
+}
+
+/* (2) touch-action: container kanvas memakai `touch-none` (perlu — supaya
+ *     seret jari di latar jadi marquee, bukan scroll/zoom halaman bawaan
+ *     browser), tapi itu ikut mematikan scroll SENTUH di seluruh keturunannya.
+ *     Sumbunya dikembalikan per-utility, cuma yang memang bisa discroll
+ *     elemen itu — `pan-x pan-y` borongan justru bikin browser merebut
+ *     geseran ke sumbu yang tak punya isi untuk digeser.
+ *
+ *     Dibatasi ke dalam [data-canvas-overlay] (modal database, pencarian,
+ *     agenda) dan TIDAK berlaku untuk isi kartu di atas kanvas. Kartu tak
+ *     punya gagang seret terpisah — seluruh permukaannya adalah area seret —
+ *     jadi menyalakan pan sentuh di isinya akan menukar "seret kartu" dengan
+ *     "scroll isi kartu" di perangkat sentuh. Scroll isi kartu lewat jari
+ *     butuh gagang seret dulu; itu perubahan desain tersendiri, bukan
+ *     perbaikan bug ini. */
+[data-canvas-overlay] [class~="overflow-auto"],
+[data-canvas-overlay] [class~="overflow-scroll"] {
+  touch-action: pan-x pan-y;
+}
+[data-canvas-overlay] [class~="overflow-x-auto"],
+[data-canvas-overlay] [class~="overflow-x-scroll"] {
+  touch-action: pan-x;
+}
+[data-canvas-overlay] [class~="overflow-y-auto"],
+[data-canvas-overlay] [class~="overflow-y-scroll"] {
+  touch-action: pan-y;
+}
+
 /* Editor Tiptap di dalam NoteCard */
 .note-editor .ProseMirror {
   outline: none;

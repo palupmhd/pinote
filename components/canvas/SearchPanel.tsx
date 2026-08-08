@@ -188,6 +188,7 @@ function SearchPanelInner() {
 
   return (
     <div
+      data-canvas-overlay="true"
       className="pointer-events-auto absolute inset-0 z-50 flex items-start justify-center bg-neutral-900/20 pt-[12vh]"
       onPointerDown={(e) => {
         if (e.target === e.currentTarget) close(); // klik latar = tutup

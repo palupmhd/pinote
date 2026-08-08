@@ -115,7 +115,10 @@ export function AgendaView() {
   };
 
   return (
-    <div className="pointer-events-auto absolute right-0 top-0 z-30 flex h-full w-96 max-w-[90vw] flex-col border-l border-neutral-200 bg-white/95 shadow-xl backdrop-blur">
+    <div
+      data-canvas-overlay="true"
+      className="pointer-events-auto absolute right-0 top-0 z-30 flex h-full w-96 max-w-[90vw] flex-col border-l border-neutral-200 bg-white/95 shadow-xl backdrop-blur"
+    >
       <div className="flex items-center justify-between border-b border-neutral-200 px-4 py-3">
         <h2 className="text-sm font-semibold text-neutral-800">Agenda</h2>
         <button

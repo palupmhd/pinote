@@ -67,7 +67,10 @@ export function DatabaseView() {
   };
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6">
+    <div
+      data-canvas-overlay="true"
+      className="pointer-events-auto absolute inset-0 z-40 flex items-center justify-center bg-neutral-900/30 p-0 sm:p-6"
+    >
       {/* Layar kecil: modal penuh layar tanpa sudut/pinggir; sm+: kartu terpusat,
           UKURAN TETAP (lebar & tinggi) — sama persis di ketiga tampilan
           (Tabel/Kanban/Kalender), bukan lagi h-auto yang dulu
