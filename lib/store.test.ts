@@ -140,7 +140,7 @@ test("setCamera: batas pan istirahat persis di 0, melonggar ke kartu−margin be
   assert.equal(reverted.y, 0);
 });
 
-// --- Kartu DATABASE_VIEW (extract Kanban/Kalender/Galeri/Spasial/Tabel jadi kartu kanvas) ---
+// --- Kartu DATABASE_VIEW (extract Kanban/Kalender/Tabel jadi kartu kanvas) ---
 
 test("attachDatabaseView menghasilkan elemen DATABASE_VIEW berbentuk benar", () => {
   createEmptyBoard();
@@ -189,7 +189,7 @@ test("hapus kartu DATABASE_REF/DATABASE_VIEW: database cuma benar-benar hilang b
   const doorId = s.addDatabase(0, 0);
   const dbId = databaseIdOf(doorId);
   const viewAId = s.attachDatabaseView(dbId, "kanban", 100, 100)!;
-  const viewBId = s.attachDatabaseView(dbId, "gallery", 300, 100)!;
+  const viewBId = s.attachDatabaseView(dbId, "calendar", 300, 100)!;
 
   // Hapus salah satu kartu-view → door-card + kartu-view lain masih menunjuk
   // database ini → database TIDAK boleh hilang.

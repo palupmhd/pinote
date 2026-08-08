@@ -227,8 +227,7 @@ function ColumnHeader({ dbId, column }: { dbId: string; column: DbColumn }) {
   // baru langsung di selector memicu loop tak berujung di zustand v5.
   const databases = useCanvasStore((s) => s.databases);
   // Termasuk database ini sendiri: relasi self-referencing sah (mis. dependensi
-  // antar-baris) dan digambar sebagai panah di tampilan Spatial. Panah kanvas
-  // utama sudah mengabaikan self-loop kartu yang sama.
+  // antar-baris), ditampilkan sebagai chip seperti relasi ke database lain.
   const targets = useMemo(
     () =>
       Object.values(databases).map((d) => ({
@@ -465,8 +464,8 @@ function AddColumnButton({ dbId }: { dbId: string }) {
 
 /** Tampilan Tabel penuh (spec §7.3) — diekstrak dari DatabaseView.tsx supaya
  *  bisa dipakai ulang baik di modal maupun sebagai kartu DATABASE_VIEW di
- *  kanvas, sama seperti Kanban/Kalender/Galeri/Spasial yang sudah lebih dulu
- *  jadi komponen lepas. */
+ *  kanvas, sama seperti Kanban/Kalender yang sudah lebih dulu jadi komponen
+ *  lepas. */
 export function TableBoard({ db, onOpenRowCanvas }: { db: Database; onOpenRowCanvas: (rowId: string) => void }) {
   const addRow = useCanvasStore((s) => s.addRow);
   const removeRow = useCanvasStore((s) => s.removeRow);
